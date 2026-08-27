@@ -1,0 +1,77 @@
+# ============================================================
+# CUI PROTECTION — do not remove or loosen these rules
+# ============================================================
+# Session files contain hostnames, IP addresses, MAC addresses, full software
+# inventories, and open-port data for a real enclave. They are CUI. Never commit one.
+*Session*.json
+session*.json
+
+# Scan data
+*.nessus
+*.nessus.xml
+scans/
+nessus/
+
+# SCAP results and checklists — per-rule results for real hosts
+*.ckl
+*.cklb
+*XCCDF*.xml
+*xccdf*.xml
+Results_*.zip
+checklists/
+scc-results/
+
+# Generated artifacts — all contain real host and software data
+STIG_Applicability*.csv
+Software_Listing*.csv
+PPSM_Registry*.txt
+PPSM_WorkingCopy*.csv
+Asset_Inventory*.csv
+Asset_Reconciliation*.csv
+Change_Record*.csv
+Unsupported_Components*.csv
+Approved_Software*.csv
+OS_Package_Manifest*.csv
+eMASS_*.csv
+Control_Mapping*.csv
+Account_Audit*.csv
+POAM_Draft*.csv
+Prioritized_Vulnerabilities*.csv
+Vulnerability_Detail*.csv
+Vulnerability_Report*.html
+IP_Summary*.csv
+Scan_Coverage*.csv
+STIG_Compliance_Summary*.csv
+STIG_Open_Findings*.csv
+STIG_Coverage*.csv
+Trend_Burndown*.csv
+Remediation_Plan*.csv
+Asset_Report*.csv
+exports/
+output/
+
+# Site-specific configuration — keep local, never publish
+config.local.json
+*.local.json
+site-config/
+
+# Credentials
+*.key
+*.pem
+*.pfx
+apikeys*
+secrets*
+.env
+
+# Synthetic test data is allowed -- fictional hosts only, RFC 5737 / RFC 5398 addresses.
+# NEVER place a real scan export here.
+!test-data/
+!test-data/*.nessus
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
