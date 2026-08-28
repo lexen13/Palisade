@@ -158,8 +158,9 @@ demonstrates rather than relying on the reader to know.
 - **Session persistence** — save/load a JSON sidecar so partial work can be handed off
 - **Live readiness meter** — a pre-delivery QC score in the top bar; green means the evidence
   is internally complete, amber flags what a reviewer will ask about first
-- **Guided onboarding** — first-run wizard, plain-language help on every tab (what to do and
-  what it proves), and a searchable glossary
+- **Guided onboarding** — first-run wizard, a workflow rail that groups the tabs into the four
+  stages in the order you work them, a one-line description at the top of every tab,
+  plain-language help on each (what to do and what it proves), and a searchable glossary
 - **Demo dataset** — six synthetic hosts that exercise the real engine, so you can explore
   every tab and export before you have scan data in hand
 - **Environment profiles** — export settings and detection rules (never scan data) as a small

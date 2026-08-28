@@ -4,6 +4,27 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.6.1 — interface pass
+
+Presentation only. No engine, parser, export, or detection logic was touched; every control,
+export, and setting from 2.6 is still present and does the same thing.
+
+- **Workflow rail.** The eighteen tabs moved from a wrapping two-row tab strip into a left
+  sidebar grouped into the four stages the tool actually walks through — Set up, Evidence,
+  Sustainment, Deliver — plus Advanced. Settings moved into stage 1 (it is step 2 of the
+  documented workflow), and Scan Health leads the Evidence group, since every other artifact
+  depends on whether the scan authenticated.
+- **One obvious action per tab.** Toolbars that had grown to eleven buttons now show the
+  primary export plus grouped dropdowns (More exports / Bring in data / Clean up). The buttons
+  inside are unchanged; filters and view toggles moved to the right of the bar.
+- **Tab headers.** Every tab opens with its name, a one-line plain-language description of
+  what it is for, and a `?` that opens the existing help drawer on that topic.
+- **Reference prose folded away.** The multi-paragraph explanations above each table are
+  collapsed by default and expand on click. Text is unchanged; parse warnings stay visible.
+- Glossary moved into the help drawer, and save/load session into a Session menu, taking the
+  top bar from six controls to four.
+- Status bar no longer grows to cover the page on a long message; it scrolls instead.
+
 ## 2.6 — first public release
 
 - **HW/SW baseline listing ingestion.** Documented hardware and software listings

@@ -90,21 +90,78 @@
   .meter .mtxt b{font-size:12px;font-weight:650}
   .meter .mtxt span{font-size:11px;color:var(--dim)}
 
-  /* ---- grouped workflow nav ---- */
-  .nav{display:flex;gap:6px 14px;padding:0 16px 10px;flex-wrap:wrap;align-items:flex-end}
-  .navgroup{display:flex;align-items:center;gap:4px;padding:6px 8px 4px;
-    border:1px solid var(--line-soft);border-radius:var(--r);background:rgba(255,255,255,.012)}
-  .navgroup .glabel{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-    color:var(--dim);padding:0 8px 0 4px;margin-right:2px;border-right:1px solid var(--line-soft);
-    white-space:nowrap}
-  .navgroup .glabel .n{color:var(--accent);margin-right:5px}
-  #tabs button{border:1px solid transparent;background:transparent;color:var(--dim);
-    padding:6px 11px;border-radius:var(--r-sm);font-size:13px;font-weight:500}
+  /* ---- workflow rail: the four stages, always visible, always in order ---- */
+  .shell{display:flex;align-items:flex-start;max-width:1680px;margin:0 auto}
+  .rail{flex:0 0 214px;align-self:flex-start;position:sticky;top:var(--hdr,84px);
+    max-height:calc(100vh - var(--hdr,84px));overflow:auto;
+    padding:16px 12px 40px;border-right:1px solid var(--line-soft)}
+  .navgroup{margin-bottom:15px}
+  .navgroup .glabel{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--dim);padding:0 4px 6px;white-space:nowrap}
+  .navgroup .glabel .n{width:17px;height:17px;flex:none;border-radius:50%;background:var(--panel2);
+    border:1px solid var(--line);color:var(--accent);font-family:var(--mono);font-size:10px;
+    font-weight:700;display:grid;place-items:center}
+  #tabs button{display:block;width:100%;text-align:left;border:1px solid transparent;
+    background:transparent;color:var(--dim);padding:6px 10px;border-radius:var(--r-sm);
+    font-size:13px;font-weight:500;margin-bottom:1px}
   #tabs button:hover{color:var(--text);background:var(--panel)}
   #tabs button.active{color:#04222c;background:var(--accent);border-color:var(--accent);
     font-weight:650;box-shadow:0 2px 10px rgba(87,200,222,.25)}
 
-  main{padding:20px 22px 84px;max-width:1500px;margin:0 auto}
+  main{flex:1 1 auto;min-width:0;padding:20px 24px 84px}
+
+  /* ---- per-tab heading: what this tab is, in one line ---- */
+  .tabhead{display:flex;align-items:flex-start;gap:12px;margin:0 0 16px}
+  .tabhead .th{flex:1;min-width:0}
+  .tabhead .step{display:block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:3px}
+  .tabhead h1{margin:0;font-size:18.5px;font-weight:650;letter-spacing:.2px}
+  .tabhead p{margin:5px 0 0;color:var(--dim);font-size:12.5px;line-height:1.55;max-width:100ch}
+  .tabhead .qh{margin-top:4px}
+
+  /* ---- toolbar: one obvious action, everything else folded into menus ---- */
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .toolbar .filters{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .toolbar .hint{color:var(--dim);font-size:12.5px}
+  .menu{position:relative;display:inline-block}
+  .menu>.mbtn::after{content:"\25be";margin-left:6px;font-size:10px;opacity:.75}
+  .menu.open>.mbtn{border-color:var(--accent);color:var(--accent)}
+  .mlist{display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:40;min-width:262px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:5px}
+  .menu.open>.mlist{display:block}
+  .mlist button{display:block;width:100%;text-align:left;background:transparent;
+    border:1px solid transparent;padding:7px 10px;border-radius:var(--r-sm);font-size:12.5px;
+    color:var(--text);font-weight:400}
+  .mlist button:hover{background:var(--panel);border-color:transparent;color:var(--accent)}
+  .mlist .mhead{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+    padding:9px 10px 4px;font-weight:700}
+  .mlist hr{border:0;border-top:1px solid var(--line);margin:5px 2px}
+  .mlist label{display:flex;gap:7px;align-items:center;padding:7px 10px;color:var(--dim);
+    font-size:12.5px;line-height:1.4}
+
+  /* ---- shared form controls (were repeated inline on every filter) ---- */
+  .inp,.sel{background:var(--bg);border:1px solid var(--line);color:var(--text);
+    border-radius:var(--r-sm);padding:5px 8px;font-size:12.5px;font-family:var(--sans)}
+  .inp:focus,.sel:focus{outline:none;border-color:var(--accent)}
+  .inp.w{min-width:220px}
+  .chk{color:var(--dim);font-size:12.5px;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+
+  /* ---- reference prose: kept in full, folded away until asked for ---- */
+  details.explain{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    margin-bottom:14px;box-shadow:var(--shadow-sm)}
+  details.explain>summary{cursor:pointer;list-style:none;padding:11px 16px;font-size:12.5px;
+    color:var(--dim);display:flex;align-items:center;gap:9px;font-weight:500}
+  details.explain>summary::-webkit-details-marker{display:none}
+  details.explain>summary::before{content:"\203a";color:var(--accent);font-size:17px;line-height:1;
+    transition:transform .15s;display:inline-block}
+  details.explain[open]>summary::before{transform:rotate(90deg)}
+  details.explain[open]>summary{border-bottom:1px solid var(--line-soft);color:var(--text)}
+  details.explain>summary:hover{color:var(--text)}
+  details.explain .xbody{padding:5px 17px 15px}
+  details.explain .xbody p{color:var(--dim);line-height:1.6;margin:10px 0}
+  details.explain .xbody code{font-family:var(--mono);color:var(--accent2);font-size:12.5px;
+    background:rgba(111,208,138,.08);padding:1px 5px;border-radius:4px}
   .tabpane{display:none;animation:fade .18s ease}
   .tabpane.active{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -277,18 +334,31 @@
   .gterm dd{margin:4px 0 0;color:var(--dim);font-size:12.5px;line-height:1.55}
 
   .statusbar{position:fixed;bottom:24px;left:0;right:0;padding:5px 20px;background:var(--panel);
-    border-top:1px solid var(--line);color:var(--dim);font-size:12px;font-family:var(--mono);z-index:29}
+    border-top:1px solid var(--line);color:var(--dim);font-size:12px;font-family:var(--mono);z-index:29;
+    max-height:3.4em;overflow-y:auto;line-height:1.45}
 
+  @media (max-width:1100px){
+    .shell{display:block}
+    .rail{position:static;flex:none;max-height:none;overflow:visible;display:flex;
+      gap:6px 12px;flex-wrap:wrap;align-items:center;padding:10px 16px;
+      border-right:0;border-bottom:1px solid var(--line-soft)}
+    .navgroup{margin-bottom:0;display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+    .navgroup .glabel{padding:0 8px 0 0;margin-right:3px;border-right:1px solid var(--line-soft)}
+    #tabs button{display:inline-block;width:auto;margin-bottom:0}
+  }
   @media (max-width:760px){
     .brand .t .sub{display:none}
     .meter .mtxt{display:none}
     main{padding:16px 14px 88px}
-    .navgroup .glabel{display:none}
+    .toolbar .filters{margin-left:0}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
   @media print{
-    .apptop,.statusbar,.cui-bottom,.drawer,.backdrop,.sheet,.bar-actions,.callout,.flowstrip{display:none!important}
+    .apptop,.statusbar,.cui-bottom,.drawer,.backdrop,.sheet,.bar-actions,.toolbar,
+    .rail,.callout,.flowstrip,.tabhead .qh{display:none!important}
+    .shell{display:block}
+    details.explain{border-color:#bbb;box-shadow:none;background:#fff}
     body{background:#fff;color:#000}
     .panel,.card{border-color:#bbb;box-shadow:none;background:#fff}
     .panel h2,.card .num{color:#000}
@@ -316,12 +386,16 @@
     <button class="primary icon" onclick="document.getElementById('fileIn').click()" title="Load .nessus or Tenable CSV exports">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
       Load scans</button>
-    <button class="icon" onclick="saveSession()" title="Save a JSON session with all parsed evidence + your edits">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-      Save session</button>
-    <button class="icon" onclick="document.getElementById('sessIn').click()" title="Resume a saved session">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-      Load session</button>
+    <div class="menu">
+      <button class="mbtn icon" onclick="toggleMenu(this)" title="Save or resume your work">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+        Session</button>
+      <div class="mlist">
+        <div class="mhead">Your work in progress</div>
+        <button onclick="saveSession()">Save session &mdash; everything parsed, plus your edits</button>
+        <button onclick="document.getElementById('sessIn').click()">Resume a saved session</button>
+      </div>
+    </div>
     <div class="sep"></div>
     <div class="meter" id="meter" onclick="openHelp('overview')" title="Pre-delivery readiness — click for the checklist">
       <div class="ring">
@@ -338,9 +412,6 @@
     <button class="ghost icon" onclick="openWizard()" title="Guided setup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3"/></svg>
       Setup guide</button>
-    <button class="ghost icon" onclick="openGlossary()" title="Acronyms &amp; terms">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
-      Glossary</button>
     <button class="ghost icon" onclick="openHelp()" title="Plain-language help for the current tab">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
       Help</button>
@@ -350,43 +421,49 @@
   </div>
 </div>
 
-<nav class="nav" id="tabs">
+</header>
+
+<div class="shell">
+<nav class="rail" id="tabs" aria-label="Workflow stages">
   <div class="navgroup">
-    <span class="glabel"><span class="n">1</span>Start</span>
+    <span class="glabel"><span class="n">1</span>Set up</span>
     <button data-t="overview" class="active">Overview</button>
+    <button data-t="settings">Settings</button>
   </div>
   <div class="navgroup">
     <span class="glabel"><span class="n">2</span>Evidence</span>
-    <button data-t="stig">STIG Applicability</button>
-    <button data-t="software">Software</button>
-    <button data-t="ppsm">PPSM</button>
-    <button data-t="assets">Assets</button>
-    <button data-t="eol">Unsupported</button>
-    <button data-t="intel">Threat Intel</button>
-    <button data-t="vulns">Vulnerabilities</button>
-    <button data-t="accounts">Accounts</button>
-    <button data-t="stigcompliance">STIG Compliance</button>
     <button data-t="scanhealth">Scan Health</button>
+    <button data-t="stig">STIG Applicability</button>
+    <button data-t="stigcompliance">STIG Compliance</button>
+    <button data-t="software">Software</button>
+    <button data-t="assets">Assets</button>
+    <button data-t="ppsm">PPSM</button>
+    <button data-t="vulns">Vulnerabilities</button>
+    <button data-t="intel">Threat Intel</button>
+    <button data-t="accounts">Accounts</button>
+    <button data-t="eol">Unsupported</button>
   </div>
   <div class="navgroup">
     <span class="glabel"><span class="n">3</span>Sustainment</span>
     <button data-t="delta">Changes</button>
     <button data-t="trend">Trend</button>
     <button data-t="recon">Reconciliation</button>
-    <button data-t="reports">Reports</button>
   </div>
   <div class="navgroup">
-    <span class="glabel"><span class="n">4</span>Configure</span>
-    <button data-t="settings">Settings</button>
+    <span class="glabel"><span class="n">4</span>Deliver</span>
+    <button data-t="reports">Reports</button>
     <button data-t="controls">Control Mapping</button>
+  </div>
+  <div class="navgroup">
+    <span class="glabel">Advanced</span>
     <button data-t="config">Detection Config</button>
   </div>
 </nav>
-</header>
 
 <main>
 <!-- ================= OVERVIEW ================= -->
 <div class="tabpane active" id="pane-overview">
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Overview</h1><p>Your home base. Load scan exports, watch the readiness checklist fill in, and export every artifact from one place. Nothing leaves this machine.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('overview')">?</button></div>
   <div class="drop" id="drop">Drag Tenable / ACAS exports here (.nessus preferred, .csv accepted) &mdash; or use <b>Load scan exports</b> above.<br><b>HW/SW baseline listings</b> (.xlsx/.csv/.tsv), threat-intel sheets (SASR-E and similar, .xlsx/.csv) and STIG compliance results (SCC XCCDF .xml, STIG Viewer .ckl/.cklb, or a .zip of either) can be dropped here too &mdash; all recognized automatically. Multiple files merge into one dataset.</div>
   <div class="callout">
     <div class="ct"><b>First time here?</b>
@@ -403,6 +480,7 @@
     <span class="stepn"><i>3</i>Review evidence tabs</span><span class="arr">&rsaquo;</span>
     <span class="stepn"><i>4</i>Export all artifacts</span>
   </div>
+  <p class="note" id="parseWarnings"></p>
   <div class="cards" id="statCards"></div>
   <div class="panel">
     <h2>Pre-delivery readiness check
@@ -416,15 +494,16 @@
     <p>One click produces all four artifacts plus the session file, date-stamped and banner-marked. Your browser may ask to allow multiple downloads the first time.</p>
     <button class="primary" onclick="exportAll()">Export all artifacts</button>
   </div>
-  <div class="panel">
-    <h2>Workflow</h2>
+  <details class="explain">
+    <summary>The whole process, start to finish &mdash; read this once</summary>
+    <div class="xbody">
     <p>1. In SecurityCenter, open <b>Scans &rarr; Scan Results</b>, select the completed scan, and use <b>Download</b> to get the <code>.nessus</code> file. The CSV/PDF options on the report side truncate plugin output &mdash; the Download button on scan results is the one you want. If you must use CSV, include the <code>Plugin Output</code> column when customizing export columns, or software detection will be empty.</p>
     <p>2. Load one or more exports here. Hosts, open-port evidence, and installed-software evidence merge across files; re-loading a newer scan updates hosts in place without wiping your edits.</p>
     <p>3. Fill in <b>Enclave Settings</b> once (registration form static fields + boundary defaults). Review the <b>PPSM Matrix</b> rows, exclude anything not being registered, and edit boundaries per row where needed. Review <b>STIG Applicability</b> auto-marks and toggle cells where the scan evidence is wrong &mdash; manual overrides show a dashed amber outline and survive re-detection.</p>
     <p>4. Export: PPSM produces the tab-delimited <code>.txt</code> in the exact DoD IS Registration Form v8.0 column order (paste-ready / registry-upload format). STIG produces a CSV matching the STIG Testing Matrix layout (version header row + product row + one row per host).</p>
     <p>5. <b>Save session</b> writes a JSON sidecar of everything (parsed evidence + your edits) so a half-completed matrix can be handed to a teammate and resumed. Sessions and exports inherit the banner marking from Enclave Settings.</p>
-    <p class="note" id="parseWarnings"></p>
-  </div>
+    </div>
+  </details>
   <div class="panel" id="uncredPanel" style="display:none">
     <h2>Hosts without credentialed software evidence</h2>
     <p>These hosts appeared in scans but returned no installed-software enumeration (plugin 20811) &mdash; STIG columns for them are OS-inference only. Amber rows in the STIG tab.</p>
@@ -434,36 +513,53 @@
 
 <!-- ================= PPSM ================= -->
 <div class="tabpane" id="pane-ppsm">
-  <div class="bar-actions">
-    <button class="primary" onclick="exportPPSM()">Export PPSM Registry .txt (tab-delimited)</button>
-    <button onclick="exportPPSMcsv()">Export working copy .csv</button>
-    <span class="spacer"></span>
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="ppsmShowExcluded" checked onchange="renderPPSM()"> show excluded rows</label>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>PPSM Matrix</h1><p>Every port found listening on your hosts, shaped into the DoD IS Registration layout. Exclude what you are not registering, set the boundaries, then export.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('ppsm')">?</button></div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportPPSM()">Export registry .txt</button>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <div class="mlist">
+        <div class="mhead">PPSM exports</div>
+        <button onclick="exportPPSM()">Registry .txt &mdash; tab-delimited, DoD form column order</button>
+        <button onclick="exportPPSMcsv()">Working copy .csv &mdash; for review, includes your notes</button>
+      </div>
+    </div>
+    <div class="filters">
+      <label class="chk"><input type="checkbox" id="ppsmShowExcluded" checked onchange="renderPPSM()"> show excluded rows</label>
+    </div>
   </div>
   <div class="panel" style="margin-bottom:12px">
     <h2>Noise filter</h2>
     <p>Windows assigns transient RPC ports from the dynamic range; those are not registrable services and typically account for most of the rows. Excluded rows stay visible and can be re-included individually.</p>
-    <div class="bar-actions" style="margin-bottom:0">
-      <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="hideEph" checked> exclude ports at or above</label>
-      <input type="number" id="ephFloor" value="49152" min="1024" max="65535" style="width:88px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:4px 6px">
-      <label style="color:var(--dim);font-size:12.5px;margin-left:14px">minimum hosts</label>
-      <input type="number" id="minHosts" value="1" min="1" max="99" style="width:64px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:4px 6px">
+    <div class="toolbar" style="margin-bottom:0">
+      <label class="chk"><input type="checkbox" id="hideEph" checked> exclude ports at or above</label>
+      <input class="inp" type="number" id="ephFloor" value="49152" min="1024" max="65535" style="width:88px">
+      <label class="chk" style="margin-left:10px">minimum hosts</label>
+      <input class="inp" type="number" id="minHosts" value="1" min="1" max="99" style="width:64px">
       <button class="primary" onclick="applyPpsmFilter()">Apply filter</button>
     </div>
   </div>
   <div class="tablewrap"><table id="ppsmTable"></table></div>
-  <div class="panel" style="margin-bottom:12px"><h2>Scope note</h2><p>This tab shows what the scans can prove: ports observed listening on enclave hosts. Registration decisions &mdash; which flows cross which boundary, and what gets submitted &mdash; are an ISSM/ISSO call. Treat the export as evidence to hand up, not a finished registration. Note also that scan evidence only shows <b>listening</b> services; required outbound flows (NTP upstream, syslog forwarding, the vulnerability scanner reaching targets) will not appear here and still need to be accounted for.</p></div>
+  <details class="explain"><summary>Scope note &mdash; what this export is and is not</summary><div class="xbody"><p>This tab shows what the scans can prove: ports observed listening on enclave hosts. Registration decisions &mdash; which flows cross which boundary, and what gets submitted &mdash; are an ISSM/ISSO call. Treat the export as evidence to hand up, not a finished registration. Note also that scan evidence only shows <b>listening</b> services; required outbound flows (NTP upstream, syslog forwarding, the vulnerability scanner reaching targets) will not appear here and still need to be accounted for.</p></div></details>
   <p style="color:var(--dim);font-size:12px;margin-top:8px">Rows are unique protocol/port tuples evidenced by the scans (listening services + finding-attached ports). Direction evidence from network scanning is inbound-listen; boundary applicability is human judgment &mdash; set defaults in Enclave Settings and override per row. Notes are working-copy only and never exported to the registry .txt.</p>
 </div>
 
 <!-- ================= STIG ================= -->
 <div class="tabpane" id="pane-stig">
-  <div class="bar-actions">
-    <button class="primary" onclick="exportSTIG()">Export STIG Matrix .csv</button>
-    <button onclick="runDetection();renderSTIG();status('Detection re-run. Manual overrides preserved.')">Re-run detection</button>
-    <button onclick="toggleColumnManager()">Manage columns</button>
-    <span class="spacer"></span>
-    <span style="color:var(--dim);font-size:12.5px">click a cell to toggle &middot; dashed amber = manual override &middot; amber row = no credentialed software data</span>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Applicability</h1><p>Which security configuration baselines (STIGs) apply to each host, inferred from the operating system and installed software the scan found.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('stig')">?</button></div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportSTIG()">Export STIG matrix .csv</button>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">Tools</button>
+      <div class="mlist">
+        <div class="mhead">Matrix tools</div>
+        <button onclick="runDetection();renderSTIG();status('Detection re-run. Manual overrides preserved.')">Re-run detection &mdash; keeps your manual overrides</button>
+        <button onclick="toggleColumnManager()">Manage columns &mdash; add a STIG by hand</button>
+      </div>
+    </div>
+    <div class="filters">
+      <span class="hint">click a cell to toggle &middot; dashed amber = manual override &middot; amber row = no credentialed software data</span>
+    </div>
   </div>
   <div class="panel" id="colMgr" style="display:none">
     <h2>Columns</h2>
@@ -480,24 +576,47 @@
 
 <!-- ================= SOFTWARE ================= -->
 <div class="tabpane" id="pane-software">
-  <div class="bar-actions">
-    <button class="primary" onclick="exportSoftware()">Export Software Listing .csv</button>
-    <button onclick="exportEmassSoftware()">Export eMASS SW baseline</button>
-    <button onclick="exportEmassHardware()">Export eMASS HW baseline</button>
-    <button onclick="applySwDefaults()">Fill empty cells from defaults</button>
-    <button onclick="exportApprovalSheet()">Export review sheet</button>
-    <button onclick="document.getElementById('apprIn').click()">Import approvals</button>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Software Listing</h1><p>A de-duplicated inventory of every product the scan found, ready to become your software baseline and approved-software list.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('software')">?</button></div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportSoftware()">Export software listing .csv</button>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <div class="mlist">
+        <div class="mhead">eMASS baselines</div>
+        <button onclick="exportEmassSoftware()">eMASS software baseline</button>
+        <button onclick="exportEmassHardware()">eMASS hardware baseline</button>
+        <hr>
+        <div class="mhead">Other</div>
+        <button onclick="exportApprovalSheet()">Review sheet &mdash; send out for approval decisions</button>
+        <button onclick="exportOsPackages()">OS package manifest</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">Bring in data</button>
+      <div class="mlist">
+        <div class="mhead">Load into this tab</div>
+        <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing &mdash; software rows merge here with vendor/version, hardware rows go to Assets">Load HW/SW baseline listing(s)</button>
+        <button onclick="document.getElementById('apprIn').click()">Import approvals &mdash; a returned review sheet</button>
+      </div>
+    </div>
     <input type="file" id="apprIn" accept=".csv" style="display:none">
-    <button onclick="exportOsPackages()">OS package manifest</button>
-    <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing — software rows merge here with vendor/version, hardware rows go to Assets">Load HW/SW listing(s)</button>
-    <button onclick="runConsolidation()">Consolidate duplicates</button>
-    <button onclick="swBulkInclude(true)">Include all</button>
-    <button onclick="swBulkInclude(false)">Exclude all</button>
-    <label style="color:var(--dim);font-size:12.5px;margin-left:6px"><input type="checkbox" id="swShowOsPkgs" onchange="renderSoftware()"> show OS packages</label>
-    <span class="spacer"></span>
-    <input type="text" id="swFilter" placeholder="filter by name / vendor / type" oninput="renderSoftware()"
-      style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:220px">
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="swShowExcluded" onchange="renderSoftware()"> show excluded</label>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">Clean up</button>
+      <div class="mlist">
+        <div class="mhead">Bulk edits</div>
+        <button onclick="applySwDefaults()">Fill empty cells from Settings defaults</button>
+        <button onclick="runConsolidation()">Consolidate duplicate products</button>
+        <hr>
+        <button onclick="swBulkInclude(true)">Include every row</button>
+        <button onclick="swBulkInclude(false)">Exclude every row</button>
+        <hr>
+        <label><input type="checkbox" id="swShowOsPkgs" onchange="renderSoftware()"> show OS packages</label>
+      </div>
+    </div>
+    <div class="filters">
+      <input class="inp w" type="text" id="swFilter" placeholder="filter by name / vendor / type" oninput="renderSoftware()">
+      <label class="chk"><input type="checkbox" id="swShowExcluded" onchange="renderSoftware()"> show excluded</label>
+    </div>
   </div>
   <div class="cards" id="swCards"></div>
   <div class="panel" id="consolPanel" style="display:none">
@@ -514,38 +633,51 @@
 
 <!-- ================= DELTA ================= -->
 <div class="tabpane" id="pane-delta">
-  <div class="bar-actions">
-    <button class="primary" onclick="setBaselineFromCurrent()">Set baseline = current</button>
-    <button onclick="document.getElementById('baseIn').click()">Load baseline (prior session)</button>
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Changes</h1><p>Diffs this cycle against a prior baseline and grades every change &mdash; new or removed software, hosts, ports, and shifted STIG applicability.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('delta')">?</button></div>
+  <div class="toolbar">
+    <button class="primary" onclick="document.getElementById('baseIn').click()">Load baseline (prior session)</button>
+    <button onclick="setBaselineFromCurrent()">Set baseline = current</button>
     <button onclick="exportDelta()">Export change record .csv</button>
     <input type="file" id="baseIn" accept=".json" style="display:none">
   </div>
-  <div class="panel">
-    <h2>How this works</h2>
+  <details class="explain">
+    <summary>How this works</summary>
+    <div class="xbody">
     <p>Load last month's session file as the baseline, then load this month's scans. Everything that changed shows below &mdash; new software, removed software, hosts that appeared or dropped off, newly opened ports, and STIG applicability that shifted per host. Save this month's session at the end; next month it becomes the baseline. That sequence gives you a dated change record for sustainment without maintaining anything by hand.</p>
-  </div>
+    </div>
+  </details>
   <div id="deltaBody"></div>
 </div>
 
 <!-- ================= ASSETS ================= -->
 <div class="tabpane" id="pane-assets">
-  <div class="bar-actions">
-    <button class="primary" onclick="exportAssets()">Export Asset Inventory .csv</button>
-    <button class="primary" onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing (.xlsx/.csv/.tsv) — hardware rows merge here, software rows into the Software Listing">Load HW/SW listing(s)</button>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Asset Inventory</h1><p>One row per asset &mdash; the hardware inventory. Scan-derived fields refresh every time you load new scans; everything else you fill in once and it sticks.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('assets')">?</button></div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportAssets()">Export asset inventory .csv</button>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">Bring in data</button>
+      <div class="mlist">
+        <div class="mhead">Add to the inventory</div>
+        <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing (.xlsx/.csv/.tsv) &mdash; hardware rows merge here, software rows into the Software Listing">Load HW/SW baseline listing(s)</button>
+        <button onclick="addManualAsset()">Add an asset the scan never saw</button>
+        <hr>
+        <button onclick="buildAssets();renderAssets();status('Refreshed scan-derived fields. Manual entries untouched.')">Refresh scan-derived fields</button>
+        <button onclick="clearListings()">Clear loaded listings</button>
+      </div>
+    </div>
     <input type="file" id="listIn" multiple accept=".xlsx,.csv,.tsv" style="display:none">
-    <button onclick="addManualAsset()">Add asset not detected by scan</button>
-    <button onclick="clearListings()">Clear listings</button>
-    <button onclick="buildAssets();renderAssets();status('Refreshed scan-derived fields. Manual entries untouched.')">Refresh from scans</button>
-    <span class="spacer"></span>
-    <input type="text" id="assetFilter" placeholder="filter" oninput="renderAssets()"
-      style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:170px">
+    <div class="filters">
+      <input class="inp" type="text" id="assetFilter" placeholder="filter" oninput="renderAssets()" style="min-width:170px">
+    </div>
   </div>
   <div class="cards" id="assetCards"></div>
-  <div class="panel">
-    <h2>What this is</h2>
+  <details class="explain">
+    <summary>What belongs here, and why the manual entries matter</summary>
+    <div class="xbody">
     <p>One row per asset. Name, IP, MAC, OS, device type, and last scan date are pulled from scan evidence and refresh each time you load new scans. Manufacturer, model, serial, location, owner, status, and criticality can't come from a scan &mdash; fill those once and they persist in the session file.</p>
     <p>Assets that exist but never scan (powered-off spares, standalone media stations, network gear outside scan scope) won't appear on their own. Use <b>Add asset not detected by scan</b> so the inventory reflects reality rather than only what the scanner can see &mdash; those entries are exactly what makes the Reconciliation tab useful.</p>
-  </div>
+    </div>
+  </details>
   <div class="panel" id="listingMapPanel" style="display:none">
     <h2>Loaded HW/SW listings &amp; column mapping</h2>
     <div id="listingMapBody"></div>
@@ -555,10 +687,12 @@
 
 <!-- ================= EOL ================= -->
 <div class="tabpane" id="pane-eol">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Unsupported Components</h1><p>Software and operating systems past vendor end-of-support, or where the exact lifecycle date still needs confirming. Supports control SA-22.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('eol')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportEol()">Export unsupported components .csv</button>
-    <span class="spacer"></span>
-    <span style="color:var(--dim);font-size:12.5px">maintain the date table in Detection Config &rarr; not shown here</span>
+    <div class="filters">
+      <span class="hint">maintain the date table in Detection Config</span>
+    </div>
   </div>
   <div class="cards" id="eolCards"></div>
   <div class="panel">
@@ -571,28 +705,30 @@
 
 <!-- ================= THREAT INTEL ================= -->
 <div class="tabpane" id="pane-intel">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Threat Intel</h1><p>Fuses a threat-intelligence sheet with your scan findings, so remediation order follows real-world exploitation rather than CVSS alone.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('intel')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="document.getElementById('intelIn').click()">Load intel sheet(s)</button>
     <input type="file" id="intelIn" multiple accept=".xlsx,.csv,.tsv" style="display:none">
     <button onclick="exportIntel()">Export prioritized vulns .csv</button>
-    <button onclick="clearIntel()">Clear intel</button>
-    <span class="spacer"></span>
-    <input type="text" id="intelFilter" placeholder="filter by CVE / product / actor / IAVM" oninput="renderIntel()"
-      style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:230px">
-    <select id="intelScoreSrc" onchange="setIntelScoreSource(this.value)" title="Which score drives priority and tiering. Sheets that do their own composite scoring (SASR-E Total, etc.) appear here automatically — including unmapped numeric columns."
-      style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;max-width:250px">
-      <option value="blended">Blended formula (CVSS + RF + boosts)</option>
-    </select>
-    <select id="intelTier" onchange="renderIntel()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px">
-      <option value="">all tiers</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option>
-    </select>
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="intelShowUnmatched" onchange="renderIntel()"> show intel not seen in scans</label>
+    <button class="ghost danger" onclick="clearIntel()">Clear intel</button>
+    <div class="filters">
+      <input class="inp" type="text" id="intelFilter" placeholder="filter by CVE / product / actor / IAVM" oninput="renderIntel()" style="min-width:230px">
+      <select class="sel" id="intelScoreSrc" onchange="setIntelScoreSource(this.value)" title="Which score drives priority and tiering. Sheets that do their own composite scoring (SASR-E Total, etc.) appear here automatically &mdash; including unmapped numeric columns." style="max-width:250px">
+        <option value="blended">Blended formula (CVSS + RF + boosts)</option>
+      </select>
+      <select class="sel" id="intelTier" onchange="renderIntel()">
+        <option value="">all tiers</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="intelShowUnmatched" onchange="renderIntel()"> show intel not seen in scans</label>
+    </div>
   </div>
-  <div class="panel">
-    <h2>Threat-informed vulnerability prioritization</h2>
+  <details class="explain">
+    <summary>How the fusion works, and how to teach it your sheet format</summary>
+    <div class="xbody">
     <p>Load a <b>SASR-E</b> or similar cyber-threat-intel spreadsheet (<code>.xlsx</code> directly, or CSV/TSV). Columns are recognized automatically through the alias table in <b>Detection Config &rarr; intelAliases</b> &mdash; if your feed names a column differently, add the header there and re-load; no code edits. Records are fused with the CVE-bearing findings in your scans, so remediation order follows real-world exploitation (weaponization, actor use, RF risk) rather than CVSS alone. All parsing stays in your browser.</p>
-    <p style="color:var(--dim)" id="intelCtrl"></p>
-  </div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="intelCtrl"></p>
   <div class="cards" id="intelCards"></div>
   <div class="panel" id="intelMapPanel" style="display:none">
     <h2>Loaded sheets &amp; column mapping</h2>
@@ -608,42 +744,59 @@
 
 <!-- ================= VULNS ================= -->
 <div class="tabpane" id="pane-vulns">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Vulnerabilities</h1><p>Every severity-rated finding from the scans, grouped so one issue on thirty hosts is one row. Use the view buttons below to pivot the same data.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('vulns')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportRemediationPlan()">Export remediation plan .csv</button>
-    <button onclick="exportVulns()">Export vulnerability report .csv</button>
-    <button onclick="exportVulnDetail()">Export detail list .csv</button>
-    <button onclick="exportIpSummary()">Export IP summary .csv</button>
-    <button onclick="exportPoam()">Export POA&amp;M draft .csv</button>
-    <span class="spacer"></span>
-    <input type="text" id="vulnFilter" placeholder="filter by finding / CVE / host / port" oninput="renderVulns()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:220px">
-    <select id="vulnSev" onchange="renderVulns()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px">
-      <option value="">all severities</option><option value="4">Critical</option>
-      <option value="3">High</option><option value="2">Medium</option><option value="1">Low</option>
-    </select>
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="vulnExpl" onchange="renderVulns()"> exploitable only</label>
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="vulnOverdue" onchange="renderVulns()"> past remediation window</label>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <div class="mlist">
+        <div class="mhead">Same data, other shapes</div>
+        <button onclick="exportVulns()">Vulnerability report .csv &mdash; rolled up by finding</button>
+        <button onclick="exportVulnDetail()">Detail list .csv &mdash; one row per host per finding</button>
+        <button onclick="exportIpSummary()">IP summary .csv &mdash; rolled up by asset</button>
+        <hr>
+        <button onclick="exportPoam()">POA&amp;M draft .csv &mdash; decision fields left blank for the ISSM</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input class="inp w" type="text" id="vulnFilter" placeholder="filter by finding / CVE / host / port" oninput="renderVulns()">
+      <select class="sel" id="vulnSev" onchange="renderVulns()">
+        <option value="">all severities</option><option value="4">Critical</option>
+        <option value="3">High</option><option value="2">Medium</option><option value="1">Low</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="vulnExpl" onchange="renderVulns()"> exploitable only</label>
+      <label class="chk"><input type="checkbox" id="vulnOverdue" onchange="renderVulns()"> past remediation window</label>
+    </div>
   </div>
   <div class="bar-actions" id="vulnViews" style="margin-bottom:10px"></div>
-  <div class="panel"><h2>Vulnerability review</h2>
+  <details class="explain"><summary>What is in here, and how the views differ</summary>
+    <div class="xbody">
     <p>Every severity-rated finding from the scans &mdash; including configuration findings that carry no CVE and so never appear on the Threat Intel tab. Pivot the same dataset eight ways with the view selector above: rolled up by finding, by asset (IP Summary), flat detail list, or grouped by port, plugin family, or subnet. Filters apply across every view, and <b>findings</b> on an IP Summary row drills into that single host.</p>
     <p>Where threat intel is loaded, the fused priority tier and IAVM references ride along. <b>Age</b> is days since the vendor published a patch (falling back to plugin publication); rows past the remediation window configured in Detection Config are marked. The <b>POA&amp;M draft</b> export turns open findings into line items with the decision fields left blank for the ISSM.</p>
-    <p style="color:var(--dim)" id="vulnCtrl"></p></div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="vulnCtrl"></p>
   <div class="cards" id="vulnCards"></div>
   <div id="vulnBody"></div>
 </div>
 
 <!-- ================= ACCOUNTS ================= -->
 <div class="tabpane" id="pane-accounts">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Account Audit</h1><p>User accounts the credentialed scans enumerated &mdash; who exists on each host, who is privileged, and which accounts sit in exception states. Supports control AC-2.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('accounts')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportAccountAudit()">Export account audit .csv</button>
-    <span class="spacer"></span>
-    <input type="text" id="accFilter" placeholder="filter by account / host / group" oninput="renderAccountAudit()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:200px">
-    <label style="color:var(--dim);font-size:12.5px"><input type="checkbox" id="accFlagged" onchange="renderAccountAudit()"> flagged only</label>
+    <div class="filters">
+      <input class="inp" type="text" id="accFilter" placeholder="filter by account / host / group" oninput="renderAccountAudit()" style="min-width:200px">
+      <label class="chk"><input type="checkbox" id="accFlagged" onchange="renderAccountAudit()"> flagged only</label>
+    </div>
   </div>
-  <div class="panel"><h2>Account audit (AC-2)</h2>
+  <details class="explain"><summary>What this proves, and why it can come back empty</summary>
+    <div class="xbody">
     <p>User accounts enumerated by credentialed scans &mdash; Windows local/domain users, group memberships, and the account-state plugin family (passwords never expire, never logged on, disabled), plus Linux user enumeration. This is scan-evidenced ground truth to reconcile against the Account Management Plan: every row here should map to an authorized account, and the flags are the exceptions worth explaining.</p>
     <p>Scan policies must include the user-enumeration plugin families (Windows "User management" and SSH user enumeration) for this tab to populate &mdash; if it's empty on a credentialed scan, check the policy before assuming there are no findings.</p>
-    <p style="color:var(--dim)" id="accCtrl"></p></div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="accCtrl"></p>
   <div class="bar-actions" id="accViews" style="margin-bottom:10px"></div>
   <div class="cards" id="accCards"></div>
   <div id="accBody"></div>
@@ -651,49 +804,67 @@
 
 <!-- ================= STIG COMPLIANCE ================= -->
 <div class="tabpane" id="pane-stigcompliance">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Compliance</h1><p>Actual per-rule results from SCC or STIG Viewer checklists. Applicability says which baselines apply; this says which checks pass.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('stigcompliance')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportStigCompliance()">Export compliance summary .csv</button>
-    <button onclick="exportStigOpenFindings()">Export open findings .csv</button>
-    <button onclick="exportStigPoam()">Export STIG POA&amp;M draft .csv</button>
-    <button onclick="exportStigCoverage()">Export coverage gaps .csv</button>
-    <span class="spacer"></span>
-    <input type="text" id="scFilter" placeholder="filter by host / STIG / V-ID / rule" oninput="renderStigCompliance()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;min-width:230px">
-    <select id="scStatus" onchange="renderStigCompliance()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px">
-      <option value="">all statuses</option><option value="Open">Open</option>
-      <option value="NotAFinding">Not a Finding</option><option value="Not_Applicable">Not Applicable</option>
-      <option value="Not_Reviewed">Not Reviewed</option>
-    </select>
-    <select id="scCat" onchange="renderStigCompliance()" style="background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px">
-      <option value="">all severities</option><option value="high">CAT I</option>
-      <option value="medium">CAT II</option><option value="low">CAT III</option>
-    </select>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <div class="mlist">
+        <div class="mhead">STIG result exports</div>
+        <button onclick="exportStigOpenFindings()">Open findings .csv</button>
+        <button onclick="exportStigCoverage()">Coverage gaps .csv &mdash; applies but was never assessed</button>
+        <hr>
+        <button onclick="exportStigPoam()">STIG POA&amp;M draft .csv</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input class="inp" type="text" id="scFilter" placeholder="filter by host / STIG / V-ID / rule" oninput="renderStigCompliance()" style="min-width:230px">
+      <select class="sel" id="scStatus" onchange="renderStigCompliance()">
+        <option value="">all statuses</option><option value="Open">Open</option>
+        <option value="NotAFinding">Not a Finding</option><option value="Not_Applicable">Not Applicable</option>
+        <option value="Not_Reviewed">Not Reviewed</option>
+      </select>
+      <select class="sel" id="scCat" onchange="renderStigCompliance()">
+        <option value="">all severities</option><option value="high">CAT I</option>
+        <option value="medium">CAT II</option><option value="low">CAT III</option>
+      </select>
+    </div>
   </div>
   <div class="bar-actions" id="scViews" style="margin-bottom:10px"></div>
-  <div class="panel"><h2>STIG compliance results</h2>
+  <details class="explain"><summary>Where these results come from, and what Coverage catches</summary>
+    <div class="xbody">
     <p>Actual per-rule assessment results from <b>SCC</b> (SCAP Compliance Checker) XCCDF output or <b>STIG Viewer</b> checklists (<code>.ckl</code> / <code>.cklb</code>), including zips of either. Where the STIG Applicability tab records which baselines <i>apply</i>, this records which checks <i>pass</i> &mdash; with V-IDs, STIG IDs, CAT severities, and CCI references carried through to the exports.</p>
     <p>Checklists also carry the <b>manual</b> review results that no automated scan can produce, so a host assessed by SCC alone will show those rules as Not Reviewed until the checklist is imported. The <b>Coverage</b> view compares what the applicability matrix claims against what was actually assessed &mdash; a STIG that applies but was never run is invisible in either artifact alone.</p>
-    <p style="color:var(--dim)" id="scCtrl"></p></div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="scCtrl"></p>
   <div class="cards" id="scCards"></div>
   <div id="scBody"></div>
 </div>
 
 <!-- ================= SCAN HEALTH ================= -->
 <div class="tabpane" id="pane-scanhealth">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Scan Health</h1><p>Start here. Whether the scan actually authenticated, which policy ran, how current the plugin feed was, and when it ran &mdash; every other tab depends on these answers.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('scanhealth')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportScanHealth()">Export scan coverage .csv</button>
-    <span class="spacer"></span>
-    <span style="color:var(--dim);font-size:12.5px">from Nessus plugin 19506 &mdash; the scan's own record of how it ran</span>
+    <div class="filters">
+      <span class="hint">from Nessus plugin 19506 &mdash; the scan's own record of how it ran</span>
+    </div>
   </div>
-  <div class="panel"><h2>Scan coverage &amp; credential verification</h2>
+  <details class="explain"><summary>Why this tab comes first</summary>
+    <div class="xbody">
     <p>Every other artifact in this tool rests on the scans having actually authenticated. This tab reports what the scan says about itself: whether credentialed checks succeeded, which policy ran, how old the plugin feed was, and when it ran. An assessor asking &ldquo;how do you know this inventory is complete?&rdquo; is asking for this page.</p>
     <p>A host reporting <b>Credentialed checks : no</b> yields OS-inference findings only. Its software inventory, account data, and STIG marks are incomplete no matter how clean they look &mdash; which is exactly the failure mode this tab exists to make visible.</p>
-    <p style="color:var(--dim)" id="shCtrl"></p></div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="shCtrl"></p>
   <div class="cards" id="shCards"></div>
   <div id="shBody"></div>
 </div>
 
 <!-- ================= CONTROLS ================= -->
 <div class="tabpane" id="pane-controls">
+  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Control Mapping</h1><p>Which NIST 800-53 controls each artifact supports, and in plain language what it demonstrates. Use this wording when you write the assessment.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('controls')">?</button></div>
   <div class="panel">
     <h2>What each artifact supports</h2>
     <p>Each export carries these mappings in its header so the evidence is self-labeling. Use the wording below when writing the report &mdash; it states what the artifact demonstrates, not just which control number it sits under.</p>
@@ -703,30 +874,36 @@
 
 <!-- ================= TREND ================= -->
 <div class="tabpane" id="pane-trend">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Trend &amp; Burndown</h1><p>Whether the posture is actually improving. One point per assessment cycle &mdash; the question no single scan can answer.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('trend')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="captureTrendPoint()">Capture current as a cycle</button>
     <button onclick="document.getElementById('trendIn').click()">Add from prior sessions</button>
     <input type="file" id="trendIn" multiple accept=".json" style="display:none">
     <button onclick="exportTrend()">Export trend .csv</button>
-    <span class="spacer"></span>
-    <button class="danger ghost" onclick="clearTrend()">Clear timeline</button>
+    <div class="filters">
+      <button class="danger ghost" onclick="clearTrend()">Clear timeline</button>
+    </div>
   </div>
-  <div class="panel"><h2>Trend &amp; burndown</h2>
+  <details class="explain"><summary>How to rebuild history you did not track at the time</summary>
+    <div class="xbody">
     <p>One point per assessment cycle, tracking whether the posture is actually improving: findings by severity, CAT I and open STIG findings, compliance score, and sustainment exposure. This is the view leadership asks for and that no single scan can answer.</p>
     <p>You already save a session each cycle, so history can be rebuilt retroactively &mdash; <b>Add from prior sessions</b> reads any number of saved session files, extracts a metrics point from each, and leaves your current dataset untouched. Setting a baseline on the Changes tab also records a point automatically.</p>
-    <p style="color:var(--dim)" id="trendCtrl"></p></div>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="trendCtrl"></p>
   <div class="cards" id="trendCards"></div>
   <div id="trendBody"></div>
 </div>
 
 <!-- ================= RECON ================= -->
 <div class="tabpane" id="pane-recon">
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Reconciliation</h1><p>Compares your authoritative asset list against what actually scanned, so you catch assets that failed to scan or turned up unexpectedly.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('recon')">?</button></div>
   <div class="panel">
     <h2>Authoritative asset inventory</h2>
     <p>Paste your asset list &mdash; one per line, or <code>Hostname, Type, Note</code> if you want the extra columns. A header row is ignored. This is compared against what the scans actually found.</p>
     <p><b>This list should come from outside the scan data.</b> Its value is being an independent source of truth &mdash; a list built only from scan results can never reveal an asset that failed to scan, which is the main thing worth catching. <b>Seed from Asset Inventory</b> gives you a starting draft to curate; once curated, maintain it deliberately rather than regenerating it. If you leave this box empty, the Asset Inventory tab is used as the authoritative side automatically.</p>
     <textarea class="cfg" id="invBox" style="min-height:160px" spellcheck="false" placeholder="WKSTN-001, Workstation, Bldg 2 Rm 14&#10;SVR-DC01, Server&#10;LNX-DB01, Virtual Machine"></textarea>
-    <div class="bar-actions" style="margin-top:10px">
+    <div class="toolbar" style="margin-top:10px;margin-bottom:0">
       <button class="primary" onclick="applyInventory()">Apply inventory</button>
       <button onclick="seedInventoryFromAssets()">Seed from Asset Inventory</button>
       <button onclick="exportRecon()">Export reconciliation .csv</button>
@@ -737,19 +914,29 @@
 
 <!-- ================= REPORTS ================= -->
 <div class="tabpane" id="pane-reports">
-  <div class="bar-actions">
+  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Reports</h1><p>The compiled evidence turned into decision-ready output: four leadership lenses, charts, an e-mailable report, and an AI prompt package &mdash; all generated locally.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('reports')">?</button></div>
+  <div class="toolbar">
     <button class="primary" onclick="exportLeadershipReport()">Export leadership report .html</button>
     <button onclick="copyEmailSummary()">E-mail summary (plain text)</button>
-    <button onclick="exportAiPackage()">Export AI prompt package .md</button>
-    <label style="color:var(--dim);font-size:12.5px" title="When unchecked, the AI package carries counts and groupings only — no host names leave the tool"><input type="checkbox" id="aiInclHosts"> include host names in AI package</label>
-    <span class="spacer"></span>
-    <span style="color:var(--dim);font-size:12.5px">reflects current data automatically</span>
+    <div class="menu">
+      <button class="mbtn" onclick="toggleMenu(this)">AI prompt package</button>
+      <div class="mlist">
+        <div class="mhead">For your approved AI assistant</div>
+        <button onclick="exportAiPackage()">Export prompt package .md</button>
+        <hr>
+        <label title="When unchecked, the package carries counts and groupings only &mdash; no host names leave the tool"><input type="checkbox" id="aiInclHosts"> include host names in the package</label>
+      </div>
+    </div>
+    <div class="filters">
+      <span class="hint">reflects current data automatically</span>
+    </div>
   </div>
-  <div class="panel">
-    <h2>Leadership lenses</h2>
+  <details class="explain"><summary>What the four lenses are, and what each output is for</summary>
+    <div class="xbody">
     <p>The same evidence, cut four ways for decision-makers: <b>Quick strikes</b> (weaponized, confirmed on the network — act this week), <b>Low-hanging fruit</b> (one update clears many endpoints), <b>Engineering campaigns</b> (OS upgrades and fleet migrations that need planning and change control), and <b>Modernization</b> (unsupported components as budget-line items). Repetitive endpoint work is grouped — <i>Windows 10 upgrade &times; 8 endpoints</i> — not listed host by host.</p>
     <p>The <b>leadership report</b> is a self-contained HTML file (charts included, marking-banner stamped) ready to attach to an e-mail for a commander or a COO. The <b>AI prompt package</b> is a ready-to-paste briefing + data digest for your approved AI assistant (NIPRGPT, Ask Sage, Claude, etc.) to draft narrative game plans — the tool itself makes no network calls, ever.</p>
-  </div>
+    </div>
+  </details>
   <div class="cards" id="rptCards"></div>
   <div class="panel" id="rptChartsPanel" style="display:none"><h2>Charts <span id="rptScoreNote" style="float:right;font-weight:400;color:var(--dim);font-size:12px"></span></h2><div id="rptCharts"></div></div>
   <div id="rptBody"></div>
@@ -761,10 +948,11 @@
 
 <!-- ================= SETTINGS ================= -->
 <div class="tabpane" id="pane-settings">
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Settings</h1><p>The details that cannot come from a scan but appear on every export &mdash; system identity, registration-form fields, boundary defaults, and the marking banner. Fill this in once.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('settings')">?</button></div>
   <div class="panel">
     <h2>Environment profile <span class="pill" style="margin-left:6px">reusable config</span></h2>
     <p>Save your <b>Settings + Detection Config</b> as a small JSON file (no scan data) and share it, so everyone on the team starts from the same system identity, boundaries, marking, and detection rules. Loading a profile updates configuration without touching any scans you have open.</p>
-    <div class="bar-actions" style="margin-bottom:0">
+    <div class="toolbar" style="margin-bottom:0">
       <button class="primary" onclick="saveProfile()">Save environment profile</button>
       <button onclick="document.getElementById('profIn').click()">Load environment profile</button>
     </div>
@@ -789,8 +977,8 @@
     <h2>Marking banner</h2>
     <p>Stamped on the page header and footer and at the top and bottom of every export. Set it to your system's handling marking.</p>
     <div class="grid2"><div class="field"><label>Banner text (page + exports)</label><input id="bannerText" onchange="S.settings.banner=this.value;applyBanner();persistNothingNote()"></div></div>
-    <div class="bar-actions" style="margin:10px 0 0">
-      <span style="color:var(--dim);font-size:12px">Quick set:</span>
+    <div class="toolbar" style="margin:10px 0 0">
+      <span class="hint">Quick set:</span>
       <button class="small" onclick="S.settings.banner='UNCLASSIFIED';applyBanner()">UNCLASSIFIED</button>
       <button class="small" onclick="S.settings.banner='CUI';applyBanner()">CUI</button>
       <button class="small" onclick="S.settings.banner='UNCLASSIFIED//CUI';applyBanner()">UNCLASSIFIED//CUI</button>
@@ -801,12 +989,18 @@
 
 <!-- ================= CONFIG ================= -->
 <div class="tabpane" id="pane-config">
-  <div class="panel">
-    <h2>Detection configuration (JSON)</h2>
+  <div class="tabhead"><div class="th"><span class="step">Advanced</span><h1>Detection Config</h1><p>The detection engine&rsquo;s rules, in editable JSON. Tune it as STIGs release and your environment changes &mdash; no code edits, no re-download.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('config')">?</button></div>
+  <details class="explain">
+    <summary>Field-by-field reference for every key in the JSON below</summary>
+    <div class="xbody">
     <p><code>remedyWeights</code>: how much risk one finding instance retires when its fix is applied &mdash; this is what the Remediation Plan ranks on, so an enclave tasked only on Critical/High can zero <code>sev2</code>/<code>sev1</code> here. <code>productAliases</code>: merges the several ways scanners name one product (a RHEL check says <code>firefox</code>, the Windows plugin says <code>Mozilla Firefox</code>) for the Software Summary view only &mdash; the remediation plan keys on the un-aliased product, so an alias can never claim one patch covers two products that need different fixes.</p>
     <p><code>catalog</code>: master list of STIG-mapped products in export order &mdash; <code>name</code>, <code>ver</code> (STIG version shown in the header row; blank renders as <b>ver?</b> until you fill it from the current DISA quarterly release), <code>active</code> (whether it's a matrix column now), <code>patterns</code> (case-insensitive substrings matched against OS string + installed-software output + fired plugin names; prefix a pattern with <code>re:</code> to use a regular expression instead, which is how the RHEL and Windows Server entries cope with scanners reporting a version token mid-string), and optional <code>osPatterns</code> (OS string only). Inactive entries auto-activate the first time scan evidence hits them on any host. <code>noisePatterns</code>: installed-software lines to suppress from the unmapped review list. <code>vendorRules</code> / <code>typeRules</code>: first-match-wins prefill for the Software Listing's Vendor and Type columns. <code>deviceRules</code>: hostname-prefix &rarr; device type. <code>listingAliases</code>: header-name aliases for HW/SW baseline listings &mdash; add the headers your listings use and re-load, no code edits. Maintain this as STIGs release/sunset &mdash; no code changes needed.</p>
+    </div>
+  </details>
+  <div class="panel">
+    <h2>Detection configuration (JSON)</h2>
     <textarea class="cfg" id="cfgBox" spellcheck="false"></textarea>
-    <div class="bar-actions" style="margin-top:10px">
+    <div class="toolbar" style="margin-top:10px;margin-bottom:0">
       <button class="primary" onclick="applyConfig()">Apply config &amp; re-run detection</button>
       <button onclick="resetConfig()">Reset to defaults</button>
       <button onclick="saveProfile()">Save environment profile</button>
@@ -815,6 +1009,7 @@
   </div>
 </div>
 </main>
+</div>
 
 <!-- boundary modal -->
 <div class="modal-bg" id="modalBg" onclick="closeModal()"></div>
@@ -836,7 +1031,8 @@
       <div class="eyebrow">Plain-language help</div>
       <h3 id="helpTitle">Overview</h3>
     </div>
-    <button class="ghost x" onclick="closeHelp()" aria-label="Close">&times;</button>
+    <button class="ghost x" onclick="openGlossary()" title="Acronyms &amp; terms">Glossary</button>
+    <button class="ghost" onclick="closeHelp()" aria-label="Close">&times;</button>
   </div>
   <div class="topicbar" id="helpTopics"></div>
   <div class="dbody" id="helpBody"></div>
@@ -3661,7 +3857,38 @@ document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",
  document.querySelectorAll("#tabs button").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tabpane").forEach(x=>x.classList.remove("active"));
  b.classList.add("active"); $("pane-"+b.dataset.t).classList.add("active");
+ window.scrollTo({top:0,behavior:"instant"});
 }));
+
+/* ---------------- toolbar menus ----------------------------------------
+   Secondary actions live in dropdowns so each tab shows one obvious next
+   step. Every button inside a menu is the original control, unchanged. */
+function toggleMenu(btn){
+ const m=btn.parentNode, wasOpen=m.classList.contains("open");
+ document.querySelectorAll(".menu.open").forEach(x=>x.classList.remove("open"));
+ if(!wasOpen)m.classList.add("open");
+}
+document.addEventListener("click",e=>{
+ const inMenu=e.target.closest(".menu");
+ if(!inMenu){document.querySelectorAll(".menu.open").forEach(x=>x.classList.remove("open"));return;}
+ /* picking an item closes the menu; toggling the menu button does not */
+ if(e.target.closest(".mlist button"))inMenu.classList.remove("open");
+});
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape")document.querySelectorAll(".menu.open").forEach(x=>x.classList.remove("open"));
+});
+
+/* the workflow rail sticks below the header, whatever height it wraps to */
+function syncHeaderHeight(){
+ const h=document.querySelector(".apptop");
+ if(h)document.documentElement.style.setProperty("--hdr",h.offsetHeight+"px");
+}
+window.addEventListener("resize",syncHeaderHeight);
+syncHeaderHeight();
+if(window.ResizeObserver){
+ const ro=new ResizeObserver(syncHeaderHeight);
+ const h=document.querySelector(".apptop"); if(h)ro.observe(h);
+}
 
 function renderAll(){renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
  computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
