@@ -151,6 +151,9 @@ demonstrates rather than relying on the reader to know.
   machine, with a one-click consolidated asset report
 - **Trend & burndown** — one metrics point per assessment cycle; history rebuilds
   retroactively from saved session files
+- **Report builder** — one document assembled from 20 sections, with audience presets you can
+  redefine and share; print-tuned for PDF
+- **Evidence package** — every artifact plus an index page saying who each file is for, in one zip
 - **Leadership reports** — four decision-maker lenses with a self-contained HTML report,
   a plain-text executive summary, and an AI prompt package (see below)
 - **End-of-support detection** — flags components past vendor lifecycle
@@ -213,9 +216,55 @@ or stale scan rather than a clean host — exactly the thing worth catching befo
 Prioritization guides remediation order. It never downgrades a finding out of existence, and
 the risk decision stays with whoever owns it.
 
-## Leadership reports
+## Reporting
 
-The Reports tab cuts compiled evidence four ways for decision-makers, grouping repetitive
+The Reports tab builds **one document** rather than leaving you to assemble it from CSVs. Pick a
+starting point, tick the sections you want, watch the preview, export:
+
+| Preset | For | Roughly |
+|---|---|---|
+| Leadership brief | A decision-maker | Scorecard, charts, grouped actions, trend |
+| ISSM / assessor package | The RMF package reader | Readiness, scan health, STIG results and coverage, POA&M, baselines, control mapping |
+| Engineering work order | The people doing the work | Remediation plan, findings, open STIG rules, per-asset appendix |
+| Pre-delivery QC | You, before anything ships | Readiness, scan health, coverage gaps, reconciliation |
+| Full record | The archive copy | Every section that has data |
+
+Twenty sections are available, each drawing on the same function the matching tab renders from —
+so the report can never disagree with the screen. Sections with no data drop out of the finished
+document on their own.
+
+**Presets are data, not code.** A preset is a named list of section ids. Build your own in the
+picker, save it, and it lands in your environment profile alongside settings and detection rules —
+so a team standardises its own reporting and shares it as a small JSON file. The five above are
+starting points, not an opinion about who reads reports.
+
+The output is a self-contained HTML file with a print stylesheet tuned for PDF: each section
+starts on a new page, table headers repeat across breaks, rows and charts never split, and the
+marking banner is stamped on every printed page. Open it and use **Print → Save as PDF**.
+
+## Evidence package
+
+`Export evidence package .zip` produces a single archive instead of twenty-two downloads:
+
+```
+Palisade_Package_2026-08-28/
+  index.html              <- what each file is, and who it is for
+  1-report/               <- the document
+  2-registration/         <- PPSM, STIG matrix, software/asset/eMASS baselines, control mapping
+  3-findings/             <- remediation plan, POA&M drafts, vulnerability cuts, unsupported
+  4-configuration/        <- STIG compliance results, open findings, coverage gaps
+  5-evidence-quality/     <- scan coverage, account audit, reconciliation, change record, trend
+  6-session/              <- session file to resume from, profile to share
+```
+
+Written with a minimal ZIP writer over the browser's native `CompressionStream` — the mirror of
+the reader that already ingests zipped scan bundles. Still zero dependencies, still no network
+calls. `Export all artifacts` on the Overview tab keeps the original behaviour of one download
+per file.
+
+## Leadership lenses
+
+The lenses cut compiled evidence four ways for decision-makers, grouping repetitive
 endpoint work instead of listing it host by host ("Windows 10 upgrade × 8 endpoints"):
 
 - **Quick strikes** — weaponized and confirmed on the network; the do-it-this-week list,

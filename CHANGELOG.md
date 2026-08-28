@@ -4,6 +4,38 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.7 — one report, and one package
+
+Reporting was 29 separate exports of which exactly one was a document a person reads, and
+`Export all artifacts` fired 22 downloads into an unordered heap. Both are addressed without
+removing a single existing export.
+
+- **Report builder.** The Reports tab now assembles one document from a registry of 20
+  sections — scorecard, readiness, scan health, charts, leadership lenses, remediation plan,
+  vulnerability rollup, combined POA&M, STIG compliance and coverage, applicability, software
+  and asset baselines, PPSM, accounts, unsupported components, reconciliation, trend, control
+  mapping, and a per-asset appendix. Every section calls the same pure data function the
+  matching tab renders from, so a report cannot disagree with the screen.
+- **Audience presets, and your own.** Five ship as starting points — Leadership brief,
+  ISSM / assessor package, Engineering work order, Pre-delivery QC, Full record — but a preset
+  is only a named list of sections. Tick what you want, **Save these as a preset**, and it
+  lands in `settings.reportPresets`, which means it travels in the environment profile your
+  team already shares. Reporting the way your organisation reports needs no code change.
+- **Sections with no data drop out** of the finished document on their own, so a preset that
+  asks for more than you have still reads clean. The builder greys them and says why.
+- **Live preview** of the actual document, in the tab, before you export anything.
+- **Print stylesheet tuned for PDF.** Each section starts on a fresh page, table headers repeat
+  across page breaks, rows and charts never split, and the marking banner is stamped on every
+  printed page — verified at 18 of 18 pages on the sample document.
+- **Evidence package.** One `.zip` holding the report, every artifact, the session file, and an
+  `index.html` front page listing each file with **who it is for**, what it demonstrates, its
+  row count and size. Files are filed into `1-report` / `2-registration` / `3-findings` /
+  `4-configuration` / `5-evidence-quality` / `6-session`. Written with a minimal ZIP writer over
+  the browser's native `CompressionStream` — the mirror of the reader that already ingests
+  zipped scan bundles, and still zero dependencies and zero network calls.
+- `Export all artifacts` (22 separate downloads) is unchanged and still on the Overview tab.
+  Host names stay withheld from the report unless you ask for them, as with the AI package.
+
 ## 2.6.1 — interface pass
 
 Presentation only. No engine, parser, export, or detection logic was touched; every control,
