@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Palisade v2.5.1</title>
+<title>Palisade v2.6</title>
 <style>
   /* ================================================================
      Palisade — instrument console theme
@@ -306,7 +306,7 @@
         <path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <div class="t">
-      <h1>Palisade <span class="ver">v2.5.1</span>
+      <h1>Palisade <span class="ver">v2.6</span>
         <span class="badge"><span class="dot"></span>Offline</span></h1>
       <div class="sub">Turns Tenable / ACAS scan exports into audit-ready control evidence &mdash; all parsing local, no network calls</div>
     </div>
@@ -387,7 +387,7 @@
 <main>
 <!-- ================= OVERVIEW ================= -->
 <div class="tabpane active" id="pane-overview">
-  <div class="drop" id="drop">Drag Tenable / ACAS exports here (.nessus preferred, .csv accepted) &mdash; or use <b>Load scan exports</b> above.<br>Threat-intel sheets (SASR-E and similar, .xlsx/.csv) and STIG compliance results (SCC XCCDF .xml, STIG Viewer .ckl/.cklb, or a .zip of either) can be dropped here too &mdash; all recognized automatically. Multiple files merge into one dataset.</div>
+  <div class="drop" id="drop">Drag Tenable / ACAS exports here (.nessus preferred, .csv accepted) &mdash; or use <b>Load scan exports</b> above.<br><b>HW/SW baseline listings</b> (.xlsx/.csv/.tsv), threat-intel sheets (SASR-E and similar, .xlsx/.csv) and STIG compliance results (SCC XCCDF .xml, STIG Viewer .ckl/.cklb, or a .zip of either) can be dropped here too &mdash; all recognized automatically. Multiple files merge into one dataset.</div>
   <div class="callout">
     <div class="ct"><b>First time here?</b>
       <p>Load a fully populated example to explore every tab, or drop in your own scan exports to begin. The setup guide is in the top bar whenever you want it.</p></div>
@@ -489,6 +489,7 @@
     <button onclick="document.getElementById('apprIn').click()">Import approvals</button>
     <input type="file" id="apprIn" accept=".csv" style="display:none">
     <button onclick="exportOsPackages()">OS package manifest</button>
+    <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing — software rows merge here with vendor/version, hardware rows go to Assets">Load HW/SW listing(s)</button>
     <button onclick="runConsolidation()">Consolidate duplicates</button>
     <button onclick="swBulkInclude(true)">Include all</button>
     <button onclick="swBulkInclude(false)">Exclude all</button>
@@ -530,7 +531,10 @@
 <div class="tabpane" id="pane-assets">
   <div class="bar-actions">
     <button class="primary" onclick="exportAssets()">Export Asset Inventory .csv</button>
+    <button class="primary" onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing (.xlsx/.csv/.tsv) — hardware rows merge here, software rows into the Software Listing">Load HW/SW listing(s)</button>
+    <input type="file" id="listIn" multiple accept=".xlsx,.csv,.tsv" style="display:none">
     <button onclick="addManualAsset()">Add asset not detected by scan</button>
+    <button onclick="clearListings()">Clear listings</button>
     <button onclick="buildAssets();renderAssets();status('Refreshed scan-derived fields. Manual entries untouched.')">Refresh from scans</button>
     <span class="spacer"></span>
     <input type="text" id="assetFilter" placeholder="filter" oninput="renderAssets()"
@@ -541,6 +545,10 @@
     <h2>What this is</h2>
     <p>One row per asset. Name, IP, MAC, OS, device type, and last scan date are pulled from scan evidence and refresh each time you load new scans. Manufacturer, model, serial, location, owner, status, and criticality can't come from a scan &mdash; fill those once and they persist in the session file.</p>
     <p>Assets that exist but never scan (powered-off spares, standalone media stations, network gear outside scan scope) won't appear on their own. Use <b>Add asset not detected by scan</b> so the inventory reflects reality rather than only what the scanner can see &mdash; those entries are exactly what makes the Reconciliation tab useful.</p>
+  </div>
+  <div class="panel" id="listingMapPanel" style="display:none">
+    <h2>Loaded HW/SW listings &amp; column mapping</h2>
+    <div id="listingMapBody"></div>
   </div>
   <div class="tablewrap"><table id="assetTable"></table></div>
 </div>
@@ -796,7 +804,7 @@
   <div class="panel">
     <h2>Detection configuration (JSON)</h2>
     <p><code>remedyWeights</code>: how much risk one finding instance retires when its fix is applied &mdash; this is what the Remediation Plan ranks on, so an enclave tasked only on Critical/High can zero <code>sev2</code>/<code>sev1</code> here. <code>productAliases</code>: merges the several ways scanners name one product (a RHEL check says <code>firefox</code>, the Windows plugin says <code>Mozilla Firefox</code>) for the Software Summary view only &mdash; the remediation plan keys on the un-aliased product, so an alias can never claim one patch covers two products that need different fixes.</p>
-    <p><code>catalog</code>: master list of STIG-mapped products in export order &mdash; <code>name</code>, <code>ver</code> (STIG version shown in the header row; blank renders as <b>ver?</b> until you fill it from the current DISA quarterly release), <code>active</code> (whether it's a matrix column now), <code>patterns</code> (case-insensitive substrings matched against OS string + installed-software output + fired plugin names; prefix a pattern with <code>re:</code> to use a regular expression instead, which is how the RHEL and Windows Server entries cope with scanners reporting a version token mid-string), and optional <code>osPatterns</code> (OS string only). Inactive entries auto-activate the first time scan evidence hits them on any host. <code>noisePatterns</code>: installed-software lines to suppress from the unmapped review list. <code>vendorRules</code> / <code>typeRules</code>: first-match-wins prefill for the Software Listing's Vendor and Type columns. <code>deviceRules</code>: hostname-prefix &rarr; device type. Maintain this as STIGs release/sunset &mdash; no code changes needed.</p>
+    <p><code>catalog</code>: master list of STIG-mapped products in export order &mdash; <code>name</code>, <code>ver</code> (STIG version shown in the header row; blank renders as <b>ver?</b> until you fill it from the current DISA quarterly release), <code>active</code> (whether it's a matrix column now), <code>patterns</code> (case-insensitive substrings matched against OS string + installed-software output + fired plugin names; prefix a pattern with <code>re:</code> to use a regular expression instead, which is how the RHEL and Windows Server entries cope with scanners reporting a version token mid-string), and optional <code>osPatterns</code> (OS string only). Inactive entries auto-activate the first time scan evidence hits them on any host. <code>noisePatterns</code>: installed-software lines to suppress from the unmapped review list. <code>vendorRules</code> / <code>typeRules</code>: first-match-wins prefill for the Software Listing's Vendor and Type columns. <code>deviceRules</code>: hostname-prefix &rarr; device type. <code>listingAliases</code>: header-name aliases for HW/SW baseline listings &mdash; add the headers your listings use and re-load, no code edits. Maintain this as STIGs release/sunset &mdash; no code changes needed.</p>
     <textarea class="cfg" id="cfgBox" spellcheck="false"></textarea>
     <div class="bar-actions" style="margin-top:10px">
       <button class="primary" onclick="applyConfig()">Apply config &amp; re-run detection</button>
@@ -1252,6 +1260,37 @@ const DEFAULT_CONFIG = {
   cto:["cto","cto score"],
   iavm:["iavm","iava","iavb","iavm number","iav","iavm id"]
  },
+ /* HW/SW baseline listing ingestion. Same alias machinery as intelAliases: headers are
+    matched case/punctuation-insensitive, exact first then longest contained phrase, so
+    listings from different teams (eMASS baselines, CM spreadsheets, rack elevations)
+    map automatically. A column your listing names differently? Add its header under the
+    right field and re-load -- no code edits. The HW-vs-SW discriminator column ("kind")
+    is often unnamed; if no header maps, data rows are scanned for a column whose values
+    are HW/SW and it is used automatically. */
+ listingAliases:{
+  kind:["type","hw sw","hw or sw","item type","entry type","asset category","component category"],
+  hostname:["hostname","host name","asset name","computer name","device name","machine name","system name","netbios name"],
+  name:["software","software name","software title","product","product name","application","application name","program"],
+  version:["version","software version","sw version","version number","release"],
+  vendor:["manufacturer","vendor","software vendor","manufacturer name","vendor name","maker","oem","publisher","developer"],
+  model:["model number","model","model no","model name","part number","part no"],
+  serial:["serial number","serial","serial no","serial num","service tag","asset tag"],
+  location:["location room","location","room","bldg room","building room","rack location","physical location"],
+  facility:["facility","site","site name","installation","enclave"],
+  ci:["ci rack","configuration item","rack","cabinet","ci"],
+  drawing:["drawing","drawing number","drawing no","dwg"],
+  diagram:["interconnect diagrams","interconnect diagram","diagram","diagrams","topology"],
+  desc:["description","item description","details","desc"],
+  os:["operating system","os name","platform","os"],
+  ip:["ip address","ipv4 address","ipv4","ip"],
+  mac:["mac address","physical address","mac"],
+  owner:["owner","custodian","owner custodian","asset owner","assigned to","point of contact","poc"],
+  criticality:["criticality","critical asset","mission critical","impact"],
+  status:["asset status","status","state","disposition"],
+  devtype:["device type","asset type","hardware type","component type","equipment type"],
+  approval:["approval status","authorization status","approval","approved","authorized"]
+ },
+
  /* Priority-score weights for intel fusion, all editable. Score (0-100) =
     cvss/10*cvss + rfScore/99*rf + weaponized + exploitDb + actor + networkVector +
     noPrivs + min(hostsAffected*breadthPerHost, breadthCap).
@@ -1377,7 +1416,7 @@ function patMatch(pattern,hay){
 let S = newState();
 function newState(){
  return {
-  meta:{tool:"Palisade", ver:"2.5.1", saved:null},
+  meta:{tool:"Palisade", ver:"2.6", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
             banner:"UNCLASSIFIED",
@@ -1402,11 +1441,13 @@ function newState(){
   baseline:null,   // snapshot from a prior session, for delta
   delta:null,      // computed change record
   intel:emptyIntel(), // fused cyber threat intelligence (SASR-E and similar sheets)
+  listings:emptyListings(), // ingested HW/SW baseline listings (records + per-file mapping reports)
   config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
   auto:{}
  };
 }
 function emptyIntel(){return {rows:{}, files:[], scoreSource:"blended"};}
+function emptyListings(){return {hw:[], sw:[], files:[], conflicts:[]};}
 
 /* ---------------- utilities ---------------- */
 const $=id=>document.getElementById(id);
@@ -1423,6 +1464,7 @@ $("fileIn").addEventListener("change",e=>ingestFiles(e.target.files));
 $("sessIn").addEventListener("change",e=>loadSession(e.target.files[0]));
 $("baseIn").addEventListener("change",e=>loadBaseline(e.target.files[0]));
 $("trendIn").addEventListener("change",e=>ingestTrendSessions(e.target.files));
+$("listIn").addEventListener("change",e=>ingestFiles(e.target.files));
 $("apprIn").addEventListener("change",e=>importApprovals(e.target.files[0]));
 $("intelIn").addEventListener("change",e=>ingestFiles(e.target.files));
 const drop=$("drop");
@@ -1431,11 +1473,12 @@ const drop=$("drop");
 drop.addEventListener("drop",e=>ingestFiles(e.dataTransfer.files));
 
 async function ingestFiles(list){
- const warns=[]; let intelNew=0, stigNew=0;
+ const warns=[]; let intelNew=0, stigNew=0, listNew={hw:0,sw:0};
  for(const f of list){
    try{
      if(/\.xlsx$/i.test(f.name)){
-       intelNew+=await ingestIntelXlsx(f,warns); continue;
+       const res=await ingestWorkbook(f,warns);
+       intelNew+=res.intel; listNew.hw+=res.hw; listNew.sw+=res.sw; continue;
      }
      if(/\.zip$/i.test(f.name)){                       // SCC commonly delivers a zip per host
        const z=zipOpen(await f.arrayBuffer());
@@ -1458,17 +1501,19 @@ async function ingestFiles(list){
      }else if(/\.(csv|tsv)$/i.test(f.name)){
        const sep=/\.tsv$/i.test(f.name)?"\t":",";
        if(sniffIntelSheet(text,sep)){ intelNew+=ingestIntelRows(f.name,csvRows(text,sep),warns); }
+       else if(sniffListingSheet(text,sep)){ const r=ingestListingRows(f.name,csvRows(text,sep),warns); listNew.hw+=r.hw; listNew.sw+=r.sw; }
        else { const n=parseTenableCSV(text,warns); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
      }else{ warns.push(f.name+": unrecognized format (expected .nessus, .csv, or .xlsx threat-intel sheet)"); }
    }catch(err){ warns.push(f.name+": parse error — "+err.message); }
  }
- $("fileIn").value=""; if($("intelIn"))$("intelIn").value="";
+ $("fileIn").value=""; if($("intelIn"))$("intelIn").value=""; if($("listIn"))$("listIn").value="";
  invalidateFusion();
- mergeHostsByIp(); rebuildPPSMFromHosts(); const added=runDetection(); buildSoftware(); buildAssets();
+ mergeHostsByIp(); rebuildPPSMFromHosts(); const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
  renderAll();
  $("parseWarnings").textContent=warns.join("  |  ");
  let msg=`Loaded ${S.filesLoaded.length} file(s), ${Object.keys(S.hosts).length} host(s), ${Object.keys(S.ppsm).length} unique port tuple(s).`;
  if(intelNew) msg+=` Threat intel: ${Object.keys(S.intel.rows).length} CVE record(s) on file.`;
+ if(listNew.hw||listNew.sw) msg+=` HW/SW listing: +${listNew.hw} hardware, +${listNew.sw} software row(s) ingested — see Assets and Software tabs.`;
  if(stigNew) msg+=` STIG compliance: ${stigNew} rule result(s) ingested.`;
  if(added.length) msg+=` Auto-added STIG columns: ${added.join(", ")} — set versions in Detection Config.`;
  status(msg);
@@ -1898,7 +1943,8 @@ function eolFindings(){
 function normBase(name){
  return String(name).toLowerCase()
    .replace(/\s+/g," ")
-   .replace(/\s*[\(\[]\s*(?:x64|x86|64[- ]?bit|32[- ]?bit)\s*[\)\]]\s*$/,"")  // arch suffix
+   .replace(/\s*[\(\[]\s*(?:x64|x86|64[- ]?bit|32[- ]?bit)\s*[\)\]]\s*$/,"")  // bracketed arch suffix
+   .replace(/\s+(?:x64|x86|64[- ]?bit|32[- ]?bit)\s*$/,"")                       // bare arch suffix
    .replace(/[\s,;:\-]*\bv?\d+(?:\.\d+){1,4}\s*$/,"")                          // trailing version
    .replace(/[\s.\-]+$/,"")
    .trim();
@@ -1942,6 +1988,10 @@ function consolidateSoftware(){
      for(const k of noV){
        const r=S.software[k];
        r.hosts.forEach(h=>{if(!t.hosts.includes(h))t.hosts.push(h);});
+       // carry listing provenance across the fold
+       if(r.fromListing){t.fromListing=true;t.listHosts=t.listHosts||[];
+         (r.listHosts||[]).forEach(h=>{if(!t.listHosts.includes(h))t.listHosts.push(h);});
+         if(r.listNote&&!t.listNote)t.listNote=r.listNote;}
        // preserve any manual field entries the blank row happened to have
        ["vendor","type","parent","subsystem","network","hosting","deps","hash",
         "inService","uii","fy","popEnd","license","term"].forEach(f=>{if(!t[f]&&r[f])t[f]=r[f];});
@@ -2100,8 +2150,8 @@ function classifyDelta(d){
 
 /* ---- header mapping ---- */
 function normHdr(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
-function mapIntelHeaders(hdrRow){
- const A=S.config.intelAliases||DEFAULT_CONFIG.intelAliases;
+/* Generic alias-table header mapper, shared by threat-intel sheets and HW/SW listings. */
+function mapHeadersWith(A,hdrRow){
  const assign={}, matched=[], ignored=[];
  // all (field, alias) pairs, longest alias first, so "cve description" beats "cve"
  const pairs=[];
@@ -2117,6 +2167,8 @@ function mapIntelHeaders(hdrRow){
  });
  return {assign,matched,ignored};
 }
+function mapIntelHeaders(hdrRow){return mapHeadersWith(S.config.intelAliases||DEFAULT_CONFIG.intelAliases,hdrRow);}
+function mapListingHeaders(hdrRow){return mapHeadersWith(S.config.listingAliases||DEFAULT_CONFIG.listingAliases,hdrRow);}
 function sniffIntelSheet(text,sep){
  const first=text.slice(0,text.indexOf("\n")>0?text.indexOf("\n"):text.length);
  const hdr=csvRows(first,sep)[0]||[];
@@ -2244,7 +2296,7 @@ function parseXmlStrict(str,what){
  return d;
 }
 /* ---- .xlsx worksheet reader (built on zipOpen) ---- */
-async function readXlsxRows(buf){
+async function readXlsxSheets(buf){
  const z=zipOpen(buf);
  const unzip=z.read;
  const xml=s=>parseXmlStrict(s,"sheet XML");
@@ -2274,27 +2326,296 @@ async function readXlsxRows(buf){
    }
    return out;
  }
- let bestDoc=null,bestScore=-1;
+ const sheets=[];
  for(const sf of sheetFiles.slice(0,8)){
    const doc=xml(await unzip(sf));
-   let score=0;
-   for(const row of extractRows(doc,10)){
-     const m=mapIntelHeaders(row);
-     if(Object.values(m.assign).includes("cve")) score=Math.max(score,m.matched.length);
-   }
-   if(score>bestScore){bestScore=score;bestDoc=doc;}
+   sheets.push({name:"sheet "+sf.match(/\d+/)[0],rows:extractRows(doc,0)});
  }
- if(!bestDoc) throw new Error("workbook has no worksheets");
- return extractRows(bestDoc,0);
+ if(!sheets.length) throw new Error("workbook has no worksheets");
+ return sheets;
 }
-async function ingestIntelXlsx(f,warns){
- const rows=await readXlsxRows(await f.arrayBuffer());
- return ingestIntelRows(f.name,rows,warns);
+/* Route each worksheet of a workbook to the right ingester: threat-intel sheets and
+   HW/SW listings are recognized independently per sheet, so a workbook carrying both
+   (or a listing behind a cover sheet) lands correctly. */
+async function ingestWorkbook(f,warns){
+ const sheets=await readXlsxSheets(await f.arrayBuffer());
+ let intel=0,hw=0,sw=0,routed=0;
+ for(const sh of sheets){
+   const label=f.name+(sheets.length>1?" ["+sh.name+"]":"");
+   let intelScore=0,listScore=0;
+   for(const row of sh.rows.slice(0,15)){
+     const m=mapIntelHeaders(row);
+     if(Object.values(m.assign).includes("cve")) intelScore=Math.max(intelScore,m.matched.length);
+     const sc=scoreListingHeader(row);
+     if(sc.ok) listScore=Math.max(listScore,sc.score);
+   }
+   if(intelScore&&intelScore>=listScore){intel+=ingestIntelRows(label,sh.rows,warns);routed++;}
+   else if(listScore){const r=ingestListingRows(label,sh.rows,warns);hw+=r.hw;sw+=r.sw;routed++;}
+ }
+ if(!routed) throw new Error("no worksheet looked like a threat-intel sheet or a HW/SW listing — check the headers, or extend intelAliases / listingAliases in Detection Config");
+ return {intel,hw,sw};
 }
 function clearIntel(){
  if(Object.keys(S.intel.rows).length&&!confirm("Remove all loaded threat-intel records? Scan data is untouched.")) return;
  S.intel=emptyIntel(); invalidateFusion(); renderAll();
  status("Threat intel cleared.");
+}
+
+/* =========================================================================
+   HW/SW baseline listing ingestion (combined or separate hardware/software
+   inventory spreadsheets). Ingests .xlsx / CSV / TSV dropped alongside scan
+   exports; columns map through config.listingAliases exactly like threat-intel
+   sheets do, so differently-shaped baselines from different teams translate
+   automatically. Hardware rows merge into the Asset Inventory and software
+   rows into the Software Listing -- filling the fields a scan cannot see,
+   never overwriting scan evidence or manual edits (disagreements surface as
+   conflicts rather than being resolved silently). Every row stays
+   provenance-tagged (scan / listing / both) so reconciliation and the
+   eMASS-shaped exports can tell the difference.
+   ========================================================================= */
+
+function scoreListingHeader(row){
+ const m=mapListingHeaders(row||[]);
+ const flds=Object.values(m.assign);
+ // a listing header must identify things (hostname or product name) plus enough
+ // supporting columns that this is clearly an inventory, not a stray table
+ const ok=(flds.includes("hostname")||flds.includes("name"))&&m.matched.length>=3;
+ return {map:m,score:m.matched.length,ok};
+}
+function sniffListingSheet(text,sep){
+ const rows=csvRows(String(text).slice(0,32768),sep).slice(0,15);
+ for(const r of rows){
+   const n=(r||[]).map(normHdr);
+   if(n.some(h=>h==="plugin id"||h==="plugin output"||h==="plugin name")) return false; // Tenable export
+ }
+ return rows.some(r=>scoreListingHeader(r).ok);
+}
+/* Normalize a kind-column value: "HW", "h/w", "Hardware" -> HW; "SW", "Software",
+   "FW", "OS" -> SW (firmware and OS entries belong in the software baseline). */
+function listingKindOf(v){
+ const n=normHdr(v);
+ if(n==="hw"||n==="h w"||n==="hardware") return "HW";
+ if(n==="sw"||n==="s w"||n==="software"||n==="fw"||n==="firmware"||n==="os"||n==="operating system") return "SW";
+ return "";
+}
+function ingestListingRows(name,rows,warns){
+ // the header row is not always row 1 (title banners are common) -- score and pick the best
+ let hdrIdx=-1, map=null, best=0;
+ for(let i=0;i<Math.min(rows.length,15);i++){
+   const sc=scoreListingHeader(rows[i]);
+   if(sc.ok&&sc.score>best){best=sc.score;hdrIdx=i;map=sc.map;}
+ }
+ if(hdrIdx<0) throw new Error("no recognizable HW/SW listing header — if your listing names columns differently, add them to listingAliases in Detection Config");
+ const F={}; for(const i in map.assign)(F[map.assign[i]]=F[map.assign[i]]||[]).push(Number(i));
+ const val=(row,fld)=>{                    // duplicate headers (two "Description" columns) merge
+   const parts=(F[fld]||[]).map(i=>String(row[i]??"").trim()).filter(Boolean);
+   return [...new Set(parts)].join(" — ");
+ };
+ // The HW/SW discriminator: a mapped "kind" column if the header names one; otherwise
+ // scan unmapped columns for one whose data values are HW/SW -- in real listings this
+ // column frequently has no header at all (often column A).
+ let kindCol=(F.kind||[])[0], kindSource=kindCol!==undefined?"mapped header":"";
+ if(kindCol===undefined){
+   const width=Math.max(0,...rows.slice(hdrIdx,hdrIdx+50).map(r=>(r||[]).length));
+   for(let c=0;c<width&&kindCol===undefined;c++){
+     if(map.assign[c]!==undefined) continue;
+     let nb=0,hit=0;
+     for(let r=hdrIdx+1;r<Math.min(rows.length,hdrIdx+200);r++){
+       const v=String((rows[r]||[])[c]??"").trim(); if(!v) continue;
+       nb++; if(listingKindOf(v)) hit++;
+     }
+     if(nb>=2&&hit/nb>=0.6){kindCol=c;kindSource="detected by values (column "+(c+1)+", unnamed)";}
+   }
+ }
+ if(kindCol===undefined) kindSource="per-row heuristic (no HW/SW column found)";
+ let nHw=0,nSw=0,skipped=0,nRows=0;
+ const hwSeen=new Set(S.listings.hw.map(x=>x.dk)), swListSeen=new Set(S.listings.sw.map(x=>x.dk));
+ for(let r=hdrIdx+1;r<rows.length;r++){
+   const row=rows[r];
+   if(!row||!row.some(c=>String(c??"").trim())) continue;
+   nRows++;
+   const g=f=>val(row,f);
+   const rec={host:g("hostname"),name:g("name"),version:g("version"),vendor:g("vendor"),
+     model:g("model"),serial:g("serial"),location:g("location"),facility:g("facility"),
+     ci:g("ci"),drawing:g("drawing"),diagram:g("diagram"),desc:g("desc"),os:g("os"),
+     ip:g("ip"),mac:g("mac"),owner:g("owner"),criticality:g("criticality"),
+     status:g("status"),devtype:g("devtype"),approval:g("approval"),src:name};
+   let kind=kindCol!==undefined?listingKindOf(row[kindCol]):"";
+   if(!kind){                              // per-row heuristic fallback
+     if(rec.name) kind="SW";
+     else if(rec.host||rec.serial||rec.model) kind="HW";
+   }
+   if(kind==="HW"){
+     if(!(rec.host||rec.serial||rec.model||rec.desc)){skipped++;continue;}
+     rec.dk=[rec.host,rec.serial,rec.model,rec.desc].join("|").toUpperCase();
+     if(!hwSeen.has(rec.dk)){hwSeen.add(rec.dk);S.listings.hw.push(rec);nHw++;}
+   }else if(kind==="SW"){
+     if(!rec.name){skipped++;continue;}
+     rec.dk=[rec.name,rec.version,rec.host].join("|").toUpperCase();
+     if(!swListSeen.has(rec.dk)){swListSeen.add(rec.dk);S.listings.sw.push(rec);nSw++;}
+   }else skipped++;
+ }
+ S.listings.files=S.listings.files.filter(x=>x.name!==name);   // re-load replaces the report
+ S.listings.files.push({name,rows:nRows,hw:nHw,sw:nSw,skipped,kindSource,
+   matched:map.matched,ignored:map.ignored.filter(h=>h&&h!=="(blank)")});
+ if(skipped) warns.push(`${name}: ${skipped} row(s) had no usable identity (or unrecognized HW/SW type) and were skipped`);
+ return {hw:nHw,sw:nSw};
+}
+
+/* ---- merge into assets + software ---- */
+const LISTING_TYPE_HINTS=[["hypervisor|esxi","Hypervisor"],["virtual machine","Virtual Machine"],
+ ["switch","Network Switch"],["router","Router"],["firewall","Firewall"],["server","Server"],
+ ["laptop|notebook","Laptop"],["workstation","Workstation"],["desktop","Desktop"],
+ ["printer","Printer"],["storage|nas|san","Storage"],["kvm","KVM"]];
+function listingDeviceType(rec){
+ if(rec.devtype) return rec.devtype;
+ const host=(rec.host||"").toUpperCase();
+ const rule=host&&S.config.deviceRules.find(x=>host.includes(x.pattern.toUpperCase()));
+ if(rule) return rule.type;
+ const hay=(rec.desc+" "+rec.model+" "+rec.name).toLowerCase();
+ const hint=LISTING_TYPE_HINTS.find(([re])=>new RegExp("\\b(?:"+re+")\\b").test(hay));
+ return hint?hint[1]:"";
+}
+/* Asset key: hostname (same keying as scans, so listing and scan rows meet on the same
+   asset) -> serial (matching an existing asset's serial first, so a hostname-less listing
+   row still lands on the right machine) -> a slug of description/model as last resort. */
+function listingAssetKey(rec){
+ if(rec.host) return hostKeyFrom(rec.host,"");
+ if(rec.serial){
+   const ser=rec.serial.trim().toUpperCase();
+   const bySerial=Object.keys(S.assets).find(k=>(S.assets[k].serial||"").trim().toUpperCase()===ser);
+   return bySerial||("SN-"+ser.replace(/\s+/g,""));
+ }
+ const base=(rec.desc||rec.model||"").toUpperCase().replace(/[^A-Z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
+ return base||null;
+}
+/* Merge policy: listings FILL what scans cannot see and never overwrite scan evidence
+   or manual edits; disagreements are recorded as conflicts and surfaced, not resolved
+   silently. Idempotent -- runs on every ingest cycle regardless of load order. */
+function applyListings(){
+ if(!S.listings.hw.length&&!S.listings.sw.length){S.listings.conflicts=[];return;}
+ const conflicts=[];
+ const differs=(a,b)=>String(a).trim().toUpperCase()!==String(b).trim().toUpperCase();
+ for(const rec of S.listings.hw){
+   const key=listingAssetKey(rec); if(!key) continue;
+   if(!S.assets[key]) S.assets[key]={name:rec.host?key:(rec.desc||rec.model||key),
+     ip:"",mac:"",type:"",os:"",make:"",model:"",serial:"",location:"",facility:"",ci:"",
+     drawing:"",diagram:"",owner:"",status:rec.status||"Active",criticality:"",inScope:"Y",
+     lastSeen:"",notes:"",fromScan:false,fromListing:true};
+   const a=S.assets[key]; a.fromListing=true;
+   [["make",rec.vendor],["model",rec.model],["serial",rec.serial],["location",rec.location],
+    ["facility",rec.facility],["ci",rec.ci],["drawing",rec.drawing],["diagram",rec.diagram],
+    ["owner",rec.owner],["criticality",rec.criticality],["os",rec.os],["ip",rec.ip],
+    ["mac",rec.mac],["notes",rec.desc]].forEach(([f,v])=>{
+     if(!v) return;
+     if(!a[f]) a[f]=v;
+     else if(["make","model","serial","os","ip"].includes(f)&&differs(a[f],v))
+       conflicts.push({asset:a.name,field:f,have:a[f],listing:v,src:rec.src});
+   });
+   if(!a.type) a.type=listingDeviceType(rec);
+ }
+ let created=false;
+ for(const rec of S.listings.sw){
+   const key=rec.name+"|"+(rec.version||"");
+   let row=S.software[key];
+   if(!row){
+     // same product under a slightly different display name at the same version -> reuse
+     const nb=normBase(rec.name), ver=String(rec.version||"").trim();
+     const alt=Object.keys(S.software).find(k=>normBase(S.software[k].name)===nb
+       &&String(S.software[k].version).trim()===ver);
+     row=alt?S.software[alt]:null;
+   }
+   if(!row){
+     created=true;
+     row=S.software[key]={
+       name:rec.name, version:rec.version||"",
+       vendor:rec.vendor||inferVendor(rec.name),
+       type:inferType(rec.name),
+       parent:S.settings.swParentSystem, subsystem:S.settings.swSubsystem,
+       network:S.settings.swNetwork, hosting:S.settings.swHosting,
+       deps:"", hash:"", inService:"", uii:S.settings.swUii,
+       fy:S.settings.swFiscalYear, popEnd:S.settings.swPopEnd,
+       license:S.settings.swLicense, term:S.settings.swLicenseTerm,
+       include:!isNoise(rec.name), rpm:false, hosts:[],
+       approval:"Not Reviewed", approvedBy:"", approvalDate:"", approvalRef:"",
+       pinVersion:false, approvedVersion:""
+     };
+   }
+   row.fromListing=true; row.listHosts=row.listHosts||[];
+   if(!row.vendor&&rec.vendor) row.vendor=rec.vendor;
+   if(rec.host){const hn=hostKeyFrom(rec.host,""); if(!row.listHosts.includes(hn)) row.listHosts.push(hn);}
+   if(rec.desc&&!row.listNote) row.listNote=rec.desc;
+   if(rec.approval&&row.approval==="Not Reviewed"){
+     const ap=normHdr(rec.approval);
+     const m=/(denied|rejected|prohibited|not approved|unauthorized|banned)/.test(ap)?"Denied"
+            :/(pending|in review|review)/.test(ap)?"Pending"
+            :/(approved|authorized)/.test(ap)||ap==="yes"||ap==="y"?"Approved":"";
+     if(m){row.approval=m; if(!row.approvalRef) row.approvalRef="listing: "+rec.src;}
+   }
+ }
+ S.listings.conflicts=conflicts;
+ if(created){invalidateFusion();consolidateSoftware();}
+}
+function swSrcOf(r){
+ const scan=r.hosts&&r.hosts.length>0, list=!!r.fromListing;
+ return scan&&list?"both":scan?"scan":list?"listing":"manual";
+}
+/* Software reconciliation: what the scans prove vs what the listing claims.
+   Version drift (same product, listing version differs from what is installed) is
+   separated out because it is usually the actionable finding -- the install base
+   has moved off the documented baseline. */
+function swReconcile(){
+ const matched=[],scanOnly=[],listingOnly=[],drift=[];
+ const listBases={};
+ for(const k in S.software){const r=S.software[k];
+   if(r.rpm||!r.include) continue;
+   if(r.fromListing)(listBases[normBase(r.name)]=listBases[normBase(r.name)]||[]).push(r);}
+ for(const k in S.software){const r=S.software[k];
+   if(r.rpm||!r.include) continue;
+   const scan=r.hosts.length>0, list=!!r.fromListing;
+   if(scan&&list) matched.push(r);
+   else if(scan){
+     const twins=listBases[normBase(r.name)]||[];
+     if(twins.length) drift.push({scan:r,listed:twins});
+     else scanOnly.push(r);
+   }
+ }
+ const driftBases=new Set(drift.map(d=>normBase(d.scan.name)));
+ for(const k in S.software){const r=S.software[k];
+   if(r.rpm||!r.include||!r.fromListing||r.hosts.length) continue;
+   if(!driftBases.has(normBase(r.name))) listingOnly.push(r);
+ }
+ return {matched,scanOnly,listingOnly,drift};
+}
+function clearListings(){
+ if(!S.listings.files.length){status("No HW/SW listings loaded.");return;}
+ if(!confirm("Remove all ingested HW/SW listing data?\n\nListing-only assets and software rows are removed; scan evidence, manual assets, and your edits stay.")) return;
+ for(const k of Object.keys(S.assets)){const a=S.assets[k];
+   if(!a.fromListing) continue;
+   if(a.fromScan) a.fromListing=false; else delete S.assets[k];}
+ for(const k of Object.keys(S.software)){const r=S.software[k];
+   if(!r.fromListing) continue;
+   if(r.hosts.length){r.fromListing=false;r.listHosts=[];delete r.listNote;}
+   else delete S.software[k];}
+ S.listings=emptyListings(); invalidateFusion(); consolidateSoftware(); renderAll();
+ status("HW/SW listing data cleared. Scan-derived evidence untouched.");
+}
+/* ---- loaded-listings mapping report (rendered on the Assets tab) ---- */
+function renderListings(){
+ const p=$("listingMapPanel"); if(!p) return;
+ if(!S.listings.files.length){p.style.display="none";return;}
+ p.style.display="block";
+ let h=S.listings.files.map(f=>
+   `<div style="margin-bottom:10px"><b>${esc(f.name)}</b> <span style="color:var(--dim)">— ${f.rows} row(s): ${f.hw} hardware, ${f.sw} software${f.skipped?`, ${f.skipped} skipped`:""} · HW/SW column: ${esc(f.kindSource)}</span><br>
+    <span style="font-size:12px;color:var(--dim)">mapped: </span>${f.matched.map(([hd,fld])=>`<span class="pill" title="&rarr; ${esc(fld)}" style="margin:1px 3px 1px 0">${esc(hd)}</span>`).join("")}
+    ${f.ignored.length?`<br><span style="font-size:12px;color:var(--dim)">ignored (unmapped): ${esc(f.ignored.join(", "))}</span>`:""}</div>`).join("");
+ if(S.listings.conflicts.length){
+   h+=`<p style="margin-top:10px"><b style="color:var(--warn)">${S.listings.conflicts.length} field conflict(s)</b> — the listing disagrees with scan evidence or an earlier value. Nothing was overwritten; resolve by hand on the Assets tab.</p>
+    <div class="tablewrap" style="max-height:30vh"><table><tr><th>Asset</th><th>Field</th><th>Current value</th><th>Listing says</th><th>Listing file</th></tr>`+
+    S.listings.conflicts.slice(0,100).map(c=>`<tr><td>${esc(c.asset)}</td><td>${esc(c.field)}</td><td class="mono">${esc(c.have)}</td><td class="mono" style="color:var(--warn)">${esc(c.listing)}</td><td style="color:var(--dim);font-size:12px">${esc(c.src)}</td></tr>`).join("")+`</table></div>`;
+ }
+ h+=`<p style="color:var(--dim);font-size:12px">A column mapped wrong or missed? Adjust <b>listingAliases</b> in Detection Config, clear listings, and re-load the file.</p>`;
+ $("listingMapBody").innerHTML=h;
 }
 
 /* ---- fusion + priority scoring ---- */
@@ -3090,8 +3411,15 @@ const ASSET_COLS=[
  ["name","Asset Name",170],["ip","IP Address",120],["mac","MAC Address",140],
  ["type","Device Type",120],["os","Operating System",210],["make","Manufacturer",130],
  ["model","Model",130],["serial","Serial Number",130],["location","Location",130],
+ ["facility","Facility",110],["ci","CI / Rack",100],["drawing","Drawing",110],
+ ["diagram","Interconnect Diagram",150],
  ["owner","Owner / Custodian",150],["status","Status",110],["criticality","Criticality",110],
  ["inScope","In Scope",90],["lastSeen","Last Scanned",110],["notes","Notes",180]];
+
+/* provenance label for an asset row */
+function assetSrcOf(a){
+ return a.fromScan&&a.fromListing?"both":a.fromScan?"scan":a.fromListing?"listing":"manual";
+}
 
 /* Pull anything the scan can prove; leave the rest for a human. */
 function buildAssets(){
@@ -3100,10 +3428,12 @@ function buildAssets(){
    if(!S.assets[hk]){
      S.assets[hk]={name:h.name,ip:h.ip||"",mac:h.mac||"",
        type:S.stig.device[hk]||"",os:h.os||"",make:"",model:"",serial:"",
-       location:"",owner:"",status:"Active",criticality:"",inScope:"Y",
+       location:"",facility:"",ci:"",drawing:"",diagram:"",
+       owner:"",status:"Active",criticality:"",inScope:"Y",
        lastSeen:h.lastSeen||"",notes:"",fromScan:true};
    } else {
      const a=S.assets[hk];                      // refresh scan-derived fields only
+     a.fromScan=true;                           // promotes listing-created assets once they scan
      if(h.ip) a.ip=h.ip;
      if(h.mac&&!a.mac) a.mac=h.mac;
      if(h.os) a.os=h.os;
@@ -3126,6 +3456,7 @@ function addManualAsset(){
  if(!n) return;
  if(S.assets[n]){alert("That asset is already listed.");return;}
  S.assets[n]={name:n,ip:"",mac:"",type:"",os:"",make:"",model:"",serial:"",location:"",
+   facility:"",ci:"",drawing:"",diagram:"",
    owner:"",status:"Active",criticality:"",inScope:"Y",lastSeen:"",notes:"Added manually - not scan-detected",fromScan:false};
  renderAssets(); renderRecon(); renderReadiness();
  status(`Added ${n} to the asset inventory.`);
@@ -3140,11 +3471,11 @@ function seedInventoryFromAssets(){
 }
 function exportAssets(){
  const rows=[[S.settings.banner],["Asset Inventory",today()],[],
-   ASSET_COLS.map(c=>c[1]).concat(["Scan Detected"])];
+   ASSET_COLS.map(c=>c[1]).concat(["Scan Detected","Source"])];
  rows.splice(2,0,[ctrlHeader("assets")]);
  for(const k of assetKeys()){
    const a=S.assets[k];
-   rows.push(ASSET_COLS.map(c=>a[c[0]]).concat([a.fromScan?"Y":"N"]));
+   rows.push(ASSET_COLS.map(c=>a[c[0]]).concat([a.fromScan?"Y":"N",assetSrcOf(a)]));
  }
  rows.push([]); rows.push([S.settings.banner]);
  dl(`Asset_Inventory_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
@@ -3231,6 +3562,20 @@ function readiness(staleDays){
  } else if(nHosts>0)
    push(false,true,"Threat intel fused",
      "load a SASR-E / threat-intel sheet on the Threat Intel tab so remediation priority reflects real-world exploitation");
+ if(S.listings.files.length){
+   const sr=swReconcile();
+   push(sr.scanOnly.length===0,true,"Scan-detected software documented in listing",
+     sr.scanOnly.length?`${sr.scanOnly.length} product(s) running but absent from the HW/SW listing: ${sr.scanOnly.slice(0,6).map(x=>x.name).join(", ")}${sr.scanOnly.length>6?"…":""}`:"listing covers everything detected");
+   push(sr.drift.length===0,true,"No listing/scan version drift",
+     sr.drift.length?`${sr.drift.length} product(s) installed at a version off the documented baseline — see Reconciliation`:"installed versions match the listing");
+   push(sr.listingOnly.length===0,true,"Listing software confirmed by scans",
+     sr.listingOnly.length?`${sr.listingOnly.length} listed product(s) never scan-confirmed (uncredentialed or out-of-scope host?)`:"every listed product scan-confirmed");
+   const lc=(S.listings.conflicts||[]).length;
+   push(lc===0,true,"Listing field conflicts resolved",
+     lc?`${lc} field(s) where the listing disagrees with scan evidence — see the mapping report on the Assets tab`:"no conflicts");
+ } else if(nHosts>0)
+   push(false,true,"HW/SW listing ingested",
+     "drop your HW/SW baseline listing (.xlsx/.csv) on the Overview tab so the asset and software inventories reflect more than the scans can see");
  const amb=(S.swConsolidation&&S.swConsolidation.ambiguous)?S.swConsolidation.ambiguous.length:0;
  push(amb===0,true,"Software duplicates resolved",
    amb?`${amb} row(s) have no version and multiple versions exist — resolve or exclude`:"no ambiguous rows");
@@ -3318,7 +3663,7 @@ document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",
  b.classList.add("active"); $("pane-"+b.dataset.t).classList.add("active");
 }));
 
-function renderAll(){renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
+function renderAll(){renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
  computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
  if(S.inventory&&S.inventory.length&&!$("invBox").value)
    $("invBox").value=S.inventory.map(i=>[i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
@@ -3334,6 +3679,7 @@ function renderStats(){
    card(Object.values(S.ppsm).filter(r=>r.include).length,"ports incl.")+
    card(tcp,"TCP")+card(udp,"UDP")+card(Object.keys(S.software).length,"software products")+
    card(uncred.length,"uncredentialed",uncred.length>0)+
+   (S.listings.files.length?card(S.listings.hw.length+S.listings.sw.length,"listing rows"):"")+
    (fuLoaded?card(fuLoaded.p1,"P1 intel vulns",fuLoaded.p1>0)+card(fuLoaded.weapOnNet,"weaponized on net",fuLoaded.weapOnNet>0):"");
  $("uncredPanel").style.display=uncred.length?"block":"none";
  $("uncredList").innerHTML=uncred.map(h=>hostLink(h.key,h.name+(h.ip?" ("+h.ip+")":""))).join("   ");
@@ -3494,6 +3840,7 @@ function renderSoftware(){
  const rpm=keys.filter(k=>S.software[k].rpm).length;
  $("swCards").innerHTML=card(keys.length,"unique products")+card(inc,"included in export")+
    card(keys.length-inc,"excluded",keys.length-inc>0)+
+   (keys.filter(k=>S.software[k].fromListing).length?card(keys.filter(k=>S.software[k].fromListing).length,"in HW/SW listing"):"")+
    (rpm?card(rpm,"OS packages (Linux)"):"");
  // consolidation report
  const cp=$("consolPanel"), rep=S.swConsolidation;
@@ -3513,7 +3860,7 @@ function renderSoftware(){
    }
    $("consolBody").innerHTML=h;
  } else cp.style.display="none";
- let html=`<tr><th>Inc</th><th>#</th><th style="min-width:120px">Approval</th><th style="min-width:110px">Approved By</th><th style="min-width:105px">Appr. Date</th><th style="min-width:115px">Appr. Ref</th><th style="min-width:60px" title="pin approval to this exact version">Pin</th><th style="min-width:90px">Support</th>${SW_COLS.map(c=>`<th style="min-width:${c[2]}px">${esc(c[1])}</th>`).join("")}<th>Hosts</th></tr>`;
+ let html=`<tr><th>Inc</th><th>#</th><th style="min-width:120px">Approval</th><th style="min-width:110px">Approved By</th><th style="min-width:105px">Appr. Date</th><th style="min-width:115px">Appr. Ref</th><th style="min-width:60px" title="pin approval to this exact version">Pin</th><th style="min-width:90px">Support</th>${SW_COLS.map(c=>`<th style="min-width:${c[2]}px">${esc(c[1])}</th>`).join("")}<th title="scan = detected by the scanner; listing = from a HW/SW listing; both = corroborated">Src</th><th>Hosts</th></tr>`;
  let n=0, shown=0;
  for(const k of keys){
    const r=S.software[k];
@@ -3543,9 +3890,13 @@ function renderSoftware(){
      <td style="text-align:center"><input type="checkbox" ${r.pinVersion?"checked":""} title="approval applies only to version ${esc(r.version)}" onchange="S.software[${kj}].pinVersion=this.checked;S.software[${kj}].approvedVersion=this.checked?S.software[${kj}].version:'';renderSoftware()"></td>
      <td>${eolCell}${intelBadge}</td>
      ${SW_COLS.map(c=>`<td><input type="text" ${c[0]==="version"?'class="mono"':""} value="${esc(r[c[0]])}" onchange="S.software[${kj}]['${c[0]}']=this.value"></td>`).join("")}
-     <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.length}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td></tr>`;
+     <td>${(()=>{const sc=swSrcOf(r);const col=sc==="listing"?"var(--accent)":sc==="manual"?"var(--warn)":"var(--accent2)";
+        return `<span class="pill" style="color:${col};border-color:${col}"${r.listNote?` title="${esc(r.listNote)}"`:""}>${sc}</span>`;})()}</td>
+     <td>${(()=>{const extra=(r.listHosts||[]).filter(h=>!r.hosts.includes(h));
+        const all=r.hosts.map(esc).concat(extra.map(h=>esc(h)+" [listing]")).join("\n");
+        return `<span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.length}${extra.length?"+"+extra.length:""}</span><div class="hostlist">${all}</div>`;})()}</td></tr>`;
  }
- if(!shown) html+=`<tr><td colspan="${SW_COLS.length+9}" style="color:var(--dim)">${keys.length?"Nothing matches the current filter."+(rpm&&!showOs?" ("+rpm+" Linux OS packages hidden — tick 'show OS packages')":""):"No software evidence yet — load a credentialed scan on the Overview tab."}</td></tr>`;
+ if(!shown) html+=`<tr><td colspan="${SW_COLS.length+10}" style="color:var(--dim)">${keys.length?"Nothing matches the current filter."+(rpm&&!showOs?" ("+rpm+" Linux OS packages hidden — tick 'show OS packages')":""):"No software evidence yet — load a credentialed scan on the Overview tab."}</td></tr>`;
  $("swTable").innerHTML=html;
 }
 
@@ -3559,14 +3910,14 @@ function exportSoftware(){
  rows.push(["System Name:",s.swSystemName,"","POC Phone:",s.swPocPhone,"","Reviewed / Updated By:",s.swReviewedBy]);
  rows.push(["DITPR ID:",s.swDitpr,"","POC E-Mail:",s.swPocEmail]);
  rows.push([]);
- rows.push(["#",...SW_COLS.map(c=>c[1]),...APPROVAL_COLS.map(c=>c[1]),"Support Status","Hosts"]);
+ rows.push(["#",...SW_COLS.map(c=>c[1]),...APPROVAL_COLS.map(c=>c[1]),"Support Status","Source","Hosts"]);
  let n=0;
  for(const k of swKeysSorted()){
    const r=S.software[k]; if(!r.include) continue;
    const e=eolFor(r.name,r.version);
    rows.push([++n,...SW_COLS.map(c=>r[c[0]]),...APPROVAL_COLS.map(c=>r[c[0]]),
      e?(e.state==="expired"?"UNSUPPORTED since "+e.date:e.state==="unknown"?"VERIFY":"supported to "+e.date):"",
-     r.hosts.length]);
+     swSrcOf(r),r.hosts.length]);
  }
  rows.push([]); rows.push([s.banner]);
  dl(`Software_Listing_${today()}.csv`, rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
@@ -3637,21 +3988,26 @@ function renderAssets(){
  const f=($("assetFilter").value||"").toLowerCase();
  const keys=assetKeys();
  const scanned=keys.filter(k=>S.assets[k].fromScan).length;
- const manual=keys.length-scanned;
+ const manual=keys.filter(k=>!S.assets[k].fromScan&&!S.assets[k].fromListing).length;
  const noOwner=keys.filter(k=>!S.assets[k].owner).length;
+ const listed=keys.filter(k=>S.assets[k].fromListing).length;
+ const conf=(S.listings.conflicts||[]).length;
  $("assetCards").innerHTML=card(keys.length,"assets")+card(scanned,"scan-detected")+
-   card(manual,"manually added")+card(noOwner,"no owner set",noOwner>0);
- let html=`<tr><th>#</th>${ASSET_COLS.map(c=>`<th style="min-width:${c[2]}px">${esc(c[1])}</th>`).join("")}<th>Scan</th></tr>`;
+   (listed?card(listed,"in HW/SW listing"):"")+card(manual,"manually added")+
+   card(noOwner,"no owner set",noOwner>0)+(conf?card(conf,"listing conflicts",true):"");
+ const SRC_COLOR={both:"var(--accent2)",scan:"var(--accent2)",listing:"var(--accent)",manual:"var(--warn)"};
+ let html=`<tr><th>#</th>${ASSET_COLS.map(c=>`<th style="min-width:${c[2]}px">${esc(c[1])}</th>`).join("")}<th>Src</th></tr>`;
  let n=0;
  for(const k of keys){
    const a=S.assets[k];
-   if(f&&!(a.name+" "+a.ip+" "+a.os+" "+a.type+" "+a.owner+" "+a.location).toLowerCase().includes(f)) continue;
+   if(f&&!(a.name+" "+a.ip+" "+a.os+" "+a.type+" "+a.owner+" "+a.location+" "+
+           a.make+" "+a.model+" "+a.serial+" "+(a.facility||"")+" "+(a.ci||"")).toLowerCase().includes(f)) continue;
    n++;
    const kj=JSON.stringify(k).replace(/"/g,"&quot;");
    html+=`<tr${a.fromScan?"":' style="background:rgba(240,180,41,.06)"'}>
      <td class="mono">${S.hosts[k]?hostLink(k,String(n)):n}</td>
      ${ASSET_COLS.map(c=>`<td><input type="text" ${["ip","mac","serial","lastSeen"].includes(c[0])?'class="mono"':""} value="${esc(a[c[0]])}" onchange="S.assets[${kj}]['${c[0]}']=this.value;renderRecon();renderReadiness()"></td>`).join("")}
-     <td class="mono" style="text-align:center;color:${a.fromScan?"var(--accent2)":"var(--warn)"}">${a.fromScan?"Y":"N"}</td></tr>`;
+     <td class="mono" style="text-align:center;color:${SRC_COLOR[assetSrcOf(a)]}" title="scan = detected by the scanner; listing = from a HW/SW listing; both = corroborated; manual = hand-entered">${esc(assetSrcOf(a))}</td></tr>`;
  }
  if(!n) html+=`<tr><td colspan="${ASSET_COLS.length+2}" style="color:var(--dim)">${keys.length?"Nothing matches the filter.":"No assets yet — load scans, or add one manually."}</td></tr>`;
  $("assetTable").innerHTML=html;
@@ -3663,9 +4019,10 @@ function applyInventory(){
  status(`Inventory applied: ${S.inventory.length} asset(s).`);
 }
 function renderRecon(){
- if(!S.inventory||!S.inventory.length){$("reconBody").innerHTML="";return;}
+ let h="";
+ if(S.inventory&&S.inventory.length){
  const r=reconcile();
- let h=`<div class="cards">${card(r.inv,"in inventory")}${card(r.scanned,"scanned")}
+ h+=`<div class="cards">${card(r.inv,"in inventory")}${card(r.scanned,"scanned")}
    ${card(r.matched,"matched")}${card(r.notScanned.length,"never scanned",r.notScanned.length>0)}
    ${card(r.notInInv.length,"unaccounted",r.notInInv.length>0)}</div>`;
  h+=`<div class="panel"><h2 style="color:var(--warn)">In inventory, never scanned (${r.notScanned.length})</h2>
@@ -3674,6 +4031,25 @@ function renderRecon(){
  h+=`<div class="panel"><h2 style="color:var(--bad)">Scanned, not in inventory (${r.notInInv.length})</h2>
    <p>Unaccounted assets responding on the network. Either add them to inventory or find out what they are.</p>
    <div>${r.notInInv.map(x=>`<span class="pill" style="margin:2px;display:inline-block">${esc(x.name)}${x.ip?" "+esc(x.ip):""}</span>`).join(" ")||'<span style="color:var(--accent2)">None — all hosts accounted for.</span>'}</div></div>`;
+ }
+ // software reconciliation: only meaningful once a HW/SW listing is loaded
+ if(S.listings.files.length){
+   const sr=swReconcile();
+   h+=`<div class="panel"><h2>Software reconciliation &mdash; scan evidence vs HW/SW listing</h2>
+     <div class="cards" style="margin-bottom:10px">${card(sr.matched.length,"matched")}
+       ${card(sr.drift.length,"version drift",sr.drift.length>0)}
+       ${card(sr.scanOnly.length,"detected, not in listing",sr.scanOnly.length>0)}
+       ${card(sr.listingOnly.length,"listed, not scan-confirmed",sr.listingOnly.length>0)}</div>`;
+   if(sr.drift.length){
+     h+=`<p><b style="color:var(--warn)">Version drift</b> &mdash; the installed version differs from the documented baseline:</p>
+       <div class="tablewrap" style="max-height:30vh"><table><tr><th>Software</th><th>Installed</th><th>Listed</th><th>Hosts</th></tr>`+
+       sr.drift.map(d=>`<tr><td>${esc(d.scan.name)}</td><td class="mono">${esc(d.scan.version)}</td><td class="mono" style="color:var(--warn)">${esc(d.listed.map(x=>x.version||"(none)").join("; "))}</td><td class="mono">${d.scan.hosts.length}</td></tr>`).join("")+`</table></div>`;
+   }
+   h+=`<p style="margin-top:10px"><b style="color:var(--bad)">Detected, not in listing (${sr.scanOnly.length})</b> &mdash; running on the network but absent from the documented baseline; candidates for unauthorized-software review or a listing update:</p>
+     <div>${sr.scanOnly.map(x=>`<span class="pill" style="margin:2px;display:inline-block">${esc(x.name)}${x.version?" "+esc(x.version):""}</span>`).join(" ")||'<span style="color:var(--accent2)">None — the listing covers everything detected.</span>'}</div>`;
+   h+=`<p style="margin-top:10px"><b style="color:var(--warn)">Listed, not scan-confirmed (${sr.listingOnly.length})</b> &mdash; documented but never seen by a scan; often an uncredentialed or out-of-scope host rather than a clean removal:</p>
+     <div>${sr.listingOnly.map(x=>`<span class="pill" style="margin:2px;display:inline-block">${esc(x.name)}${x.version?" "+esc(x.version):""}</span>`).join(" ")||'<span style="color:var(--accent2)">None — every listed product is scan-confirmed.</span>'}</div></div>`;
+ }
  $("reconBody").innerHTML=h;
 }
 
@@ -3712,6 +4088,19 @@ function exportRecon(){
  r.notScanned.forEach(i=>rows.push(["In inventory, never scanned",i.name,i.type,i.note]));
  r.notInInv.forEach(h=>rows.push(["Scanned, not in inventory",h.name,h.ip,h.os]));
  S.inventory.filter(i=>Object.keys(S.hosts).includes(i.name)).forEach(i=>rows.push(["Matched",i.name,i.type,i.note]));
+ if(S.listings.files.length){
+   const sr=swReconcile();
+   rows.push([]);
+   rows.push(["--- software reconciliation (scan evidence vs HW/SW listing) ---"]);
+   rows.push(["Summary","Matched",sr.matched.length,"Version drift",sr.drift.length,
+     "Scan-only (not in listing)",sr.scanOnly.length,"Listing-only (not scan-confirmed)",sr.listingOnly.length]);
+   rows.push(["Status","Software","Installed Version(s)","Listed Version(s)","Hosts"]);
+   sr.drift.forEach(d=>rows.push(["VERSION DRIFT",d.scan.name,d.scan.version,
+     d.listed.map(x=>x.version||"(none)").join("; "),d.scan.hosts.length]));
+   sr.scanOnly.forEach(x=>rows.push(["Detected, not in listing",x.name,x.version,"",x.hosts.length]));
+   sr.listingOnly.forEach(x=>rows.push(["In listing, not scan-confirmed",x.name,"",x.version,(x.listHosts||[]).length]));
+   sr.matched.forEach(x=>rows.push(["Matched",x.name,x.version,x.version,x.hosts.length]));
+ }
  rows.push([]);rows.push([S.settings.banner]);
  dl(`Asset_Reconciliation_${today()}.csv`,rows.map(x=>x.map(csvq).join(",")).join("\n"),"text/csv");
 }
@@ -3796,24 +4185,39 @@ function exportEmassSoftware(){
  const rows=[hdr];
  for(const k of swKeysSorted()){
    const r=S.software[k]; if(!r.include) continue;
+   const sc=swSrcOf(r);
+   const cm=sc==="both"?`Detected on ${r.hosts.length} host(s) via credentialed scan; also documented in HW/SW listing`
+     :sc==="listing"?`From HW/SW listing${(r.listHosts||[]).length?` (${r.listHosts.length} host(s) listed)`:""} — not confirmed by scan`
+     :`Detected on ${r.hosts.length} host(s) via Tenable/ACAS credentialed scan`;
    rows.push([r.type,r.vendor,r.name,r.version,r.parent,r.subsystem,r.network,r.hosting,
-     r.deps,r.hash,r.inService,r.uii,r.fy,r.popEnd,r.license,r.term,"",
-     `Detected on ${r.hosts.length} host(s) via Tenable/ACAS credentialed scan`]);
+     r.deps,r.hash,r.inService,r.uii,r.fy,r.popEnd,r.license,r.term,
+     r.approval==="Not Reviewed"?"":r.approval,cm]);
  }
  dl(`eMASS_Software_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
  status(`eMASS-shaped software baseline exported (${rows.length-1} rows, no banner row so the header is line 1).`);
 }
 function exportEmassHardware(){
- const hdr=["Asset Name","IP Address","Operating System","OS Version","Asset Type",
-   "Approval Status","Last Scan Date","Comments"];
+ // Draws from the merged Asset Inventory (scan + HW/SW listing + manual), so hardware
+ // that never scans -- switches, standalone stations, spares -- still makes the baseline.
+ const hdr=["Component Type","Asset Name","IP Address","MAC Address","Operating System","OS Version",
+   "Manufacturer","Model Number","Serial Number","Location","Facility",
+   "Approval Status","Critical Asset","Last Scan Date","Comments"];
  const rows=[hdr];
- for(const hk of Object.keys(S.hosts).sort()){
-   const h=S.hosts[hk];
-   rows.push([h.name,h.ip||"",h.os||"","",S.stig.device[hk]||"","",h.lastSeen||"",
-     (S.stig.comments[hk]||"")+(h.cred?"":" [no credentialed software data]")]);
+ for(const k of assetKeys()){
+   const a=S.assets[k];
+   const notes=[];
+   if(S.stig.comments[k]) notes.push(S.stig.comments[k]);
+   if(a.fromScan&&S.hosts[k]&&!S.hosts[k].cred) notes.push("[no credentialed software data]");
+   if(a.ci) notes.push("CI/Rack: "+a.ci);
+   if(a.drawing) notes.push("Drawing: "+a.drawing);
+   if(a.diagram) notes.push("Interconnect: "+a.diagram);
+   notes.push("Source: "+assetSrcOf(a));
+   rows.push([a.type||"",a.name,a.ip||"",a.mac||"",a.os||"","",
+     a.make||"",a.model||"",a.serial||"",a.location||"",a.facility||"",
+     "",a.criticality||"",a.lastSeen||"",notes.join(" | ")]);
  }
  dl(`eMASS_Hardware_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
- status(`eMASS-shaped hardware baseline exported (${rows.length-1} assets).`);
+ status(`eMASS-shaped hardware baseline exported (${rows.length-1} assets, merged from scans + listings + manual entries).`);
 }
 
 function exportAll(){
@@ -5438,6 +5842,7 @@ function migrateConfig(cfg){
  if(cfg&&!cfg.intelWeights)cfg.intelWeights=JSON.parse(JSON.stringify(DEFAULT_CONFIG.intelWeights));
  if(cfg&&!cfg.remedyWeights)cfg.remedyWeights=JSON.parse(JSON.stringify(DEFAULT_CONFIG.remedyWeights));
  if(cfg&&!cfg.productAliases)cfg.productAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.productAliases));
+ if(cfg&&!cfg.listingAliases)cfg.listingAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.listingAliases));
  return cfg;
 }
 function applyConfig(){
@@ -5513,11 +5918,12 @@ async function loadSession(f){
    S.software=S.software||{};
    S.assets=S.assets||{};
    S.stigResults=S.stigResults||{};
+   S.listings=S.listings&&S.listings.files?S.listings:emptyListings();
    S.trend=Array.isArray(S.trend)?S.trend:[];
    S.intel=S.intel&&S.intel.rows?S.intel:emptyIntel();
    S.intel.scoreSource=S.intel.scoreSource||"blended";
    invalidateFusion();
-   runDetection(); buildSoftware(); buildAssets(); renderAll();
+   runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
    status(`Session restored (saved ${obj.meta.saved||"unknown"}).`);
  }catch(e){alert("Session load failed: "+e.message);}
  $("sessIn").value="";
@@ -5536,6 +5942,7 @@ const HELP = {
    lead:"Your home base. Load scan exports, watch the readiness checklist, and export every artifact from one place. Nothing leaves this machine — all parsing happens in your browser.",
    steps:[
      "Click <b>Load scans</b> (top right) or drag files onto the drop zone. A <code>.nessus</code> export is best; a Tenable CSV works if it includes the <b>Plugin Output</b> column.",
+     "Drop in your <b>HW/SW baseline listings</b> too (.xlsx/.csv) — hardware rows enrich the Asset Inventory with make/model/serial/location/facility, software rows join the Software Listing, and reconciliation shows where scans and paperwork disagree.",
      "Open <b>Settings</b> once and fill the details a scan can't provide (system identity, registration fields, marking banner).",
      "Recommended: load a threat-intel sheet (SASR-E or similar, .xlsx/.csv) on the <b>Threat Intel</b> tab — it fuses with scan findings and prioritizes remediation by real-world exploitation.",
      "Work down the readiness checklist until the amber warnings clear.",
@@ -5570,7 +5977,9 @@ const HELP = {
  assets:{name:"Asset Inventory",
    lead:"One row per asset — the hardware inventory. Scan-derived fields refresh automatically; everything else you fill once.",
    steps:[
-     "Fields like manufacturer, model, serial, and owner can't come from a scan. Fill them; they persist.",
+     "Load your <b>HW/SW baseline listing</b> (.xlsx/.csv) — manufacturer, model, serial, location, facility, CI/rack, and drawing references fill in automatically. Columns map by name through <b>listingAliases</b>; the mapping report shows exactly what was recognized.",
+     "Listings fill blanks and never overwrite scan evidence or your edits — disagreements (a serial that doesn't match, a different model) appear as flagged conflicts for a human call.",
+     "Fields the listing doesn't carry (owner, criticality) still need a human. Fill them; they persist.",
      "Add assets that never scan (powered-off spares, standalone stations, out-of-scope gear) with <b>Add asset not detected by scan</b>.",
      "<b>Refresh from scans</b> re-pulls IP / OS / last-seen without touching your manual entries."],
    proves:"Component inventory kept current and reconciled (CM-8)."},
@@ -5661,6 +6070,7 @@ const HELP = {
    steps:[
      "Paste your real asset list — one per line, or <code>Hostname, Type, Note</code>. It should come from <b>outside</b> the scan data.",
      "Apply it, then read the two panels: in inventory but never scanned (a coverage gap), and scanned but not in inventory (unaccounted).",
+     "With a HW/SW listing loaded, the <b>software reconciliation</b> panel appears too: version drift, software running but undocumented, and software documented but never scan-confirmed.",
      "No list yet? <b>Seed from Asset Inventory</b> for a starting draft, curate it, then maintain it deliberately."],
    proves:"Inventory completeness and scan coverage (CM-8(3), RA-5). A list built only from scan results can never reveal an asset that failed to scan — which is the main thing worth catching."},
  settings:{name:"Settings",
@@ -5730,6 +6140,7 @@ const GLOSSARY=[
  ["MAC Level","Mission Assurance Category","A system's mission-criticality tier (I/II/III). A required registration-form field, set in Settings."],
  ["C-I-A","Confidentiality, Integrity, Availability","The three impact ratings (e.g. Low/Moderate/High) recorded on the registration form."],
  ["Burndown","Findings closing over time","Whether open findings are decreasing cycle over cycle. A flat or rising burndown with heavy remediation activity usually means new findings are arriving as fast as old ones close."],
+ ["HW/SW Listing","Hardware/Software baseline listing","A documented inventory spreadsheet (often combined, with a HW/SW type column) carrying make, model, serial, location, software names, versions, and vendors. Ingested here to enrich the Asset Inventory and Software Listing and reconciled against scan evidence."],
  ["Baseline","Reference snapshot","A prior cycle's saved session used to diff against the current scans on the Changes tab, producing a dated change record."],
  ["Ephemeral / dynamic ports","Ports 49152–65535","Transient ports the OS assigns to outbound RPC connections. Not registrable services, so they're excluded from PPSM by default."],
  ["EOL / EOS","End of Life / End of Support","The date a vendor stops supporting a product. Past it, the product is a documented risk (SA-22). The Unsupported tab flags these."],
@@ -5840,7 +6251,7 @@ async function loadProfile(f){
    if(o.settings) S.settings=Object.assign(S.settings,o.settings);
    if(o.config) S.config=migrateConfig(o.config);
    invalidateFusion();
-   runDetection(); buildSoftware(); buildAssets(); renderAll();
+   runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
    status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+o.meta.saved.slice(0,10)+")":""}. Settings and detection rules updated; scan data untouched.`);
  }catch(e){alert("Profile load failed: "+e.message);}
  $("profIn").value="";
@@ -5943,9 +6354,31 @@ function loadDemoData(){
     ["CVE-2023-0286","OpenSSL","OpenSSL","X.400 address type confusion in X.509 GeneralName processing.","2023-02-08","7.4","55","Medium","No","Network","None","","","","41"],
     ["CVE-2024-21068","Oracle","Java SE","Difficult-to-exploit vulnerability in the Java SE Hotspot component.","2024-04-16","7.5","31","Low","No","Network","None","","","","22"]],[]);
  }
+ // a small combined HW/SW baseline listing, run through the real ingestion path
+ // (unnamed HW/SW column A, duplicate Description headers -- the shapes real listings have)
+ if(!S.listings.files.length){
+   ingestListingRows("(demo HW/SW listing)",[
+    ["","Facility","Description","CI (Rack)","Drawing","Description","Interconnect Diagrams","Location (Room)","Software","Version","Manufacturer","Model Number","Serial Number","Operating System","Approval Status","Hostname"],
+    ["HW","HQ Bldg 2","Engineering workstation","R1","DWG-1001","Dell Precision 3660","ICD-01","Rm 214","","","Dell Technologies","Precision 3660","7Q2XYZ1","","","WKSTN-001"],
+    ["HW","HQ Bldg 2","Engineering workstation","R1","DWG-1001","Dell Precision 3660","ICD-01","Rm 214","","","Dell Technologies","Precision 3660","7Q2XYZ2","","","WKSTN-002"],
+    ["HW","HQ Bldg 2","Domain controller","R2","DWG-1002","Dell PowerEdge R750","ICD-01","Rm 120","","","Dell Technologies","PowerEdge R750","J8KL3M2","","","SVR-DC01"],
+    ["HW","HQ Bldg 2","Core switch (out of scan scope)","R2","DWG-1003","Cisco Catalyst 9300","ICD-02","Rm 120","","","Cisco Systems, Inc.","C9300-24T","FOC2345X0AB","","","SW-CORE01"],
+    // paperwork says this laptop was upgraded to Windows 11; the scan still sees Windows 10.
+    // The listing does NOT overwrite scan evidence -- it raises a conflict for a human call.
+    ["HW","HQ Bldg 2","Field laptop","R1","DWG-1004","Dell Latitude 5540","ICD-01","Rm 214","","","Dell Technologies","Latitude 5540","LT1007SN","Microsoft Windows 11 Enterprise","","LT-1007"],
+    ["HW","HQ Annex","Standalone media station (no network)","R4","DWG-1010","HP Z2 G9","","Rm 003","","","HP Inc.","Z2 Tower G9","HPZ2G9001","","",""],
+    ["SW","HQ Bldg 2","Web browser","","","","","","Google Chrome","126.0.6478.127","Google LLC","","","","Approved","WKSTN-001"],
+    ["SW","HQ Bldg 2","Web browser (ESR track)","","","","","","Mozilla Firefox","115.12.0","Mozilla Foundation","","","","Approved","WKSTN-001"],
+    ["SW","HQ Bldg 2","Endpoint protection","","","","","","Microsoft Defender Antivirus","","Microsoft Corporation","","","","Approved","WKSTN-001"],
+    // documented at 22.01; the scan finds 23.01 installed -- version drift off the baseline
+    ["SW","HQ Bldg 2","Archive utility","","","","","","7-Zip","22.01","Igor Pavlov","","","","Approved","WKSTN-001"],
+    ["SW","HQ Bldg 2","PDF reader","","","","","","Adobe Acrobat Reader DC","24.002.20933","Adobe Inc.","","","","Approved",""],
+    ["SW","HQ Annex","CAD package on the standalone media station","","","","","","AutoCAD","2024.1","Autodesk, Inc.","","","","Approved",""],
+    ["SW","HQ Bldg 2","Packet analyzer - approval revoked, pending removal","","","","","","Wireshark","4.2.5","Wireshark Foundation","","","","Denied","WKSTN-002"]],[]);
+ }
  invalidateFusion();
  mergeHostsByIp(); rebuildPPSMFromHosts();
- const added=runDetection(); buildSoftware(); buildAssets();
+ const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
  if(!S.filesLoaded.some(f=>f.type==="demo")) S.filesLoaded.push({name:"(demo dataset)",type:"demo",hosts:DEMO.length});
  renderAll();
  status(`Demo dataset loaded: ${DEMO.length} example hosts. Click through the tabs to explore — use \u201cClear all\u201d on the Overview tab to reset.`+

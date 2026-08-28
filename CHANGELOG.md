@@ -1,10 +1,35 @@
 # Changelog
 
 *Versions 2.1–2.4 were developed on two parallel branches — one adding capability, one
-preparing the public release — merged at 2.4, and released publicly at 2.5.1. Entries
+preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
-## 2.5.1 — first public release
+## 2.6 — first public release
+
+- **HW/SW baseline listing ingestion.** Documented hardware and software listings
+  (`.xlsx` / `.csv` / `.tsv`, combined or separate) are recognized alongside scan exports
+  and merged into one dataset. Columns map by alias rather than position, the header row is
+  located past title banners, duplicate headers merge, and the hardware/software type column
+  is honored when named, detected from data values when unnamed, with a per-row heuristic as
+  final fallback. Workbooks route per worksheet, so a file carrying both intel and a listing
+  lands correctly.
+- **Conservative merging with provenance.** Hardware rows enrich the Asset Inventory
+  (manufacturer, model, serial, location, plus facility / CI-rack / drawing / interconnect);
+  software rows join the Software Listing. Listings fill blanks and never overwrite scan
+  evidence or manual edits — disagreements surface as flagged conflicts. Every row is tagged
+  scan / listing / both / manual, carried through consolidation, sessions, and exports.
+- **Software reconciliation** on the Reconciliation tab and in its export: version drift,
+  detected-but-not-listed, listed-but-never-confirmed. Hardware that never scans feeds asset
+  reconciliation automatically.
+- **eMASS hardware baseline rewritten** to draw from the merged inventory rather than scan
+  hosts alone, so non-scanning assets make the baseline. Both eMASS exports carry provenance.
+- Listing software joins the threat-intel watchlist; four new readiness checks.
+- Fixed: product names carrying a bare architecture suffix (`Wireshark 4.2.5 64-bit`) failed
+  to match their listing entry, so an approval decision recorded against the listed name did
+  not attach to the installed product. Bracketed suffixes were already handled; bare ones now
+  are too.
+
+## 2.5.1
 
 - **Ingest integrity.** Each report-host entry now records its source file with the MAC,
   IP, and OS reported there, and those identities are compared across every source that

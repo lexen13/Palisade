@@ -60,6 +60,7 @@ Any of these, dragged onto the Overview tab. Multiple files merge into one pictu
 | `.nessus` XML | Preferred. Tenable Nessus, Nessus Professional, Tenable Security Center, or an ACAS deployment |
 | Tenable CSV | Fallback. Must include the Plugin Output column, and the CVE column for intel fusion |
 | Threat-intel sheets | `.xlsx` / `.csv` keyed by CVE. Detected and routed automatically |
+| HW/SW baseline listings | `.xlsx` / `.csv` / `.tsv` — your documented hardware and software inventory, combined or separate. Workbooks route per worksheet |
 | SCC results | XCCDF result `.xml`, or the `.zip` SCC produces — both recognized automatically |
 | STIG Viewer checklists | `.ckl` (XML) and `.cklb` (STIG Viewer 3 JSON) — manual review answers live here |
 | Prior session `.json` | For drift detection against a previous baseline, or trend backfill |
@@ -77,8 +78,8 @@ explicitly and fall back to OS inference — they are never silently treated as 
 | `STIG_Applicability.csv` | CM-6, CM-6(1), CM-2 |
 | `Software_Listing.csv` | CM-8, CM-8(1), CM-10, SA-22 |
 | `Approved_Software_Review.csv` | CM-2, CM-5, CM-7(4), CM-11 |
-| `Asset_Inventory.csv` | CM-8, CM-8(1), PM-5 |
-| `Asset_Reconciliation.csv` | CM-8, CM-8(3), RA-5 |
+| `Asset_Inventory.csv` | CM-8, CM-8(1), PM-5 — merged scan + listing + manual, with provenance |
+| `Asset_Reconciliation.csv` | CM-8, CM-8(3), RA-5 — hardware coverage and software reconciliation |
 | `Change_Record.csv` | CM-3, CM-6(3), CM-11, SI-7 |
 | `PPSM_Registry.txt` / `PPSM_WorkingCopy.csv` | CM-7, CM-7(1), SC-7 |
 | `Unsupported_Components.csv` | SA-22, RA-5, SI-2 |
@@ -122,6 +123,18 @@ demonstrates rather than relying on the reader to know.
   account-state flags parsed from credentialed scan enumeration; dormant, stale-password,
   and default-account exceptions surfaced per host, plus a per-user view showing which
   machines each account appears on and where it last logged on
+- **Documented baseline ingestion** — reads the HW/SW listings your team already maintains
+  and merges them with scan evidence, so the inventory reflects more than the scanner can
+  see: hardware that never scans (switches, standalone stations, spares) still lands in the
+  asset inventory and the eMASS baseline. Columns map by alias, not position, so differently
+  shaped listings from different teams translate without reshaping the sheet — including an
+  unnamed hardware/software type column and duplicate headers
+- **Conservative merging** — listings fill blanks and never overwrite scan evidence or your
+  edits; disagreements surface as flagged conflicts for a human call. Every asset and
+  software row is provenance-tagged *scan / listing / both / manual*
+- **Software reconciliation** — version drift (installed off the documented baseline),
+  detected-but-not-listed (unauthorized-software candidates), and listed-but-never-confirmed
+  (usually an uncredentialed or out-of-scope host)
 - **Ingest integrity** — every report-host entry records the file it came from with its
   MAC, IP, and OS, and those identities are compared across sources. Two different
   machines sharing a short hostname merge onto one asset key silently in any other tool;
@@ -254,6 +267,14 @@ Read these before you rely on an export.
 - **SCC alone leaves manual rules Not Reviewed.** Manual review answers exist only in
   checklists. A host assessed by SCC but missing its `.ckl` legitimately shows those
   rules as unassessed — import the checklist rather than explaining the gap away.
+- **A listing is a claim, not evidence.** Ingesting your documented baseline does not make
+  it true. The tool reconciles the two and reports where they disagree; deciding which side
+  is wrong is a human call.
+- **Product-name matching is conservative.** Scan output and listings name the same product
+  differently (`Wireshark 4.2.5 64-bit` vs `Wireshark`). Common variations are normalized,
+  but genuinely distinct editions — Firefox ESR against mainline, for instance — are kept
+  separate rather than merged on a guess. Add a `productAliases` entry if your environment
+  needs a specific pairing.
 - **Presence is not use.** An account existing on a machine is not evidence anyone worked
   there. The last-logon date is what supports that claim, and where a scan did not report
   one the field stays empty rather than being inferred. Logon dates require the
