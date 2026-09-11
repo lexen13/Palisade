@@ -4,6 +4,112 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.8 — security hardening
+
+An adversarial review of 2.7 found two places where a scanned hostname was written into the page
+as code rather than as text, and one where a handed-over session file could change the behaviour
+of every object in the page. Those are fixed. The rest of this release is the work around them:
+a policy the browser enforces rather than a claim the README makes, escaping and limits on the
+way in, and neutralisation on the way out. Nothing was removed and no export changed shape.
+Four behaviour changes are called out below.
+
+- **Two injection sinks closed.** The PPSM and STIG tables built their per-row controls by
+  pasting the host key straight into an HTML attribute. A hostname carrying a double quote — and
+  a scan export can carry one — closed the attribute early, and everything after it was parsed as
+  markup. Both now escape the key once into a `data-` attribute and read it back from the DOM.
+  The idiom used elsewhere for the same job, `JSON.stringify(x).replace(/"/g,"&quot;")`, escaped
+  the quote but not the backslash that produces one, and is gone from the file.
+- **Prototype pollution from a session, baseline, profile or trend file.** `JSON.parse` hands a
+  file's `__proto__` key back as a real own property. `buildAssets` enumerates its input with
+  `for..in` and writes through what it finds, so reading that key returned `Object.prototype` and
+  the write landed on it — for every object in the page, for the rest of the session. The damage
+  was to evidence, not to the browser: once everything inherited `fromScan`, the test that marks
+  an asset as *not* seen by this cycle's scan stopped firing, and the scan-detected versus
+  inventory-only distinction — which feeds the asset inventory, reconciliation, and the readiness
+  meter — silently inverted. All seven places the tool reads untrusted JSON now go through a
+  parser that drops the key before it is ever attached to an object.
+- **CSV and TSV exports neutralise spreadsheet formulas.** Excel and LibreOffice treat a cell
+  beginning `=`, `@`, tab, or carriage return as a formula — DDE, `WEBSERVICE`, `HYPERLINK` — and
+  scan text reaches an assessor's networked machine as a file. Those cells are now written with a
+  leading apostrophe, so a hostname of `=CMD|'/C CALC'!A0` arrives as text. A leading `+` or `-`
+  is neutralised only when what follows is not a plain number, so `-5`, `+5`, and `-5%` keep
+  their numeric type and numeric columns still sum. **Behaviour change:** an affected cell carries
+  a visible apostrophe on import. That is deliberate — it is not hidden the way a typed-in leading
+  quote is, and a value that needed neutralising is worth seeing. No other cell changed.
+- **Content Security Policy.** The file carries a policy the browser enforces. No origin, host,
+  or scheme is named as a source for anything — `default-src`, `connect-src`, `img-src`,
+  `font-src`, `frame-src`, and `object-src` are all `'none'` — so "no network calls" stops being
+  a property you confirm by reading 8,000 lines and becomes one the browser refuses to let the
+  page break. Script is permitted only by the SHA-256 of the single script block, which is also
+  what makes injected markup inert: with a hash present the browser ignores `'unsafe-inline'`,
+  so an `onclick` written into the page by hostile data cannot run. Getting there meant
+  converting 191 of the file's 192 inline `on*` handlers to `data-click` / `data-change`
+  attributes dispatched through one listener against an explicit list of allowed actions. Every
+  control does what it did before. The one that remains is the print button written into the
+  *downloaded* report, which is a separate document with its own policy. `style-src` is still
+  `'unsafe-inline'`: the file sets 483 `style=` attributes, a hundred of them from runtime
+  values. CSS cannot execute, and every channel that could send anything anywhere is `'none'`,
+  so this is a narrower gap than it reads as — hashing the stylesheet elements is a later step.
+- **The hash is a seal, not a checksum.** Any edit to the script block — one byte, including
+  whitespace — invalidates it, and the browser then refuses to run the script at all: the page
+  loads styled, complete, and completely inert, with the expected hash named in the console.
+  That failure is loud on purpose. It is the property that lets an assessor treat the file in
+  front of them as the file that was reviewed, and it is why `tools/seal.mjs --verify` runs
+  before a release rather than after. What the policy does not cover: downloads, the clipboard,
+  and printing are not governed by CSP and are unaffected.
+- **The report preview runs sandboxed.** The preview iframe on the Reports tab is sandboxed
+  without `allow-scripts`, so nothing in a generated document can execute while you are looking
+  at it. **Behaviour change:** the preview no longer carries its own print button, because a
+  sandboxed frame cannot run one. Use **Print preview** next to the export buttons; it prints the
+  same frame from the parent page. An exported `.html` report opened on its own still prints from
+  its own button, and now carries a policy of its own — as do the leadership report and the
+  evidence package's `index.html`. All three are the same shape: no script may run in them at
+  all, and they may not reach the network.
+- **Limits on what will be ingested.** A single input file is capped at 1 GiB and refused before
+  it is read rather than after. One inflated zip entry is capped at 256 MiB and a whole archive
+  at 768 MiB, checked as the stream decompresses, so a decompression bomb stops at the limit
+  instead of at the tab's memory ceiling. Worksheet extraction stops at Excel's own maximum of
+  1,048,576 rows, which cannot truncate a legal worksheet. A detection pattern from a profile is
+  rejected if it is longer than 512 characters or has the nested-quantifier shape that makes a
+  regular expression hang; the check is conservative and is not a general guarantee.
+- **A failed load no longer costs you the dataset.** Loading a session, baseline, or profile is
+  transactional: the current state is restored if the file turns out to be malformed part-way
+  through, instead of leaving a half-loaded dataset on screen.
+- **The evidence package no longer includes the session file by default.** The session file is
+  the complete raw dataset — every host, IP, software row, and enumerated account with its RID,
+  groups, and admin flags — and packages get handed to people the enumerated accounts do not
+  belong to. **Behaviour change:** tick *include resume session file in package* on the Reports
+  tab to get the 2.7 behaviour. The package index says which of the two it is.
+- **`.gitignore` was shipped as `gitignore.txt`,** which git does not read. Every rule in it was
+  dead, including the block that exists to keep `*.nessus`, `session*.json`, `*.ckl`, XCCDF XML,
+  and `Results_*.zip` out of the repository — so a contributor running `git add .` would have
+  committed real scan data to a public repository, and `git status` would not have warned them.
+  The file is now named `.gitignore` and the rules are in force. Confirm with
+  `git check-ignore -v test.nessus`.
+- **18 of 20 built-in product aliases never matched anything.** The `productAliases` patterns
+  were written as double-quoted JavaScript string literals holding single backslashes, so
+  `"re:^(google[\s-]*)?chrome"` reached `RegExp` as `^(google[s-]*)?chrome` — after `google` it
+  would accept only the letter `s` or a hyphen, never a space. `\b` was worse: it resolved to
+  U+0008 BACKSPACE, so `(java|jre|jdk)\b` could essentially never match. Every entry using `\s`
+  or `\b` was dead — 18 of the 20. The aliases exist to merge the several ways scanners name one
+  product (`firefox` from a RHEL check, `Mozilla Firefox` from the Windows plugin), so the
+  Software Summary never merged them and a CM-8 software inventory over-counted distinct
+  products while the consolidation under-reported — silently, with no error to notice. The
+  backslashes are doubled and the intended patterns now compile. The catalog's `osPatterns` and
+  the end-of-support table always escaped correctly and are untouched. **Behaviour change:** the
+  Software Summary now consolidates product names it previously listed separately, so counts in
+  that view drop for environments carrying several scanner spellings of one product. That is the
+  corrected number, not a lost one. Scope is contained by design — the remediation plan keys on
+  the un-aliased product, so an alias can never claim one patch covers two products that need
+  different fixes.
+- Fixed: session files were stamped `ver: "2.6"` in a 2.7 build, so every exported session
+  misstated the tool version that produced it. The release check now compares all the places the
+  version appears and fails if they disagree.
+- The file opens with a provenance comment naming the source repository and the manifest that
+  carries its hashes. It is still a single file with no build step, no dependency, no network
+  call, and no browser storage; sealing is a release step run against the finished file, not a
+  step that produces it.
+
 ## 2.7 — one report, and one package
 
 Reporting was 29 separate exports of which exactly one was a document a person reads, and

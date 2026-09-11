@@ -346,6 +346,76 @@ The `.gitignore` in this repository excludes scan data, session files, and gener
 by filename pattern. **Do not loosen it.** The tool itself ships with no host data; the only
 hosts in the repository are the six synthetic ones in the demo dataset.
 
+## For accreditors
+
+Everything below can be done offline, on the machine the file will run on, without trusting this
+repository or anything in it.
+
+**The policy the file enforces.** `palisade.html` carries this Content-Security-Policy in a
+`<meta>` tag in its own head. No source is a host or a scheme, so the page is forbidden from
+reaching the network at all — the core claim in machine-checkable form:
+
+```
+default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q=';
+style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none';
+frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none';
+manifest-src 'none'; base-uri 'none'; form-action 'none'
+```
+
+**Recompute the script hash yourself.** `script-src` is the SHA-256 of the single inline script
+block, and a hash makes `'unsafe-inline'` be ignored for script — which is what kills every
+injected `on*` attribute. Hash the bytes between `<script>` and `</script>` and compare them to
+what the file claims:
+
+```sh
+computed=$(perl -0777 -ne 'print $1 if /<script(?![^>]*\bsrc=)[^>]*>(.*?)<\/script>/s' \
+             palisade.html | openssl dgst -sha256 -binary | openssl base64 -A)
+claimed=$(grep -o 'sha256-[A-Za-z0-9+/=]*' palisade.html | head -1)
+[ "sha256-$computed" = "$claimed" ] && echo "MATCH $claimed" || echo "MISMATCH"
+```
+
+A single changed byte anywhere in that block breaks the match, and the browser then refuses to
+run the only script in the file — the page loads styled, clickable, and completely inert. That is
+the seal working, not a bug. `node tools/seal.mjs palisade.html --verify` does the same check plus
+byte hygiene, version consistency and the inline-handler invariants.
+
+**Verify the published digests.**
+
+```sh
+sha256sum -c SHA256SUMS
+sha384sum -c SHA384SUMS
+```
+
+**Run the regression gate yourself.** It drives your own Chromium over the DevTools protocol
+against a real `file://` URL — the actual deployment origin, not a local web server — loads the
+demo dataset through the real button, walks all 18 tabs, and asserts zero page errors and zero CSP
+violations. No packages are installed; it needs Node 22 or newer (it uses the global `WebSocket`, on by
+default from Node 22) and a Chromium-family browser.
+
+```sh
+node baseline/harness.mjs "file://$PWD/palisade.html" ./gate
+node baseline/check-frozen.mjs ./gate/result.json baseline/FROZEN-BASELINE.txt
+```
+
+Both exit non-zero on failure. `bash tools/csp-lint.sh palisade.html` reports the CSP attack
+surface against its locked baseline. The same three checks run on every push and tag in
+[`.github/workflows/verify.yml`](.github/workflows/verify.yml); a release tag additionally attests
+that those exact bytes were published by that workflow from that commit — which is a statement
+about publication, not a reproducible or hermetic build, because there is no build step to
+reproduce.
+
+**The documents.**
+
+| Document | What it answers |
+|---|---|
+| [`docs/SECURITY-ASSESSMENT.md`](docs/SECURITY-ASSESSMENT.md) | The assessment memo — what was found, what was fixed, what was tested, and what remains |
+| [`docs/MOBILE-CODE-DETERMINATION.md`](docs/MOBILE-CODE-DETERMINATION.md) | The mobile-code category determination and the basis for it |
+| [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) | Trust boundaries, assumed adversary, and what the design does not defend against |
+| [`docs/SBOM.md`](docs/SBOM.md) | The SBOM notes; the machine-readable forms are `palisade.cdx.json` (CycloneDX) and `palisade.spdx.json` (SPDX) |
+| [`docs/SSDF-MAPPING.md`](docs/SSDF-MAPPING.md) | NIST SP 800-218 practice map — voluntary evidence of practice, not a filing |
+| [`docs/ACCESSIBILITY-CONFORMANCE-REPORT.md`](docs/ACCESSIBILITY-CONFORMANCE-REPORT.md) | VPAT-shaped ACR against WCAG 2.1 AA and Section 508, with the measurements behind every determination |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: single file, no dependencies, no

@@ -78,10 +78,42 @@ identifiers on purpose.
 
 ## Releasing
 
-Bump the version in three places:
+Bump the version in four places:
 
 1. the `<title>` tag
 2. the header `.ver` span
 3. `meta.ver` in `newState()`
+4. the provenance comment on line 2
 
 Then add the entry to `CHANGELOG.md`.
+
+The fourth was added after this list was written, and a session file stamped `2.6` shipped in a
+2.7 build because nothing checked. Nothing relies on you remembering it now — `tools/seal.mjs`
+compares all four and fails the release if they disagree.
+
+### The seal
+
+`palisade.html` carries a Content-Security-Policy whose `script-src` is the SHA-256 of its own
+script block. **Any edit to the script invalidates it and the page stops working entirely** — it
+loads styled and inert, with the expected hash in the console. That is deliberate: it is what
+lets an assessor trust that the file they opened is the file that was reviewed.
+
+So after any change to the script:
+
+```bash
+node tools/seal.mjs palisade.html --seal     # recompute and write the hash
+node tools/seal.mjs palisade.html --verify   # must exit 0
+node baseline/harness.mjs "file://$PWD/palisade.html" baseline/out-current
+```
+
+`--verify` runs before every commit and every release. It is a release step, not a build step:
+the file is complete and openable before and after it runs, and it is never generated from
+sources. Two things will make it fail that are easy to do by accident — saving the file with
+CRLF line endings, and adding a UTF-8 BOM. Both change the bytes the browser hashes. Keep the
+file LF-only with no BOM.
+
+Inline `on*` handlers no longer work anywhere in this file — a hash in `script-src` makes the
+browser ignore `'unsafe-inline'`, so an `onclick=` attribute is a dead control. Wire UI up with
+`data-click` / `data-change` and add the action to the `ACTIONS` table instead. The one
+exception is tagged `/*EXPORT-ONLY-HANDLER*/` and is written into a downloaded report, which is
+a separate document with its own policy.

@@ -1,0 +1,130 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "palisade-2.8",
+  "documentNamespace": "https://github.com/lexen13/Palisade/spdxdocs/palisade-2.8-dbbc7549-1bbd-4034-9295-c0901d241c2c",
+  "creationInfo": {
+    "created": "2026-09-11T17:01:12Z",
+    "creators": [
+      "Person: Jacob Keith",
+      "Organization: Palisade project (Gavin Lee Domingo Johnson, Jacob Keith)",
+      "Tool: GNU-coreutils-sha256sum-9.10",
+      "Tool: CPython-hashlib-3.14.6"
+    ],
+    "comment": "Hashes were computed twice, by two independent implementations, directly from the released file. This document is the SPDX 2.3 equivalent of palisade.cdx.json (CycloneDX 1.6); the two describe the same artifact and carry the same hashes. It is voluntary evidence of practice, not a CISA Secure Software Development Attestation Form; no such form has been filed."
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-palisade",
+      "name": "palisade",
+      "versionInfo": "2.8",
+      "downloadLocation": "git+https://github.com/lexen13/Palisade.git",
+      "homepage": "https://github.com/lexen13/Palisade",
+      "filesAnalyzed": true,
+      "packageVerificationCode": {
+        "packageVerificationCodeValue": "e54ab37a06a7e1c484450fcc73ba254686a6bd1a"
+      },
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97"
+        },
+        {
+          "algorithm": "SHA384",
+          "checksumValue": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f"
+        },
+        {
+          "algorithm": "SHA512",
+          "checksumValue": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6"
+        }
+      ],
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "licenseInfoFromFiles": [
+        "MIT"
+      ],
+      "copyrightText": "Copyright (c) 2026 Gavin Lee Domingo Johnson, Jacob Keith",
+      "supplier": "Organization: Palisade project (Gavin Lee Domingo Johnson, Jacob Keith)",
+      "originator": "Organization: Palisade project (Gavin Lee Domingo Johnson, Jacob Keith)",
+      "primaryPackagePurpose": "APPLICATION",
+      "summary": "Single-file, fully offline HTML application that compiles DoD RMF control evidence from Tenable/ACAS scan exports.",
+      "description": "Palisade compiles STIG applicability, eMASS hardware and software baselines, PPSM registry rows, POA&M drafts, account audits and asset inventories from Tenable/ACAS scan exports. It is one HTML file opened from file:// on an air-gapped or NIPR workstation. There is no build step, no dependency, no network call and no browser storage.",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/palisade@2.8"
+        }
+      ],
+      "hasFiles": [
+        "SPDXRef-File-palisade-html"
+      ],
+      "comment": "Package scope is the distributed artifact only: the single file palisade.html. Repository documentation (README.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, docs/) and release-verification tooling are not shipped to the user and are excluded, which is what makes packageVerificationCode reproducible from the one file listed below. No CPE is asserted: Palisade has no entry in the NVD CPE dictionary, and inventing one would imply a registration that does not exist. The purl above is the unique identifier."
+    }
+  ],
+  "files": [
+    {
+      "SPDXID": "SPDXRef-File-palisade-html",
+      "fileName": "./palisade.html",
+      "fileTypes": [
+        "TEXT",
+        "SOURCE",
+        "APPLICATION"
+      ],
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "8f89d85c72b5cef3b578c153fa0671de735cab63"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97"
+        },
+        {
+          "algorithm": "SHA384",
+          "checksumValue": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f"
+        },
+        {
+          "algorithm": "SHA512",
+          "checksumValue": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6"
+        }
+      ],
+      "licenseConcluded": "MIT",
+      "licenseInfoInFiles": [
+        "MIT"
+      ],
+      "copyrightText": "Copyright (c) 2026 Gavin Lee Domingo Johnson, Jacob Keith",
+      "comment": "521,771 bytes, UTF-8, LF line endings, no BOM. Contains exactly one <script> block of 438,777 bytes whose SHA-256 (sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q=) is the file's own CSP script-src. The SHA1 above is present because SPDX 2.3 requires it on a file and because packageVerificationCode is derived from it; SHA-256 and stronger are the digests to rely on."
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-palisade"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-palisade",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-File-palisade-html"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-palisade",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "NONE",
+      "comment": "NONE is an explicit assertion, not an absence of data: Palisade has no third-party dependencies of any kind. This is the SPDX equivalent of the CycloneDX \"dependsOn\": [] in palisade.cdx.json."
+    }
+  ],
+  "documentDescribes": [
+    "SPDXRef-Package-palisade"
+  ],
+  "annotations": [
+    {
+      "annotator": "Person: Jacob Keith",
+      "annotationDate": "2026-09-11T17:01:12Z",
+      "annotationType": "OTHER",
+      "comment": "Why this inventory lists no dependencies: there are none to list. The single file carries no bundled library, no vendored code, no CDN reference, no subresource-integrity attribute, no package-manager manifest and no external src or href. A reviewer can falsify that claim in seconds with the greps in docs/SBOM.md rather than taking this document's word for it."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "file": "palisade.html",
+  "bytes": 521771,
+  "sha256": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97",
+  "sha384": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f",
+  "sha512": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6",
+  "version": "2.8",
+  "inlineScriptBlocks": [
+    {
+      "bytes": 438777,
+      "sha256": "M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q="
+    }
+  ],
+  "lineEndings": "LF",
+  "bom": false,
+  "inlineHandlers": {
+    "staticBody": 0,
+    "live": 0,
+    "exportOnlyExempt": 1
+  }
+}
