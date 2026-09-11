@@ -16,9 +16,9 @@
 # below only matters when a human runs it by hand.
 #
 # ---------------------------------------------------------------------------
-# BASELINE — measured 2026-09-11 against pristine/palisade-v2.7-ORIGINAL.html
+# BASELINE — originally measured 2026-09-11 against v2.7
 # (498,880 bytes, sha256 8918858eb91e864fb5901bb1d7351483467a237bcae5b67ad872bdf18ee49978).
-# Palisade/palisade.html was byte-identical to it at the time of measurement.
+# The pristine copy used for that measurement is not distributed with this repository.
 #
 #   inline_on_handlers        192   144 static body + 48 emitted by the script
 #                                   (27 onclick + 21 onchange). NOTE: 192, not
@@ -41,14 +41,15 @@
 # anywhere — its 16 <svg> elements are HTML-parsed inline SVG, which does not
 # need one. The true absolute-URL count is 0, and that is what is locked here.
 #
-# POST-BLOCK-C TARGET (do not set these until Block C has actually landed and
-# the harness gate passes — see HARDENING-LEDGER section 3 row 10):
+# SHIPPED v2.8 RATCHET (Block C landed; harness gate passes on the sealed file):
 #   inline_on_handlers 1, of which 0 in the static body and 1 in the script
 #   carrying the /*EXPORT-ONLY-HANDLER*/ marker; everything else unchanged.
+# The v2.7 count of 192 is historical; locking 192 would let 191 handlers
+# return without failing CI.
 # ---------------------------------------------------------------------------
 set -u
 
-BL_INLINE_ON_HANDLERS=192
+BL_INLINE_ON_HANDLERS=1
 BL_JAVASCRIPT_URLS=0
 BL_SETATTRIBUTE_ON=0
 BL_SETATTRIBUTE_STYLE=0
