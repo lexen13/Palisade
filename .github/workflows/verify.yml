@@ -1,0 +1,282 @@
+# Palisade verification workflow.
+#
+# WHAT THIS DOES AND DOES NOT CLAIM
+# ---------------------------------
+# Palisade has no build step. palisade.html is committed complete and is openable
+# from file:// before and after anything here runs; nothing in this workflow
+# generates, bundles, minifies or rewrites it. That shapes what the workflow can
+# honestly say.
+#
+#   It DOES establish: the file in this commit carries a Content-Security-Policy
+#   whose script-src hash matches the bytes of its own inline script; the CSP
+#   attack surface has not regressed past its locked baseline; the page loads in
+#   a real browser from a real file:// URL with zero errors and zero CSP
+#   violations; and the numbers it produces from its own demo dataset are
+#   unchanged. On a release tag it additionally attests that THIS EXACT FILE WAS
+#   PUBLISHED BY THIS WORKFLOW FROM THIS COMMIT.
+#
+#   It does NOT establish a reproducible build, a hermetic build, or any SLSA
+#   build level. There is no build to reproduce. The provenance attestation below
+#   binds bytes to a publishing event, not to a construction process, and it must
+#   not be described as anything more.
+#
+#   It is also not code signing. Nothing here produces a signature a browser
+#   checks before running the file; the browser's check is the CSP hash, which is
+#   inside the file and is what tools/seal.mjs verifies.
+#
+# Anything this workflow does, a reviewer can do by hand on an air-gapped box.
+# See "For accreditors" in README.md.
+
+name: verify
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: seal · lint · browser gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'   # harness.mjs uses the global WebSocket and fetch, no packages
+
+      - name: Confirm there is nothing to install
+        run: |
+          set -euo pipefail
+          if [ -f package.json ] || [ -f package-lock.json ] || [ -d node_modules ]; then
+            echo "::error::A package manifest or node_modules appeared in the repository."
+            echo "Palisade ships with zero dependencies and no build step. That is a hard constraint."
+            exit 1
+          fi
+          echo "no package.json, no lockfile, no node_modules — as required"
+          node --version
+
+      - name: Locate a Chromium-family browser
+        id: browser
+        run: |
+          set -euo pipefail
+          for c in chromium chromium-browser google-chrome google-chrome-stable; do
+            if command -v "$c" >/dev/null 2>&1; then
+              BIN="$(command -v "$c")"
+              echo "using $BIN"
+              "$BIN" --version || true
+              echo "bin=$BIN" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::error::No Chromium-family browser on the runner; the browser gate cannot run."
+          exit 1
+
+      # ---------------------------------------------------------------- seal --
+      # Recomputes the SHA-256 of the inline <script> bytes and checks it against
+      # the hash written into the CSP meta tag, plus byte hygiene (LF-only, no
+      # BOM), version consistency, and the inline-handler invariants.
+      - name: tools/seal.mjs --verify
+        run: node tools/seal.mjs palisade.html --verify
+
+      - name: Committed MANIFEST.json matches the file
+        run: |
+          set -euo pipefail
+          node tools/seal.mjs palisade.html --verify --manifest /tmp/MANIFEST.fresh.json >/dev/null
+          if [ ! -f MANIFEST.json ]; then
+            echo "::notice::No MANIFEST.json committed; skipping the comparison."
+            exit 0
+          fi
+          if diff -u MANIFEST.json /tmp/MANIFEST.fresh.json; then
+            echo "MANIFEST.json matches the file byte for byte"
+          else
+            echo "::error::MANIFEST.json does not describe the committed palisade.html."
+            echo "Re-run: node tools/seal.mjs palisade.html --verify --manifest MANIFEST.json"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------ csp lint --
+      # A ratchet, not a build step: counts may fall, never rise.
+      - name: tools/csp-lint.sh
+        run: bash tools/csp-lint.sh palisade.html
+
+      # --------------------------------------------------------- browser gate --
+      # The real deployment origin is file://, not http://. Opaque-origin
+      # behaviour differs, and the whole product is used from a USB drive or an
+      # air-gapped workstation, so the gate runs against a real file:// URL.
+      - name: baseline/harness.mjs against a real file:// URL
+        env:
+          CHROMIUM: ${{ steps.browser.outputs.bin }}
+        run: |
+          set -euo pipefail
+          node baseline/harness.mjs "file://${GITHUB_WORKSPACE}/palisade.html" "${RUNNER_TEMP}/gate"
+
+      - name: Frozen-number regression check
+        run: node baseline/check-frozen.mjs "${RUNNER_TEMP}/gate/result.json" baseline/FROZEN-BASELINE.txt
+
+      # ------------------------------------------------------------- checksums --
+      - name: Verify SHA256SUMS / SHA384SUMS
+        run: |
+          set -euo pipefail
+          ran=0
+          if [ -f SHA256SUMS ]; then sha256sum -c SHA256SUMS; ran=1; fi
+          if [ -f SHA384SUMS ]; then sha384sum -c SHA384SUMS; ran=1; fi
+          [ "$ran" = 1 ] || echo "::notice::No SHA256SUMS/SHA384SUMS committed; nothing to check."
+
+      - name: Well-formed SBOMs
+        run: |
+          set -euo pipefail
+          for f in palisade.cdx.json palisade.spdx.json; do
+            if [ -f "$f" ]; then
+              node -e "JSON.parse(require('fs').readFileSync('$f','utf8')); console.log('$f parses as JSON')"
+            else
+              echo "::warning::$f is not present"
+            fi
+          done
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### Palisade verification — \`${GITHUB_SHA}\`"
+            echo
+            echo "| Check | What it proves |"
+            echo "|---|---|"
+            echo "| \`seal.mjs --verify\` | the CSP \`script-src\` hash matches the inline script bytes |"
+            echo "| MANIFEST comparison | the committed manifest describes the committed file |"
+            echo "| \`csp-lint.sh\` | the CSP attack surface has not regressed past its baseline |"
+            echo "| \`harness.mjs\` | the page loads from a real \`file://\` URL with 0 errors, 0 CSP violations, all 18 views clean |"
+            echo "| \`check-frozen.mjs\` | the demo dataset still yields the same evidence numbers |"
+            echo "| \`sha256sum -c\` | the published digests match the published files |"
+            echo
+            echo "This is a verification workflow, not a build. \`palisade.html\` is committed"
+            echo "complete; nothing here generates it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload gate output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-output-${{ github.sha }}
+          path: ${{ runner.temp }}/gate
+          if-no-files-found: warn
+          retention-days: 30
+
+  # =====================================================================
+  # Release. Tags only. Attaches the artifacts an accreditor needs and
+  # attests that these exact bytes came out of this workflow run.
+  # =====================================================================
+  release:
+    name: publish and attest
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write      # create the release and upload assets
+      id-token: write      # OIDC token the attestation is signed against
+      attestations: write  # write the provenance attestation
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Re-verify the seal on the tagged bytes
+        run: |
+          set -euo pipefail
+          node tools/seal.mjs palisade.html --verify
+          echo "sha256: $(sha256sum palisade.html | cut -d' ' -f1)"
+          echo "sha384: $(sha384sum palisade.html | cut -d' ' -f1)"
+
+      - name: Collect the release set
+        id: set
+        run: |
+          set -euo pipefail
+          files=()
+          for f in palisade.html palisade.cdx.json palisade.spdx.json MANIFEST.json SHA256SUMS SHA384SUMS; do
+            [ -f "$f" ] && files+=("$f")
+          done
+          for f in docs/*.md SECURITY.md; do
+            [ -f "$f" ] && files+=("$f")
+          done
+          # The release notes tell a reviewer to run `node tools/seal.mjs
+          # palisade.html --verify` offline. Attach the tools so that
+          # instruction is executable from the release assets alone, without
+          # cloning the repository.
+          for f in tools/seal.mjs tools/csp-lint.sh; do
+            [ -f "$f" ] && files+=("$f")
+          done
+          printf '%s\n' "${files[@]}" > /tmp/release-files.txt
+          echo "release set:"; cat /tmp/release-files.txt
+          # palisade.html and the two SBOMs are what gets an attestation
+          subjects=""
+          for f in palisade.html palisade.cdx.json palisade.spdx.json; do
+            [ -f "$f" ] && subjects="${subjects}${f}"$'\n'
+          done
+          {
+            echo 'subjects<<SUBJ_EOF'
+            printf '%s' "$subjects"
+            echo 'SUBJ_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Binds the digests of these files to this workflow, this commit and this
+      # run. It says "these bytes were published by this workflow from this
+      # commit". It does NOT say the bytes were built reproducibly or hermetically
+      # — there is no build. Do not restate it as more than that.
+      - name: Attest publication provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.set.outputs.subjects }}
+
+      - name: Create the release and attach the artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/notes.md <<'NOTES'
+          ## Verification
+
+          Every check in `.github/workflows/verify.yml` passed on this commit before
+          this release was cut: the CSP `script-src` hash matches the inline script
+          bytes, the CSP surface lint is at or below baseline, and the page loads in
+          Chromium from a real `file://` URL with zero errors, zero CSP violations
+          and unchanged evidence numbers across all 18 views.
+
+          `palisade.html`, `palisade.cdx.json` and `palisade.spdx.json` carry a build
+          provenance attestation. Check it with:
+
+              gh attestation verify palisade.html --repo lexen13/Palisade
+
+          **What the attestation means:** these exact bytes were published by this
+          workflow, from this commit, in this run. **What it does not mean:** it is
+          not evidence of a reproducible or hermetic build, and it is not code
+          signing. Palisade has no build step — `palisade.html` is committed complete
+          and the workflow publishes the bytes already in the tree. The check a
+          browser actually performs is the CSP `script-src` hash inside the file, and
+          you can recompute that yourself offline; see "For accreditors" in the README.
+
+          ## Offline verification
+
+              sha256sum -c SHA256SUMS
+              sha384sum -c SHA384SUMS
+              node tools/seal.mjs palisade.html --verify
+          NOTES
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $(tr '\n' ' ' < /tmp/release-files.txt) --clobber
+          else
+            gh release create "$TAG" $(tr '\n' ' ' < /tmp/release-files.txt) \
+              --title "Palisade $TAG" --notes-file /tmp/notes.md
+          fi

@@ -1,9 +1,23 @@
 <!DOCTYPE html>
+<!-- Palisade v2.8 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Content-Security-Policy. No source is a host or a scheme: the app is forbidden from
+     reaching the network at all, which is the machine-checkable form of its core claim.
+     script-src is the SHA-256 of the one script block below, and a hash makes 'unsafe-inline'
+     be ignored for script - which is what kills every injected on* attribute, since an
+     attribute value can never be hash-matched. That is also why the handlers had to be
+     delegated to data-click/data-change first: this policy would have left them dead buttons.
+     Editing the script by one byte, whitespace included, invalidates the hash and the page
+     loads inert with the expected hash in the console. That failure is the seal; do not soften
+     it. Re-run tools/seal.mjs --seal after any script edit, and --verify before release.
+     style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
+     connect/frame/object are 'none', so it exfiltrates nothing.
+     frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Palisade v2.7</title>
+<title>Palisade v2.8</title>
 <style>
   /* ================================================================
      Palisade — instrument console theme
@@ -396,28 +410,28 @@
         <path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <div class="t">
-      <h1>Palisade <span class="ver">v2.7</span>
+      <h1>Palisade <span class="ver">v2.8</span>
         <span class="badge"><span class="dot"></span>Offline</span></h1>
       <div class="sub">Turns Tenable / ACAS scan exports into audit-ready control evidence &mdash; all parsing local, no network calls</div>
     </div>
   </div>
   <div class="grow"></div>
   <div class="actions">
-    <button class="primary icon" onclick="document.getElementById('fileIn').click()" title="Load .nessus or Tenable CSV exports">
+    <button class="primary icon" data-click="pickFile" data-arg="fileIn" title="Load .nessus or Tenable CSV exports">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
       Load scans</button>
     <div class="menu">
-      <button class="mbtn icon" onclick="toggleMenu(this)" title="Save or resume your work">
+      <button class="mbtn icon" data-click="toggleMenu" title="Save or resume your work">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
         Session</button>
       <div class="mlist">
         <div class="mhead">Your work in progress</div>
-        <button onclick="saveSession()">Save session &mdash; everything parsed, plus your edits</button>
-        <button onclick="document.getElementById('sessIn').click()">Resume a saved session</button>
+        <button data-click="saveSession">Save session &mdash; everything parsed, plus your edits</button>
+        <button data-click="pickFile" data-arg="sessIn">Resume a saved session</button>
       </div>
     </div>
     <div class="sep"></div>
-    <div class="meter" id="meter" onclick="openHelp('overview')" title="Pre-delivery readiness — click for the checklist">
+    <div class="meter" id="meter" data-click="openHelp" data-arg="overview" title="Pre-delivery readiness — click for the checklist">
       <div class="ring">
         <svg width="42" height="42" viewBox="0 0 42 42">
           <circle class="bg" cx="21" cy="21" r="16" fill="none" stroke-width="5"></circle>
@@ -429,10 +443,10 @@
       <div class="mtxt"><b id="meterLabel">Readiness</b><span id="meterSub">load scans to begin</span></div>
     </div>
     <div class="sep"></div>
-    <button class="ghost icon" onclick="openWizard()" title="Guided setup">
+    <button class="ghost icon" data-click="openWizard" title="Guided setup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3"/></svg>
       Setup guide</button>
-    <button class="ghost icon" onclick="openHelp()" title="Plain-language help for the current tab">
+    <button class="ghost icon" data-click="openHelp" title="Plain-language help for the current tab">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
       Help</button>
     <input type="file" id="fileIn" multiple accept=".nessus,.xml,.csv,.tsv,.xlsx,.ckl,.cklb,.zip,.json" style="display:none">
@@ -483,15 +497,15 @@
 <main>
 <!-- ================= OVERVIEW ================= -->
 <div class="tabpane active" id="pane-overview">
-  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Overview</h1><p>Your home base. Load scan exports, watch the readiness checklist fill in, and export every artifact from one place. Nothing leaves this machine.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('overview')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Overview</h1><p>Your home base. Load scan exports, watch the readiness checklist fill in, and export every artifact from one place. Nothing leaves this machine.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="overview">?</button></div>
   <div class="drop" id="drop">Drag Tenable / ACAS exports here (.nessus preferred, .csv accepted) &mdash; or use <b>Load scan exports</b> above.<br><b>HW/SW baseline listings</b> (.xlsx/.csv/.tsv), threat-intel sheets (SASR-E and similar, .xlsx/.csv) and STIG compliance results (SCC XCCDF .xml, STIG Viewer .ckl/.cklb, or a .zip of either) can be dropped here too &mdash; all recognized automatically. Multiple files merge into one dataset.</div>
   <div class="callout">
     <div class="ct"><b>First time here?</b>
       <p>Load a fully populated example to explore every tab, or drop in your own scan exports to begin. The setup guide is in the top bar whenever you want it.</p></div>
     <div class="ca">
-      <button class="primary icon" onclick="loadDemoData()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>Load demo data</button>
-      <button onclick="openWizard()">Setup guide</button>
-      <button class="danger" onclick="clearAll()">Clear all</button>
+      <button class="primary icon" data-click="loadDemoData"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>Load demo data</button>
+      <button data-click="openWizard">Setup guide</button>
+      <button class="danger" data-click="clearAll">Clear all</button>
     </div>
   </div>
   <div class="flowstrip">
@@ -505,7 +519,7 @@
   <div class="panel">
     <h2>Pre-delivery readiness check
       <span style="float:right;font-weight:400;color:var(--dim);font-size:12px">stale after
-        <input type="number" id="staleDays" value="35" min="1" max="365" style="width:60px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 5px" onchange="renderReadiness()"> days</span>
+        <input type="number" id="staleDays" value="35" min="1" max="365" style="width:60px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 5px" data-change="renderReadiness"> days</span>
     </h2>
     <div id="readyBody"></div>
   </div>
@@ -516,9 +530,9 @@
       already filed. <b>Separate files</b> is the original behaviour: every artifact as its own download, which
       your browser will ask permission for the first time.</p>
     <div class="toolbar" style="margin:10px 0 0">
-      <button class="primary" onclick="exportPackage()">Export evidence package .zip</button>
-      <button onclick="exportAll()">Export all artifacts (separate files)</button>
-      <button onclick="gotoTab('reports')">Choose what goes in the report</button>
+      <button class="primary" data-click="exportPackage">Export evidence package .zip</button>
+      <button data-click="exportAll">Export all artifacts (separate files)</button>
+      <button data-click="gotoTab" data-arg="reports">Choose what goes in the report</button>
     </div>
   </div>
   <details class="explain">
@@ -540,19 +554,19 @@
 
 <!-- ================= PPSM ================= -->
 <div class="tabpane" id="pane-ppsm">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>PPSM Matrix</h1><p>Every port found listening on your hosts, shaped into the DoD IS Registration layout. Exclude what you are not registering, set the boundaries, then export.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('ppsm')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>PPSM Matrix</h1><p>Every port found listening on your hosts, shaped into the DoD IS Registration layout. Exclude what you are not registering, set the boundaries, then export.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="ppsm">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportPPSM()">Export registry .txt</button>
+    <button class="primary" data-click="exportPPSM">Export registry .txt</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <button class="mbtn" data-click="toggleMenu">More exports</button>
       <div class="mlist">
         <div class="mhead">PPSM exports</div>
-        <button onclick="exportPPSM()">Registry .txt &mdash; tab-delimited, DoD form column order</button>
-        <button onclick="exportPPSMcsv()">Working copy .csv &mdash; for review, includes your notes</button>
+        <button data-click="exportPPSM">Registry .txt &mdash; tab-delimited, DoD form column order</button>
+        <button data-click="exportPPSMcsv">Working copy .csv &mdash; for review, includes your notes</button>
       </div>
     </div>
     <div class="filters">
-      <label class="chk"><input type="checkbox" id="ppsmShowExcluded" checked onchange="renderPPSM()"> show excluded rows</label>
+      <label class="chk"><input type="checkbox" id="ppsmShowExcluded" checked data-change="renderPPSM"> show excluded rows</label>
     </div>
   </div>
   <div class="panel" style="margin-bottom:12px">
@@ -563,7 +577,7 @@
       <input class="inp" type="number" id="ephFloor" value="49152" min="1024" max="65535" style="width:88px">
       <label class="chk" style="margin-left:10px">minimum hosts</label>
       <input class="inp" type="number" id="minHosts" value="1" min="1" max="99" style="width:64px">
-      <button class="primary" onclick="applyPpsmFilter()">Apply filter</button>
+      <button class="primary" data-click="applyPpsmFilter">Apply filter</button>
     </div>
   </div>
   <div class="tablewrap"><table id="ppsmTable"></table></div>
@@ -573,15 +587,15 @@
 
 <!-- ================= STIG ================= -->
 <div class="tabpane" id="pane-stig">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Applicability</h1><p>Which security configuration baselines (STIGs) apply to each host, inferred from the operating system and installed software the scan found.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('stig')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Applicability</h1><p>Which security configuration baselines (STIGs) apply to each host, inferred from the operating system and installed software the scan found.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="stig">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportSTIG()">Export STIG matrix .csv</button>
+    <button class="primary" data-click="exportSTIG">Export STIG matrix .csv</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">Tools</button>
+      <button class="mbtn" data-click="toggleMenu">Tools</button>
       <div class="mlist">
         <div class="mhead">Matrix tools</div>
-        <button onclick="runDetection();renderSTIG();status('Detection re-run. Manual overrides preserved.')">Re-run detection &mdash; keeps your manual overrides</button>
-        <button onclick="toggleColumnManager()">Manage columns &mdash; add a STIG by hand</button>
+        <button data-click="rerunDetection">Re-run detection &mdash; keeps your manual overrides</button>
+        <button data-click="toggleColumnManager">Manage columns &mdash; add a STIG by hand</button>
       </div>
     </div>
     <div class="filters">
@@ -603,46 +617,46 @@
 
 <!-- ================= SOFTWARE ================= -->
 <div class="tabpane" id="pane-software">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Software Listing</h1><p>A de-duplicated inventory of every product the scan found, ready to become your software baseline and approved-software list.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('software')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Software Listing</h1><p>A de-duplicated inventory of every product the scan found, ready to become your software baseline and approved-software list.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="software">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportSoftware()">Export software listing .csv</button>
+    <button class="primary" data-click="exportSoftware">Export software listing .csv</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <button class="mbtn" data-click="toggleMenu">More exports</button>
       <div class="mlist">
         <div class="mhead">eMASS baselines</div>
-        <button onclick="exportEmassSoftware()">eMASS software baseline</button>
-        <button onclick="exportEmassHardware()">eMASS hardware baseline</button>
+        <button data-click="exportEmassSoftware">eMASS software baseline</button>
+        <button data-click="exportEmassHardware">eMASS hardware baseline</button>
         <hr>
         <div class="mhead">Other</div>
-        <button onclick="exportApprovalSheet()">Review sheet &mdash; send out for approval decisions</button>
-        <button onclick="exportOsPackages()">OS package manifest</button>
+        <button data-click="exportApprovalSheet">Review sheet &mdash; send out for approval decisions</button>
+        <button data-click="exportOsPackages">OS package manifest</button>
       </div>
     </div>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">Bring in data</button>
+      <button class="mbtn" data-click="toggleMenu">Bring in data</button>
       <div class="mlist">
         <div class="mhead">Load into this tab</div>
-        <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing &mdash; software rows merge here with vendor/version, hardware rows go to Assets">Load HW/SW baseline listing(s)</button>
-        <button onclick="document.getElementById('apprIn').click()">Import approvals &mdash; a returned review sheet</button>
+        <button data-click="pickFile" data-arg="listIn" title="Ingest a HW/SW baseline listing &mdash; software rows merge here with vendor/version, hardware rows go to Assets">Load HW/SW baseline listing(s)</button>
+        <button data-click="pickFile" data-arg="apprIn">Import approvals &mdash; a returned review sheet</button>
       </div>
     </div>
     <input type="file" id="apprIn" accept=".csv" style="display:none">
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">Clean up</button>
+      <button class="mbtn" data-click="toggleMenu">Clean up</button>
       <div class="mlist">
         <div class="mhead">Bulk edits</div>
-        <button onclick="applySwDefaults()">Fill empty cells from Settings defaults</button>
-        <button onclick="runConsolidation()">Consolidate duplicate products</button>
+        <button data-click="applySwDefaults">Fill empty cells from Settings defaults</button>
+        <button data-click="runConsolidation">Consolidate duplicate products</button>
         <hr>
-        <button onclick="swBulkInclude(true)">Include every row</button>
-        <button onclick="swBulkInclude(false)">Exclude every row</button>
+        <button data-click="swBulkInclude" data-arg="true">Include every row</button>
+        <button data-click="swBulkInclude" data-arg="false">Exclude every row</button>
         <hr>
-        <label><input type="checkbox" id="swShowOsPkgs" onchange="renderSoftware()"> show OS packages</label>
+        <label><input type="checkbox" id="swShowOsPkgs" data-change="renderSoftware"> show OS packages</label>
       </div>
     </div>
     <div class="filters">
-      <input class="inp w" type="text" id="swFilter" placeholder="filter by name / vendor / type" oninput="renderSoftware()">
-      <label class="chk"><input type="checkbox" id="swShowExcluded" onchange="renderSoftware()"> show excluded</label>
+      <input class="inp w" type="text" id="swFilter" placeholder="filter by name / vendor / type" data-input="renderSoftware">
+      <label class="chk"><input type="checkbox" id="swShowExcluded" data-change="renderSoftware"> show excluded</label>
     </div>
   </div>
   <div class="cards" id="swCards"></div>
@@ -660,11 +674,11 @@
 
 <!-- ================= DELTA ================= -->
 <div class="tabpane" id="pane-delta">
-  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Changes</h1><p>Diffs this cycle against a prior baseline and grades every change &mdash; new or removed software, hosts, ports, and shifted STIG applicability.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('delta')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Changes</h1><p>Diffs this cycle against a prior baseline and grades every change &mdash; new or removed software, hosts, ports, and shifted STIG applicability.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="delta">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="document.getElementById('baseIn').click()">Load baseline (prior session)</button>
-    <button onclick="setBaselineFromCurrent()">Set baseline = current</button>
-    <button onclick="exportDelta()">Export change record .csv</button>
+    <button class="primary" data-click="pickFile" data-arg="baseIn">Load baseline (prior session)</button>
+    <button data-click="setBaselineFromCurrent">Set baseline = current</button>
+    <button data-click="exportDelta">Export change record .csv</button>
     <input type="file" id="baseIn" accept=".json" style="display:none">
   </div>
   <details class="explain">
@@ -678,23 +692,23 @@
 
 <!-- ================= ASSETS ================= -->
 <div class="tabpane" id="pane-assets">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Asset Inventory</h1><p>One row per asset &mdash; the hardware inventory. Scan-derived fields refresh every time you load new scans; everything else you fill in once and it sticks.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('assets')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Asset Inventory</h1><p>One row per asset &mdash; the hardware inventory. Scan-derived fields refresh every time you load new scans; everything else you fill in once and it sticks.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="assets">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportAssets()">Export asset inventory .csv</button>
+    <button class="primary" data-click="exportAssets">Export asset inventory .csv</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">Bring in data</button>
+      <button class="mbtn" data-click="toggleMenu">Bring in data</button>
       <div class="mlist">
         <div class="mhead">Add to the inventory</div>
-        <button onclick="document.getElementById('listIn').click()" title="Ingest a HW/SW baseline listing (.xlsx/.csv/.tsv) &mdash; hardware rows merge here, software rows into the Software Listing">Load HW/SW baseline listing(s)</button>
-        <button onclick="addManualAsset()">Add an asset the scan never saw</button>
+        <button data-click="pickFile" data-arg="listIn" title="Ingest a HW/SW baseline listing (.xlsx/.csv/.tsv) &mdash; hardware rows merge here, software rows into the Software Listing">Load HW/SW baseline listing(s)</button>
+        <button data-click="addManualAsset">Add an asset the scan never saw</button>
         <hr>
-        <button onclick="buildAssets();renderAssets();status('Refreshed scan-derived fields. Manual entries untouched.')">Refresh scan-derived fields</button>
-        <button onclick="clearListings()">Clear loaded listings</button>
+        <button data-click="refreshAssets">Refresh scan-derived fields</button>
+        <button data-click="clearListings">Clear loaded listings</button>
       </div>
     </div>
     <input type="file" id="listIn" multiple accept=".xlsx,.csv,.tsv" style="display:none">
     <div class="filters">
-      <input class="inp" type="text" id="assetFilter" placeholder="filter" oninput="renderAssets()" style="min-width:170px">
+      <input class="inp" type="text" id="assetFilter" placeholder="filter" data-input="renderAssets" style="min-width:170px">
     </div>
   </div>
   <div class="cards" id="assetCards"></div>
@@ -714,9 +728,9 @@
 
 <!-- ================= EOL ================= -->
 <div class="tabpane" id="pane-eol">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Unsupported Components</h1><p>Software and operating systems past vendor end-of-support, or where the exact lifecycle date still needs confirming. Supports control SA-22.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('eol')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Unsupported Components</h1><p>Software and operating systems past vendor end-of-support, or where the exact lifecycle date still needs confirming. Supports control SA-22.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="eol">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportEol()">Export unsupported components .csv</button>
+    <button class="primary" data-click="exportEol">Export unsupported components .csv</button>
     <div class="filters">
       <span class="hint">maintain the date table in Detection Config</span>
     </div>
@@ -732,21 +746,21 @@
 
 <!-- ================= THREAT INTEL ================= -->
 <div class="tabpane" id="pane-intel">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Threat Intel</h1><p>Fuses a threat-intelligence sheet with your scan findings, so remediation order follows real-world exploitation rather than CVSS alone.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('intel')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Threat Intel</h1><p>Fuses a threat-intelligence sheet with your scan findings, so remediation order follows real-world exploitation rather than CVSS alone.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="intel">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="document.getElementById('intelIn').click()">Load intel sheet(s)</button>
+    <button class="primary" data-click="pickFile" data-arg="intelIn">Load intel sheet(s)</button>
     <input type="file" id="intelIn" multiple accept=".xlsx,.csv,.tsv" style="display:none">
-    <button onclick="exportIntel()">Export prioritized vulns .csv</button>
-    <button class="ghost danger" onclick="clearIntel()">Clear intel</button>
+    <button data-click="exportIntel">Export prioritized vulns .csv</button>
+    <button class="ghost danger" data-click="clearIntel">Clear intel</button>
     <div class="filters">
-      <input class="inp" type="text" id="intelFilter" placeholder="filter by CVE / product / actor / IAVM" oninput="renderIntel()" style="min-width:230px">
-      <select class="sel" id="intelScoreSrc" onchange="setIntelScoreSource(this.value)" title="Which score drives priority and tiering. Sheets that do their own composite scoring (SASR-E Total, etc.) appear here automatically &mdash; including unmapped numeric columns." style="max-width:250px">
+      <input class="inp" type="text" id="intelFilter" placeholder="filter by CVE / product / actor / IAVM" data-input="renderIntel" style="min-width:230px">
+      <select class="sel" id="intelScoreSrc" data-change="setIntelScoreSource" title="Which score drives priority and tiering. Sheets that do their own composite scoring (SASR-E Total, etc.) appear here automatically &mdash; including unmapped numeric columns." style="max-width:250px">
         <option value="blended">Blended formula (CVSS + RF + boosts)</option>
       </select>
-      <select class="sel" id="intelTier" onchange="renderIntel()">
+      <select class="sel" id="intelTier" data-change="renderIntel">
         <option value="">all tiers</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option>
       </select>
-      <label class="chk"><input type="checkbox" id="intelShowUnmatched" onchange="renderIntel()"> show intel not seen in scans</label>
+      <label class="chk"><input type="checkbox" id="intelShowUnmatched" data-change="renderIntel"> show intel not seen in scans</label>
     </div>
   </div>
   <details class="explain">
@@ -771,28 +785,28 @@
 
 <!-- ================= VULNS ================= -->
 <div class="tabpane" id="pane-vulns">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Vulnerabilities</h1><p>Every severity-rated finding from the scans, grouped so one issue on thirty hosts is one row. Use the view buttons below to pivot the same data.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('vulns')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Vulnerabilities</h1><p>Every severity-rated finding from the scans, grouped so one issue on thirty hosts is one row. Use the view buttons below to pivot the same data.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="vulns">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportRemediationPlan()">Export remediation plan .csv</button>
+    <button class="primary" data-click="exportRemediationPlan">Export remediation plan .csv</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <button class="mbtn" data-click="toggleMenu">More exports</button>
       <div class="mlist">
         <div class="mhead">Same data, other shapes</div>
-        <button onclick="exportVulns()">Vulnerability report .csv &mdash; rolled up by finding</button>
-        <button onclick="exportVulnDetail()">Detail list .csv &mdash; one row per host per finding</button>
-        <button onclick="exportIpSummary()">IP summary .csv &mdash; rolled up by asset</button>
+        <button data-click="exportVulns">Vulnerability report .csv &mdash; rolled up by finding</button>
+        <button data-click="exportVulnDetail">Detail list .csv &mdash; one row per host per finding</button>
+        <button data-click="exportIpSummary">IP summary .csv &mdash; rolled up by asset</button>
         <hr>
-        <button onclick="exportPoam()">POA&amp;M draft .csv &mdash; decision fields left blank for the ISSM</button>
+        <button data-click="exportPoam">POA&amp;M draft .csv &mdash; decision fields left blank for the ISSM</button>
       </div>
     </div>
     <div class="filters">
-      <input class="inp w" type="text" id="vulnFilter" placeholder="filter by finding / CVE / host / port" oninput="renderVulns()">
-      <select class="sel" id="vulnSev" onchange="renderVulns()">
+      <input class="inp w" type="text" id="vulnFilter" placeholder="filter by finding / CVE / host / port" data-input="renderVulns">
+      <select class="sel" id="vulnSev" data-change="renderVulns">
         <option value="">all severities</option><option value="4">Critical</option>
         <option value="3">High</option><option value="2">Medium</option><option value="1">Low</option>
       </select>
-      <label class="chk"><input type="checkbox" id="vulnExpl" onchange="renderVulns()"> exploitable only</label>
-      <label class="chk"><input type="checkbox" id="vulnOverdue" onchange="renderVulns()"> past remediation window</label>
+      <label class="chk"><input type="checkbox" id="vulnExpl" data-change="renderVulns"> exploitable only</label>
+      <label class="chk"><input type="checkbox" id="vulnOverdue" data-change="renderVulns"> past remediation window</label>
     </div>
   </div>
   <div class="bar-actions" id="vulnViews" style="margin-bottom:10px"></div>
@@ -809,12 +823,12 @@
 
 <!-- ================= ACCOUNTS ================= -->
 <div class="tabpane" id="pane-accounts">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Account Audit</h1><p>User accounts the credentialed scans enumerated &mdash; who exists on each host, who is privileged, and which accounts sit in exception states. Supports control AC-2.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('accounts')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Account Audit</h1><p>User accounts the credentialed scans enumerated &mdash; who exists on each host, who is privileged, and which accounts sit in exception states. Supports control AC-2.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="accounts">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportAccountAudit()">Export account audit .csv</button>
+    <button class="primary" data-click="exportAccountAudit">Export account audit .csv</button>
     <div class="filters">
-      <input class="inp" type="text" id="accFilter" placeholder="filter by account / host / group" oninput="renderAccountAudit()" style="min-width:200px">
-      <label class="chk"><input type="checkbox" id="accFlagged" onchange="renderAccountAudit()"> flagged only</label>
+      <input class="inp" type="text" id="accFilter" placeholder="filter by account / host / group" data-input="renderAccountAudit" style="min-width:200px">
+      <label class="chk"><input type="checkbox" id="accFlagged" data-change="renderAccountAudit"> flagged only</label>
     </div>
   </div>
   <details class="explain"><summary>What this proves, and why it can come back empty</summary>
@@ -831,27 +845,27 @@
 
 <!-- ================= STIG COMPLIANCE ================= -->
 <div class="tabpane" id="pane-stigcompliance">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Compliance</h1><p>Actual per-rule results from SCC or STIG Viewer checklists. Applicability says which baselines apply; this says which checks pass.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('stigcompliance')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>STIG Compliance</h1><p>Actual per-rule results from SCC or STIG Viewer checklists. Applicability says which baselines apply; this says which checks pass.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="stigcompliance">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportStigCompliance()">Export compliance summary .csv</button>
+    <button class="primary" data-click="exportStigCompliance">Export compliance summary .csv</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">More exports</button>
+      <button class="mbtn" data-click="toggleMenu">More exports</button>
       <div class="mlist">
         <div class="mhead">STIG result exports</div>
-        <button onclick="exportStigOpenFindings()">Open findings .csv</button>
-        <button onclick="exportStigCoverage()">Coverage gaps .csv &mdash; applies but was never assessed</button>
+        <button data-click="exportStigOpenFindings">Open findings .csv</button>
+        <button data-click="exportStigCoverage">Coverage gaps .csv &mdash; applies but was never assessed</button>
         <hr>
-        <button onclick="exportStigPoam()">STIG POA&amp;M draft .csv</button>
+        <button data-click="exportStigPoam">STIG POA&amp;M draft .csv</button>
       </div>
     </div>
     <div class="filters">
-      <input class="inp" type="text" id="scFilter" placeholder="filter by host / STIG / V-ID / rule" oninput="renderStigCompliance()" style="min-width:230px">
-      <select class="sel" id="scStatus" onchange="renderStigCompliance()">
+      <input class="inp" type="text" id="scFilter" placeholder="filter by host / STIG / V-ID / rule" data-input="renderStigCompliance" style="min-width:230px">
+      <select class="sel" id="scStatus" data-change="renderStigCompliance">
         <option value="">all statuses</option><option value="Open">Open</option>
         <option value="NotAFinding">Not a Finding</option><option value="Not_Applicable">Not Applicable</option>
         <option value="Not_Reviewed">Not Reviewed</option>
       </select>
-      <select class="sel" id="scCat" onchange="renderStigCompliance()">
+      <select class="sel" id="scCat" data-change="renderStigCompliance">
         <option value="">all severities</option><option value="high">CAT I</option>
         <option value="medium">CAT II</option><option value="low">CAT III</option>
       </select>
@@ -871,9 +885,9 @@
 
 <!-- ================= SCAN HEALTH ================= -->
 <div class="tabpane" id="pane-scanhealth">
-  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Scan Health</h1><p>Start here. Whether the scan actually authenticated, which policy ran, how current the plugin feed was, and when it ran &mdash; every other tab depends on these answers.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('scanhealth')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 2 &middot; Evidence</span><h1>Scan Health</h1><p>Start here. Whether the scan actually authenticated, which policy ran, how current the plugin feed was, and when it ran &mdash; every other tab depends on these answers.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="scanhealth">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportScanHealth()">Export scan coverage .csv</button>
+    <button class="primary" data-click="exportScanHealth">Export scan coverage .csv</button>
     <div class="filters">
       <span class="hint">from Nessus plugin 19506 &mdash; the scan's own record of how it ran</span>
     </div>
@@ -891,7 +905,7 @@
 
 <!-- ================= CONTROLS ================= -->
 <div class="tabpane" id="pane-controls">
-  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Control Mapping</h1><p>Which NIST 800-53 controls each artifact supports, and in plain language what it demonstrates. Use this wording when you write the assessment.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('controls')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Control Mapping</h1><p>Which NIST 800-53 controls each artifact supports, and in plain language what it demonstrates. Use this wording when you write the assessment.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="controls">?</button></div>
   <div class="panel">
     <h2>What each artifact supports</h2>
     <p>Each export carries these mappings in its header so the evidence is self-labeling. Use the wording below when writing the report &mdash; it states what the artifact demonstrates, not just which control number it sits under.</p>
@@ -901,14 +915,14 @@
 
 <!-- ================= TREND ================= -->
 <div class="tabpane" id="pane-trend">
-  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Trend &amp; Burndown</h1><p>Whether the posture is actually improving. One point per assessment cycle &mdash; the question no single scan can answer.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('trend')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Trend &amp; Burndown</h1><p>Whether the posture is actually improving. One point per assessment cycle &mdash; the question no single scan can answer.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="trend">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="captureTrendPoint()">Capture current as a cycle</button>
-    <button onclick="document.getElementById('trendIn').click()">Add from prior sessions</button>
+    <button class="primary" data-click="captureTrendPoint">Capture current as a cycle</button>
+    <button data-click="pickFile" data-arg="trendIn">Add from prior sessions</button>
     <input type="file" id="trendIn" multiple accept=".json" style="display:none">
-    <button onclick="exportTrend()">Export trend .csv</button>
+    <button data-click="exportTrend">Export trend .csv</button>
     <div class="filters">
-      <button class="danger ghost" onclick="clearTrend()">Clear timeline</button>
+      <button class="danger ghost" data-click="clearTrend">Clear timeline</button>
     </div>
   </div>
   <details class="explain"><summary>How to rebuild history you did not track at the time</summary>
@@ -924,16 +938,16 @@
 
 <!-- ================= RECON ================= -->
 <div class="tabpane" id="pane-recon">
-  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Reconciliation</h1><p>Compares your authoritative asset list against what actually scanned, so you catch assets that failed to scan or turned up unexpectedly.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('recon')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Reconciliation</h1><p>Compares your authoritative asset list against what actually scanned, so you catch assets that failed to scan or turned up unexpectedly.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="recon">?</button></div>
   <div class="panel">
     <h2>Authoritative asset inventory</h2>
     <p>Paste your asset list &mdash; one per line, or <code>Hostname, Type, Note</code> if you want the extra columns. A header row is ignored. This is compared against what the scans actually found.</p>
     <p><b>This list should come from outside the scan data.</b> Its value is being an independent source of truth &mdash; a list built only from scan results can never reveal an asset that failed to scan, which is the main thing worth catching. <b>Seed from Asset Inventory</b> gives you a starting draft to curate; once curated, maintain it deliberately rather than regenerating it. If you leave this box empty, the Asset Inventory tab is used as the authoritative side automatically.</p>
     <textarea class="cfg" id="invBox" style="min-height:160px" spellcheck="false" placeholder="WKSTN-001, Workstation, Bldg 2 Rm 14&#10;SVR-DC01, Server&#10;LNX-DB01, Virtual Machine"></textarea>
     <div class="toolbar" style="margin-top:10px;margin-bottom:0">
-      <button class="primary" onclick="applyInventory()">Apply inventory</button>
-      <button onclick="seedInventoryFromAssets()">Seed from Asset Inventory</button>
-      <button onclick="exportRecon()">Export reconciliation .csv</button>
+      <button class="primary" data-click="applyInventory">Apply inventory</button>
+      <button data-click="seedInventoryFromAssets">Seed from Asset Inventory</button>
+      <button data-click="exportRecon">Export reconciliation .csv</button>
     </div>
   </div>
   <div id="reconBody"></div>
@@ -941,21 +955,23 @@
 
 <!-- ================= REPORTS ================= -->
 <div class="tabpane" id="pane-reports">
-  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Reports</h1><p>Build one document from the compiled evidence. Pick who it is for, tick what goes in, watch the preview &mdash; then export it, or the whole evidence package as one zip.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('reports')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 4 &middot; Deliver</span><h1>Reports</h1><p>Build one document from the compiled evidence. Pick who it is for, tick what goes in, watch the preview &mdash; then export it, or the whole evidence package as one zip.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="reports">?</button></div>
   <div class="toolbar">
-    <button class="primary" onclick="exportCombinedReport()">Export report .html</button>
-    <button class="icon" onclick="exportPackage()" title="One zip: this report, every CSV, the session file, and an index page that says what each file is">
+    <button class="primary" data-click="exportCombinedReport">Export report .html</button>
+    <button class="icon" data-click="exportPackage" title="One zip: this report, every CSV, the session file, and an index page that says what each file is">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
       Export package .zip</button>
+    <label class="chk" title="Off by default: the session file is the complete raw dataset - every host, IP, software row and enumerated account (RID, groups, admin flags). Include it only for a package that stays inside the team."><input type="checkbox" id="pkgInclSession"> include resume session file in package</label>
+    <button data-click="printPreview" title="Print the preview below (or save it as PDF) - the exported .html prints from its own button">Print preview</button>
     <div class="menu">
-      <button class="mbtn" onclick="toggleMenu(this)">Other outputs</button>
+      <button class="mbtn" data-click="toggleMenu">Other outputs</button>
       <div class="mlist">
         <div class="mhead">Same evidence, other shapes</div>
-        <button onclick="copyEmailSummary()">E-mail summary &mdash; plain text for the message body</button>
-        <button onclick="exportLeadershipReport()">Leadership report .html &mdash; the original four-lens layout</button>
+        <button data-click="copyEmailSummary">E-mail summary &mdash; plain text for the message body</button>
+        <button data-click="exportLeadershipReport">Leadership report .html &mdash; the original four-lens layout</button>
         <hr>
         <div class="mhead">For your approved AI assistant</div>
-        <button onclick="exportAiPackage()">AI prompt package .md</button>
+        <button data-click="exportAiPackage">AI prompt package .md</button>
         <label title="When unchecked, the package carries counts and groupings only &mdash; no host names leave the tool"><input type="checkbox" id="aiInclHosts"> include host names in the AI package</label>
       </div>
     </div>
@@ -975,20 +991,20 @@
     <h2>2 &mdash; What goes in it <span class="pill" style="margin-left:6px" id="rptSecCount">0 sections</span></h2>
     <div class="rptpick" id="rptPicker"></div>
     <div class="toolbar" style="margin:14px 0 0">
-      <input class="inp" id="rptTitle" placeholder="Report title" style="min-width:250px" oninput="rptTouch()">
+      <input class="inp" id="rptTitle" placeholder="Report title" style="min-width:250px" data-input="rptTouch">
       <label class="chk">rows per table
-        <input class="inp" id="rptCap" type="number" min="5" max="500" value="40" style="width:74px" oninput="rptTouch()"></label>
-      <label class="chk" title="Off by default: counts and groupings only, so the document can travel further"><input type="checkbox" id="rptHosts" onchange="rptTouch()"> list host names</label>
+        <input class="inp" id="rptCap" type="number" min="5" max="500" value="40" style="width:74px" data-input="rptTouch"></label>
+      <label class="chk" title="Off by default: counts and groupings only, so the document can travel further"><input type="checkbox" id="rptHosts" data-change="rptTouch"> list host names</label>
       <div class="filters">
-        <button onclick="saveRptPreset()">Save these as a preset</button>
-        <button class="danger ghost" onclick="deleteRptPreset()">Delete preset</button>
+        <button data-click="saveRptPreset">Save these as a preset</button>
+        <button class="danger ghost" data-click="deleteRptPreset">Delete preset</button>
       </div>
     </div>
   </div>
   <div class="panel">
     <h2>3 &mdash; Preview
       <span style="float:right;font-weight:400;color:var(--dim);font-size:12px" id="rptPreviewNote"></span></h2>
-    <iframe id="rptPreview" title="Report preview"></iframe>
+    <iframe id="rptPreview" title="Report preview" sandbox="allow-same-origin allow-modals"></iframe>
     <p style="color:var(--dim);font-size:12px;margin:8px 0 0">The exported file is this document, standalone.
       It carries a print stylesheet tuned for PDF &mdash; open it and use <b>Print &rarr; Save as PDF</b>;
       the marking banner repeats on every printed page and tables never split a row across a page break.</p>
@@ -1014,13 +1030,13 @@
 
 <!-- ================= SETTINGS ================= -->
 <div class="tabpane" id="pane-settings">
-  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Settings</h1><p>The details that cannot come from a scan but appear on every export &mdash; system identity, registration-form fields, boundary defaults, and the marking banner. Fill this in once.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('settings')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Settings</h1><p>The details that cannot come from a scan but appear on every export &mdash; system identity, registration-form fields, boundary defaults, and the marking banner. Fill this in once.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="settings">?</button></div>
   <div class="panel">
     <h2>Environment profile <span class="pill" style="margin-left:6px">reusable config</span></h2>
     <p>Save your <b>Settings + Detection Config</b> as a small JSON file (no scan data) and share it, so everyone on the team starts from the same system identity, boundaries, marking, and detection rules. Loading a profile updates configuration without touching any scans you have open.</p>
     <div class="toolbar" style="margin-bottom:0">
-      <button class="primary" onclick="saveProfile()">Save environment profile</button>
-      <button onclick="document.getElementById('profIn').click()">Load environment profile</button>
+      <button class="primary" data-click="saveProfile">Save environment profile</button>
+      <button data-click="pickFile" data-arg="profIn">Load environment profile</button>
     </div>
   </div>
   <div class="panel">
@@ -1042,20 +1058,20 @@
   <div class="panel">
     <h2>Marking banner</h2>
     <p>Stamped on the page header and footer and at the top and bottom of every export. Set it to your system's handling marking.</p>
-    <div class="grid2"><div class="field"><label>Banner text (page + exports)</label><input id="bannerText" onchange="S.settings.banner=this.value;applyBanner();persistNothingNote()"></div></div>
+    <div class="grid2"><div class="field"><label>Banner text (page + exports)</label><input id="bannerText" data-change="bannerInput"></div></div>
     <div class="toolbar" style="margin:10px 0 0">
       <span class="hint">Quick set:</span>
-      <button class="small" onclick="S.settings.banner='UNCLASSIFIED';applyBanner()">UNCLASSIFIED</button>
-      <button class="small" onclick="S.settings.banner='CUI';applyBanner()">CUI</button>
-      <button class="small" onclick="S.settings.banner='UNCLASSIFIED//CUI';applyBanner()">UNCLASSIFIED//CUI</button>
-      <button class="small" onclick="S.settings.banner='UNCLASSIFIED//FOUO';applyBanner()">UNCLASSIFIED//FOUO</button>
+      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED">UNCLASSIFIED</button>
+      <button class="small" data-click="setBanner" data-arg="CUI">CUI</button>
+      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED//CUI">UNCLASSIFIED//CUI</button>
+      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED//FOUO">UNCLASSIFIED//FOUO</button>
     </div>
   </div>
 </div>
 
 <!-- ================= CONFIG ================= -->
 <div class="tabpane" id="pane-config">
-  <div class="tabhead"><div class="th"><span class="step">Advanced</span><h1>Detection Config</h1><p>The detection engine&rsquo;s rules, in editable JSON. Tune it as STIGs release and your environment changes &mdash; no code edits, no re-download.</p></div><button class="qh" title="Plain-language help for this tab" onclick="openHelp('config')">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Advanced</span><h1>Detection Config</h1><p>The detection engine&rsquo;s rules, in editable JSON. Tune it as STIGs release and your environment changes &mdash; no code edits, no re-download.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="config">?</button></div>
   <details class="explain">
     <summary>Field-by-field reference for every key in the JSON below</summary>
     <div class="xbody">
@@ -1067,10 +1083,10 @@
     <h2>Detection configuration (JSON)</h2>
     <textarea class="cfg" id="cfgBox" spellcheck="false"></textarea>
     <div class="toolbar" style="margin-top:10px;margin-bottom:0">
-      <button class="primary" onclick="applyConfig()">Apply config &amp; re-run detection</button>
-      <button onclick="resetConfig()">Reset to defaults</button>
-      <button onclick="saveProfile()">Save environment profile</button>
-      <button onclick="document.getElementById('profIn').click()">Load environment profile</button>
+      <button class="primary" data-click="applyConfig">Apply config &amp; re-run detection</button>
+      <button data-click="resetConfig">Reset to defaults</button>
+      <button data-click="saveProfile">Save environment profile</button>
+      <button data-click="pickFile" data-arg="profIn">Load environment profile</button>
     </div>
   </div>
 </div>
@@ -1078,72 +1094,72 @@
 </div>
 
 <!-- boundary modal -->
-<div class="modal-bg" id="modalBg" onclick="closeModal()"></div>
+<div class="modal-bg" id="modalBg" data-click="closeModal"></div>
 <div class="modal" id="bModal">
   <h3 id="bModalTitle">Boundaries</h3>
   <div class="grid2" id="bModalGrid"></div>
   <div class="bar-actions" style="margin-top:12px">
-    <button class="primary" onclick="saveBoundaries()">Apply to row</button>
-    <button onclick="fillBoundaryDefaults()">Fill from defaults</button>
-    <button onclick="closeModal()">Cancel</button>
+    <button class="primary" data-click="saveBoundaries">Apply to row</button>
+    <button data-click="fillBoundaryDefaults">Fill from defaults</button>
+    <button data-click="closeModal">Cancel</button>
   </div>
 </div>
 
 <!-- ===== help drawer ===== -->
-<div class="backdrop" id="helpBackdrop" onclick="closeHelp()"></div>
+<div class="backdrop" id="helpBackdrop" data-click="closeHelp"></div>
 <aside class="drawer" id="helpDrawer" aria-label="Help">
   <div class="dhead">
     <div>
       <div class="eyebrow">Plain-language help</div>
       <h3 id="helpTitle">Overview</h3>
     </div>
-    <button class="ghost x" onclick="openGlossary()" title="Acronyms &amp; terms">Glossary</button>
-    <button class="ghost" onclick="closeHelp()" aria-label="Close">&times;</button>
+    <button class="ghost x" data-click="openGlossary" title="Acronyms &amp; terms">Glossary</button>
+    <button class="ghost" data-click="closeHelp" aria-label="Close">&times;</button>
   </div>
   <div class="topicbar" id="helpTopics"></div>
   <div class="dbody" id="helpBody"></div>
 </aside>
 
 <!-- ===== host detail drawer ===== -->
-<div class="backdrop" id="hostBackdrop" onclick="closeHostDetail()"></div>
+<div class="backdrop" id="hostBackdrop" data-click="closeHostDetail"></div>
 <aside class="drawer" id="hostDrawer" aria-label="Host detail" style="width:min(620px,96vw)">
   <div class="dhead">
     <div style="min-width:0">
       <div class="eyebrow">Asset detail</div>
       <h3 id="hostDrawerTitle">Host</h3>
     </div>
-    <button class="ghost x" onclick="closeHostDetail()" aria-label="Close">&times;</button>
+    <button class="ghost x" data-click="closeHostDetail" aria-label="Close">&times;</button>
   </div>
   <div class="topicbar" id="hostDrawerActions"></div>
   <div class="dbody" id="hostDrawerBody"></div>
 </aside>
 
 <!-- ===== glossary ===== -->
-<div class="backdrop" id="glossBackdrop" onclick="closeGlossary()"></div>
+<div class="backdrop" id="glossBackdrop" data-click="closeGlossary"></div>
 <section class="sheet" id="glossSheet" aria-label="Glossary">
   <div class="shead">
     <h3>Glossary &mdash; acronyms &amp; terms</h3>
-    <button class="ghost x" onclick="closeGlossary()" aria-label="Close">&times;</button>
+    <button class="ghost x" data-click="closeGlossary" aria-label="Close">&times;</button>
   </div>
   <div class="sbody">
-    <input class="glosssearch" id="glossSearch" placeholder="Filter terms (e.g. STIG, PPSM, eMASS, MAC level)&hellip;" oninput="renderGlossary()">
+    <input class="glosssearch" id="glossSearch" placeholder="Filter terms (e.g. STIG, PPSM, eMASS, MAC level)&hellip;" data-input="renderGlossary">
     <dl id="glossBody" style="margin:0"></dl>
   </div>
 </section>
 
 <!-- ===== setup wizard ===== -->
-<div class="backdrop" id="wizBackdrop" onclick="closeWizard()"></div>
+<div class="backdrop" id="wizBackdrop" data-click="closeWizard"></div>
 <section class="sheet" id="wizSheet" aria-label="Setup guide">
   <div class="shead">
     <h3 id="wizTitle">Welcome</h3>
-    <button class="ghost x" onclick="closeWizard()" aria-label="Skip">Skip</button>
+    <button class="ghost x" data-click="closeWizard" aria-label="Skip">Skip</button>
   </div>
   <div class="sbody" id="wizBody"></div>
   <div class="sfoot">
     <div class="dots" id="wizDots"></div>
     <div class="x" style="display:flex;gap:8px">
-      <button id="wizBack" onclick="wizGo(-1)">Back</button>
-      <button class="primary" id="wizNext" onclick="wizGo(1)">Next</button>
+      <button id="wizBack" data-click="wizGo" data-arg="-1">Back</button>
+      <button class="primary" id="wizNext" data-click="wizGo" data-arg="1">Next</button>
     </div>
   </div>
 </section>
@@ -1579,26 +1595,26 @@ const DEFAULT_CONFIG = {
     plan still keys on the un-aliased product, so aliasing can never make the tool
     claim one patch covers two products that genuinely need different fixes. */
  productAliases:[
-   {pattern:"re:^(mozilla[\s-]*)?firefox", name:"Mozilla Firefox"},
-   {pattern:"re:^(mozilla[\s-]*)?thunderbird", name:"Mozilla Thunderbird"},
-   {pattern:"re:^(google[\s-]*)?chrome", name:"Google Chrome"},
+   {pattern:"re:^(mozilla[\\s-]*)?firefox", name:"Mozilla Firefox"},
+   {pattern:"re:^(mozilla[\\s-]*)?thunderbird", name:"Mozilla Thunderbird"},
+   {pattern:"re:^(google[\\s-]*)?chrome", name:"Google Chrome"},
    {pattern:"re:^(chromium)", name:"Chromium"},
-   {pattern:"re:^(microsoft[\s-]*)?edge", name:"Microsoft Edge"},
-   {pattern:"re:^(oracle[\s-]*)?(java|jre|jdk)\b", name:"Oracle Java SE"},
-   {pattern:"re:^(open)?jdk\b", name:"OpenJDK"},
-   {pattern:"re:^adobe\s+acrobat", name:"Adobe Acrobat / Reader"},
-   {pattern:"re:^acrobat|^adobe\s+reader", name:"Adobe Acrobat / Reader"},
-   {pattern:"re:^microsoft\s+windows|^windows\s+(10|11|server|7|8)", name:"Microsoft Windows"},
-   {pattern:"re:^microsoft\s+(office|excel|word|outlook|powerpoint|access)", name:"Microsoft Office"},
-   {pattern:"re:^microsoft\s+\.net|^\.net\s", name:"Microsoft .NET"},
-   {pattern:"re:^(microsoft\s+)?sql\s+server", name:"Microsoft SQL Server"},
-   {pattern:"re:^(microsoft\s+)?exchange\s+server", name:"Microsoft Exchange Server"},
+   {pattern:"re:^(microsoft[\\s-]*)?edge", name:"Microsoft Edge"},
+   {pattern:"re:^(oracle[\\s-]*)?(java|jre|jdk)\\b", name:"Oracle Java SE"},
+   {pattern:"re:^(open)?jdk\\b", name:"OpenJDK"},
+   {pattern:"re:^adobe\\s+acrobat", name:"Adobe Acrobat / Reader"},
+   {pattern:"re:^acrobat|^adobe\\s+reader", name:"Adobe Acrobat / Reader"},
+   {pattern:"re:^microsoft\\s+windows|^windows\\s+(10|11|server|7|8)", name:"Microsoft Windows"},
+   {pattern:"re:^microsoft\\s+(office|excel|word|outlook|powerpoint|access)", name:"Microsoft Office"},
+   {pattern:"re:^microsoft\\s+\\.net|^\\.net\\s", name:"Microsoft .NET"},
+   {pattern:"re:^(microsoft\\s+)?sql\\s+server", name:"Microsoft SQL Server"},
+   {pattern:"re:^(microsoft\\s+)?exchange\\s+server", name:"Microsoft Exchange Server"},
    {pattern:"re:^openssl", name:"OpenSSL"},
-   {pattern:"re:^openssh|^ssh\b", name:"OpenSSH"},
-   {pattern:"re:^(linux[\s-]*)?kernel\b|^kernel-", name:"Linux kernel"},
-   {pattern:"re:^apache\s+(http|tomcat)", name:"Apache"},
-   {pattern:"re:^vmware\s+(esxi|vcenter|tools)", name:"VMware"},
-   {pattern:"re:^cisco\s", name:"Cisco"}
+   {pattern:"re:^openssh|^ssh\\b", name:"OpenSSH"},
+   {pattern:"re:^(linux[\\s-]*)?kernel\\b|^kernel-", name:"Linux kernel"},
+   {pattern:"re:^apache\\s+(http|tomcat)", name:"Apache"},
+   {pattern:"re:^vmware\\s+(esxi|vcenter|tools)", name:"VMware"},
+   {pattern:"re:^cisco\\s", name:"Cisco"}
  ],
 
  /* Every entry ships active:false. Columns are added by evidence -- when a scan detects a
@@ -1660,6 +1676,36 @@ function activeCols(){return S.config.catalog.filter(c=>c.active);}
    because scanners report some products with a variable token in the middle -- RHEL comes
    back as "Red Hat Enterprise Linux release 8.9 (Ootpa)", which no fixed substring for
    "Red Hat Enterprise Linux 8" can ever match. */
+/* Catastrophic-backtracking shapes are refused at CONSTRUCTION. A synchronous RegExp cannot be
+   interrupted in a file:// page (no worker, no network, no timeout hook), and bounding the
+   subject length buys nothing -- an exponential pattern already hangs on ~30 characters. So
+   static rejection is the only portable control, and it is deliberately PARTIAL: it catches the
+   classic nested-quantifier class ((a+)+ (a*)* (\d+)+ ((ab)+)+) and over-long sources, and it does
+   NOT catch adjacent overlap (a*a*) or alternation overlap ((a|ab)*). Verified against all 34
+   built-in re: patterns in DEFAULT_CONFIG and EOL_TABLE: zero rejections. */
+const RE_NESTED_QUANT=/\((?:[^()\\]|\\.)*[*+](?:[^()\\]|\\.)*\)\s*[*+{]/;                  // (a+)+  (a*)*  (\d+)+  (...)+{n,}
+const RE_NESTED_GROUP=/\((?:[^()\\]|\\.)*\((?:[^()\\]|\\.)*\)[*+](?:[^()\\]|\\.)*\)\s*[*+{]/;  // ((...)+...)+
+function unsafeRegexSource(src){
+ return src.length>LIMITS.REGEX_SOURCE_CHARS||RE_NESTED_QUANT.test(src)||RE_NESTED_GROUP.test(src);
+}
+/* Every re: pattern a loaded config can carry, so a profile author is TOLD which rule stopped
+   matching instead of quietly losing detections. */
+function rejectedPatterns(cfg){
+ const bad=[], chk=p=>{const s=String(p==null?"":p);
+   if(/^re:/i.test(s)&&unsafeRegexSource(s.slice(3))) bad.push(s);};
+ ((cfg&&cfg.catalog)||[]).forEach(c=>{(c&&c.patterns||[]).forEach(chk);(c&&c.osPatterns||[]).forEach(chk);});
+ ((cfg&&cfg.productAliases)||[]).forEach(a=>chk(a&&a.pattern));
+ (cfg&&cfg.noisePatterns||[]).forEach(chk);
+ for(const g of ["listingAliases","intelAliases"]){const m=cfg&&cfg[g];
+   if(m&&typeof m==="object") Object.keys(m).forEach(k=>{const v=m[k];(Array.isArray(v)?v:[v]).forEach(chk);});}
+ return bad;
+}
+function rejectNote(bad){
+ if(!bad.length) return "";
+ const shown=bad.slice(0,4).map(p=>p.length>60?p.slice(0,60)+"\u2026":p).join("  |  ");
+ return " "+bad.length+" regex pattern(s) rejected as unsafe and will never match: "+shown
+   +(bad.length>4?"  (+"+(bad.length-4)+" more)":"");
+}
 const _patCache={};
 function patMatch(pattern,hay){
  if(!pattern||!hay) return false;
@@ -1667,8 +1713,8 @@ function patMatch(pattern,hay){
  if(/^re:/i.test(p)){
    let re=_patCache[p];
    if(re===undefined){
-     try{ re=_patCache[p]=new RegExp(p.slice(3),"i"); }
-     catch(e){ re=_patCache[p]=null; }   // malformed regex: never matches, never throws
+     try{ const src=p.slice(3); if(unsafeRegexSource(src)) throw new Error("rejected"); re=_patCache[p]=new RegExp(src,"i"); }
+     catch(e){ re=_patCache[p]=null; console.warn("Palisade: pattern rejected -",p); }  // never matches, never throws
    }
    return re?re.test(hay):false;
  }
@@ -1678,7 +1724,7 @@ function patMatch(pattern,hay){
 let S = newState();
 function newState(){
  return {
-  meta:{tool:"Palisade", ver:"2.6", saved:null},
+  meta:{tool:"Palisade", ver:"2.8", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
             banner:"UNCLASSIFIED",
@@ -1717,6 +1763,18 @@ function emptyListings(){return {hw:[], sw:[], files:[], conflicts:[]};}
 const $=id=>document.getElementById(id);
 function status(m){$("statusbar").textContent=m;}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+/* Untrusted JSON boundary.  JSON.parse creates a genuine OWN "__proto__" property, but a
+   later read of map["__proto__"] goes through the prototype getter instead and returns
+   Object.prototype -- which is truthy.  buildAssets() tests `if(!S.assets[hk])`, so a session
+   file carrying a "__proto__" host key took the refresh branch and wrote fromScan/ip/os/
+   lastSeen/type onto Object.prototype itself.  Every object in the tool then inherited
+   fromScan, so the `fromScan===undefined` test that marks inventory-only assets stopped
+   firing and the asset evidence silently changed meaning.  Restoring S from a backup does not
+   undo it: the prototype write outlives the state object.  Strip the key at the boundary --
+   the one place it can enter -- rather than guarding every for..in over a data map. */
+function safeParse(text){
+  return JSON.parse(text,function(k,v){ if(k==="__proto__") return undefined; return v; });
+}
 /* When DL_CAPTURE is set, every export writes into it instead of downloading.
    That is what lets the package bundler reuse all 29 export functions unchanged
    rather than keeping a second copy of their formatting. */
@@ -1728,6 +1786,25 @@ function dl(name,text,mime){
 function dlBlob(name,blob){const a=document.createElement("a");
  a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
 function today(){return new Date().toISOString().slice(0,10);}
+
+/* Stated operating bounds. Named so a program can cite them in an accreditation package
+   and an integrator can tune them without hunting through the parsers. Only the inflate
+   ceilings are an actual mitigation (deflate amplifies ~1032:1); the rest are honest
+   limits that fail loudly in the parse-warning banner instead of hanging the tab. */
+const LIMITS=Object.freeze({
+  INPUT_FILE_BYTES:    1024*1024*1024,  // any single file the operator hands the tool
+  INFLATE_ENTRY_BYTES:  256*1024*1024,  // one inflated zip entry (deflate ceiling is ~1032:1)
+  INFLATE_ARCHIVE_BYTES:768*1024*1024,  // all inflated entries of one archive together
+  SHEET_ROWS:           1048576,        // Excel's maximum; never truncates a legal worksheet
+  REGEX_SOURCE_CHARS:   512             // a config re: pattern longer than this is rejected
+});
+/* Checked BEFORE f.text()/f.arrayBuffer(), so an oversize file is refused without ever being
+   materialised. `named` is off on the ingest path, where the caller already prefixes f.name. */
+function checkFileSize(f,named){
+ if(f&&f.size>LIMITS.INPUT_FILE_BYTES)
+   throw new Error((named&&f.name?f.name:"file")+" is larger than the tool's "
+     +Math.round(LIMITS.INPUT_FILE_BYTES/1048576)+" MiB limit");
+}
 function applyBanner(){$("bannerTop").textContent=S.settings.banner;$("bannerBottom").textContent=S.settings.banner;$("bannerText").value=S.settings.banner;}
 function persistNothingNote(){/* placeholder: settings live in S; saved only via session export */}
 
@@ -1748,6 +1825,7 @@ async function ingestFiles(list){
  const warns=[]; let intelNew=0, stigNew=0, listNew={hw:0,sw:0};
  for(const f of list){
    try{
+     checkFileSize(f);
      if(/\.xlsx$/i.test(f.name)){
        const res=await ingestWorkbook(f,warns);
        intelNew+=res.intel; listNew.hw+=res.hw; listNew.sw+=res.sw; continue;
@@ -2534,6 +2612,7 @@ function ingestIntelRows(name,rows,warns){
    XCCDF/CKL output as a zip per host. Still zero dependencies, zero network calls. */
 function zipOpen(buf){
  const u8=new Uint8Array(buf), dv=new DataView(buf), td=new TextDecoder();
+ let inflated=0;                                   // running total for THIS archive (B2 cap)
  let e=-1;
  for(let i=u8.length-22;i>=Math.max(0,u8.length-22-65558);i--){
    if(dv.getUint32(i,true)===0x06054b50){e=i;break;}}
@@ -2557,7 +2636,22 @@ function zipOpen(buf){
    if(en.method!==8) throw new Error("unsupported zip compression (method "+en.method+")");
    if(typeof DecompressionStream==="undefined")
      throw new Error("this browser cannot inflate archives offline - extract the files and load them directly");
-   const out=await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+   /* Read the inflate stream incrementally and stop at the cap, so a decompression bomb is
+      never materialised: one deflate-raw stream can amplify ~1032:1, i.e. ~4 MB of archive
+      into ~4 GB of memory. Buffering first and checking afterwards would defeat the point. */
+   const rd=new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+   const chunks=[]; let total=0;
+   for(;;){
+     const {done,value}=await rd.read(); if(done) break;
+     total+=value.length; inflated+=value.length;
+     if(total>LIMITS.INFLATE_ENTRY_BYTES||inflated>LIMITS.INFLATE_ARCHIVE_BYTES){
+       await rd.cancel();
+       throw new Error(nm+": inflated size exceeds the tool's limit ("+Math.round(LIMITS.INFLATE_ENTRY_BYTES/1048576)+" MiB per entry, "
+         +Math.round(LIMITS.INFLATE_ARCHIVE_BYTES/1048576)+" MiB per archive) - possible decompression bomb");
+     }
+     chunks.push(value);
+   }
+   const out=await new Blob(chunks).arrayBuffer();
    return td.decode(new Uint8Array(out));
  }
  return {names:Object.keys(entries), read};
@@ -2601,7 +2695,9 @@ async function readXlsxSheets(buf){
  const sheets=[];
  for(const sf of sheetFiles.slice(0,8)){
    const doc=xml(await unzip(sf));
-   sheets.push({name:"sheet "+sf.match(/\d+/)[0],rows:extractRows(doc,0)});
+   /* Row cap bounds array growth only -- the DOM is already built by parseXmlStrict above;
+      B2's inflate cap is the control that bounds THAT. */
+   sheets.push({name:"sheet "+sf.match(/\d+/)[0],rows:extractRows(doc,LIMITS.SHEET_ROWS)});
  }
  if(!sheets.length) throw new Error("workbook has no worksheets");
  return sheets;
@@ -3042,7 +3138,7 @@ function renderIntel(){
      <td title="${esc(r.t.countries.join(", "))}">${esc(r.t.actors.slice(0,2).join(", "))||'<span style="color:var(--dim)">—</span>'}</td>
      <td style="color:var(--dim)">${esc(r.t.vector||"")}</td>
      <td style="font-size:12px">${esc(findings.slice(0,2).join("; "))}${findings.length>2?` <span style="color:var(--dim)">+${findings.length-2}</span>`:""}</td>
-     <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.length}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
+     <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${r.hosts.length}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
      <td style="font-size:12px" title="${esc(r.t.vendors.join(", "))}">${esc(r.t.products.slice(0,2).join("; "))}${r.t.products.length>2?` <span style="color:var(--dim)">+${r.t.products.length-2}</span>`:""}</td>
      <td class="mono" style="color:var(--dim)">${esc(r.t.published||"")}</td></tr>`;
  }
@@ -3317,7 +3413,7 @@ function renderReports(){
     +(items.length
       ?'<div class="tablewrap" style="max-height:44vh"><table><tr><th>Sev</th><th>Action (grouped)</th><th>Scope</th><th>Why</th><th>Effort</th></tr>'
        +items.map(i=>'<tr><td style="white-space:nowrap">'+sevMark(i.sev,T)+'</td><td>'+esc(i.action)+'</td>'
-        +'<td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector(\'.hostlist\').style.display=this.parentNode.querySelector(\'.hostlist\').style.display===\'block\'?\'none\':\'block\'">'+esc(i.scope)+'</span><div class="hostlist">'+esc((i.hosts||[]).join("\n"))+'</div></td>'
+        +'<td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">'+esc(i.scope)+'</span><div class="hostlist">'+esc((i.hosts||[]).join("\n"))+'</div></td>'
         +'<td style="color:var(--dim)">'+esc(i.why)+'</td><td>'+esc(i.effort)+'</td></tr>').join("")+'</table></div>'
       :'<p style="color:var(--accent2)">Nothing in this lens right now.</p>')
     +'</div>';}).join("");
@@ -3344,7 +3440,9 @@ function exportLeadershipReport(){
       +'<td style="border:1px solid '+T.grid+';padding:6px 9px">'+esc(i.effort)+'</td></tr>').join("")
     +'</table>';}).join("");
  const banner='<div style="background:#5b2ea6;color:#fff;text-align:center;font-weight:700;letter-spacing:.2em;padding:5px 0;font-size:11px;text-transform:uppercase">'+esc(s.banner)+'</div>';
- const doc='<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+ const doc='<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+  +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">'
+  +'<meta name="viewport" content="width=device-width,initial-scale=1">'
   +'<title>Cyber Risk &amp; Remediation Report — '+esc(s.isName||"")+' '+today()+'</title></head>'
   +'<body style="margin:0;background:'+T.page+';color:'+T.ink+';font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;line-height:1.5">'
   +banner
@@ -4011,6 +4109,11 @@ function rptStyles(T){
 }
 function buildReport(ids,opts){
  const T=RPT_THEME.light, s=S.settings;
+ /* preview:true -> the document is about to become the srcdoc of the sandboxed #rptPreview
+    frame, which has no allow-scripts. It therefore ships with no script of any kind and no
+    script-src; the operator prints it from the parent (printPreview). The EXPORT is the same
+    document plus one button, and its policy names that button's hash and nothing else. */
+ const preview=!!(opts&&opts.preview);
  RPT_OPT=Object.assign({cap:40,hosts:false},opts||{});
  const chosen=(ids&&ids.length?ids:RPT_PRESETS_BUILTIN.leadership.sections);
  const live=RPT_SECTIONS.filter(x=>chosen.indexOf(x.id)>=0)
@@ -4027,11 +4130,13 @@ function buildReport(ids,opts){
    +'<div class="sechd"><div class="n">Section '+(i+1)+'</div><h2>'+esc(x.sec.name)+'</h2>'
    +'<p>'+esc(x.sec.blurb)+'</p></div>'+x.body+'</section>').join("");
  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+  +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\''
+    +(preview?'':'; script-src \'unsafe-hashes\' \'sha256-MguIPR6qNR8D3B+eAlK+bIRTZe8t3wkOY4B/56Me9FU=\'')+'">'
   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
   +'<title>'+esc((opts&&opts.title)||"Assessment Report")+' — '+esc(s.isName||"")+' '+today()+'</title>'
   +'<style>'+rptStyles(T)+'</style></head><body>'
   +banner("bnrT")
-  +'<div class="pbar noprint"><button onclick="window.print()">Print / Save as PDF</button></div>'
+  +(preview?"":'<div class="pbar noprint"><button onclick="window.print()">Print / Save as PDF</button></div>') /*EXPORT-ONLY-HANDLER*/
   +'<div class="wrap">'
   +'<h1>'+esc((opts&&opts.title)||"Assessment Report")+'</h1>'
   +'<p class="meta">'+esc(s.isName||"(system name not set — fill Settings)")+' &middot; generated '+today()
@@ -4073,7 +4178,11 @@ async function zipMake(files){
  const dosDate=((((d.getFullYear()-1980)&0x7F)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
  let off=0;
  for(const f of files){
-   const name=enc.encode(f.name);
+   /* No export derives an entry name from scan data today; this keeps the verified
+      no-traversal property true if one ever does. Control bytes out, a pure-dots segment
+      ("." / ".." ) neutered, empty segments dropped. */
+   const safeName=f.name.split("/").map(s=>s.replace(/[\x00-\x1f]/g,"").replace(/^\.+$/,"_")).filter(Boolean).join("/");
+   const name=enc.encode(safeName);
    const raw=typeof f.data==="string"?enc.encode(f.data):f.data;
    const crc=crc32(raw);
    let body=raw, method=0;
@@ -4183,7 +4292,11 @@ async function exportPackage(){
    if(stigResultRows().length){exportStigCompliance();exportStigOpenFindings();
      exportStigPoam();exportStigCoverage();}
    if(acctRows().length) exportAccountAudit();
-   saveSession();
+   /* Opt-in, default OFF (ledger D7/B8). The session JSON is the whole raw dataset - every
+      host, IP, software row and enumerated account with RID/group/admin flags - and the
+      package is the artifact most likely to leave the team. The checkbox keeps the
+      "reload the package next cycle" workflow for people who want it. */
+   if($("pkgInclSession")&&$("pkgInclSession").checked) saveSession();
  }catch(e){
    DL_CAPTURE=null;
    alert("Package build failed while producing an artifact: "+e.message
@@ -4227,6 +4340,7 @@ function pkgIndex(entries){
        (e.bytes>=1024?Math.round(e.bytes/1024)+" KB":e.bytes+" B")]),T)
    +'</section>';}).join("");
  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+  +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">'
   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
   +'<title>Evidence package — '+esc(s.isName||"")+' '+today()+'</title>'
   +'<style>'+rptStyles(T)+'</style></head><body>'+banner("bnrT")
@@ -4236,6 +4350,12 @@ function pkgIndex(entries){
   +'<p class="rlead">Every artifact from one dataset, in one archive. The <b>1-report</b> folder holds the '
   +'document; the rest is the evidence behind it, filed by who asks for it. Nothing here was uploaded '
   +'anywhere &mdash; all parsing and assembly happened in the browser.</p>'
+  +(entries.some(e=>/^Palisade_Session/.test(e.plain))
+    ? '<p class="rnote"><b>6-session/ holds the complete raw dataset, including enumerated accounts and '
+      +'their privilege flags. It is a working file: remove it before this package travels beyond the '
+      +'assessment team.</b></p>'
+    : '<p class="rnote">No resume session file is included. <b>Save session</b> on the Overview tab keeps '
+      +'one alongside this package.</p>')
   +body
   +'<p class="foot">Data is as of the underlying scan dates. Tables in the report are capped; the CSVs here '
   +'carry every row. Approval, acceptance, and scheduling decisions remain with the ISSM.</p>'
@@ -4265,8 +4385,8 @@ function renderRptBuilder(){
  if(!$("rptPresets")) return;
  const P=rptPresets(), custom=rptCustomPresets();
  $("rptPresets").innerHTML=Object.keys(P).map(k=>
-   '<button class="'+(k===rptPreset?"cur ":"")+(custom[k]?"custom":"")+'" onclick="pickRptPreset('
-   +JSON.stringify(k).replace(/"/g,"&quot;")+')">'+esc(P[k].name)+'</button>').join("");
+   '<button class="'+(k===rptPreset?"cur ":"")+(custom[k]?"custom":"")+'" data-click="pickRptPreset" data-arg="'
+   +esc(k)+'">'+esc(P[k].name)+'</button>').join("");
  $("rptPresetNote").textContent=P[rptPreset]?P[rptPreset].note:"";
  const groups={};
  RPT_SECTIONS.forEach(x=>{(groups[x.group]=groups[x.group]||[]).push(x);});
@@ -4274,8 +4394,8 @@ function renderRptBuilder(){
    '<div class="rptgrp"><h4>'+esc(g)+'</h4>'+groups[g].map(x=>{
      let has=false; try{has=x.need();}catch(e){has=false;}
      return '<label class="'+(has?"":"off")+'"><input type="checkbox" '
-      +(rptSel.indexOf(x.id)>=0?"checked ":"")+'onchange="toggleRptSection('
-      +JSON.stringify(x.id).replace(/"/g,"&quot;")+',this.checked)">'
+      +(rptSel.indexOf(x.id)>=0?"checked ":"")+'data-change="toggleRptSection" data-arg="'
+      +esc(x.id)+'">'
       +'<span>'+esc(x.name)+'<span class="sd">'+esc(x.blurb)+'</span></span></label>';}).join("")
    +'</div>').join("");
  $("rptSecCount").textContent=rptSel.length+" section"+(rptSel.length===1?"":"s");
@@ -4311,10 +4431,13 @@ function refreshRptPreview(){
    $("rptPreviewNote").textContent=""; return;
  }
  const t0=performance.now();
- f.srcdoc=buildReport(rptSel,rptOpts());
+ f.srcdoc=buildReport(rptSel,Object.assign(rptOpts(),{preview:true}));
  $("rptPreviewNote").textContent=rptSel.length+" section(s) requested · built in "
    +Math.round(performance.now()-t0)+" ms";
 }
+/* The preview frame is sandboxed without allow-scripts, so it cannot carry its own print
+   button any more. allow-same-origin + allow-modals is what keeps this reachable from here. */
+function printPreview(){const f=$("rptPreview");if(f&&f.contentWindow)f.contentWindow.print();}
 function exportCombinedReport(){
  if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
  if(!rptSel.length){alert("Pick at least one section first.");return;}
@@ -4411,7 +4534,8 @@ async function ingestTrendSessions(files){
  const keep=S; let added=0; const problems=[];
  for(const f of files){
    try{
-     const o=JSON.parse(await f.text());
+     checkFileSize(f,true);
+     const o=safeParse(await f.text());
      if(!o.meta||!(/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||""))) throw new Error("not a Palisade session file");
      o.config=migrateConfig(o.config);
      S=Object.assign(newState(),o);
@@ -4539,7 +4663,7 @@ function renderTrend(){
    <td class="mono" style="text-align:center">${p.stats.high}</td>
    <td class="mono" style="text-align:center;color:${p.stats.catI?"var(--bad)":"var(--dim)"}">${p.stats.catI}</td>
    <td class="mono" style="text-align:center">${p.stats.stigScore===null?"—":p.stats.stigScore+"%"}</td>
-   <td><button class="small ghost danger" onclick="removeTrendPoint(${i})">remove</button></td></tr>`;});
+   <td><button class="small ghost danger" data-click="removeTrendPoint" data-arg="${i}">remove</button></td></tr>`;});
  h+='</table></div></div>';
  $("trendBody").innerHTML=h;
 }
@@ -4571,7 +4695,8 @@ function setBaselineFromCurrent(){
 async function loadBaseline(f){
  if(!f)return;
  try{
-   const o=JSON.parse(await f.text());
+   checkFileSize(f,true);
+   const o=safeParse(await f.text());
    if(o.meta&&/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||"")){
      // a full prior session: build a snapshot from its contents
      const keep=S; S=Object.assign(newState(),o);
@@ -4909,16 +5034,16 @@ function renderPPSM(){
    const r=S.ppsm[k]; if(!showEx&&!r.include) continue;
    const bset=r.boundaries.filter(x=>x&&x.trim()).length;
    html+=`<tr style="${r.include?"":"opacity:.45"}">
-    <td><input type="checkbox" ${r.include?"checked":""} onchange="S.ppsm['${k}'].include=this.checked;renderPPSM()"></td>
-    <td class="mono">${r.proto.toUpperCase()}</td>
-    <td class="mono">${r.port}${r.ephemeral?' <span class="pill warn" title="dynamic/ephemeral range">eph</span>':''}</td>
-    <td><input type="text" class="mono" value="${esc(r.svc)}" onchange="S.ppsm['${k}'].svc=this.value"></td>
-    <td><input type="text" value="${esc(r.app)}" onchange="S.ppsm['${k}'].app=this.value"></td>
-    <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.length} host${r.hosts.length===1?"":"s"}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
-    <td><input type="text" class="mono" value="${esc(r.srcIp)}" onchange="S.ppsm['${k}'].srcIp=this.value"></td>
-    <td><input type="text" class="mono" value="${esc(r.dstIp)}" onchange="S.ppsm['${k}'].dstIp=this.value"></td>
-    <td><button class="small" onclick="openBoundaries('${k}')">Edit${bset?" ("+bset+" set)":""}</button></td>
-    <td><input type="text" value="${esc(r.notes)}" onchange="S.ppsm['${k}'].notes=this.value"></td></tr>`;
+    <td><input type="checkbox" ${r.include?"checked":""} data-change="ppsmSet" data-key="${esc(k)}" data-field="include"></td>
+    <td class="mono">${esc(String(r.proto).toUpperCase())}</td>
+    <td class="mono">${esc(r.port)}${r.ephemeral?' <span class="pill warn" title="dynamic/ephemeral range">eph</span>':''}</td>
+    <td><input type="text" class="mono" value="${esc(r.svc)}" data-change="ppsmSet" data-key="${esc(k)}" data-field="svc"></td>
+    <td><input type="text" value="${esc(r.app)}" data-change="ppsmSet" data-key="${esc(k)}" data-field="app"></td>
+    <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${r.hosts.length} host${r.hosts.length===1?"":"s"}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
+    <td><input type="text" class="mono" value="${esc(r.srcIp)}" data-change="ppsmSet" data-key="${esc(k)}" data-field="srcIp"></td>
+    <td><input type="text" class="mono" value="${esc(r.dstIp)}" data-change="ppsmSet" data-key="${esc(k)}" data-field="dstIp"></td>
+    <td><button class="small" data-click="openBoundaries" data-arg="${esc(k)}">Edit${bset?" ("+bset+" set)":""}</button></td>
+    <td><input type="text" value="${esc(r.notes)}" data-change="ppsmSet" data-key="${esc(k)}" data-field="notes"></td></tr>`;
  }
  if(keys.length===0) html+=`<tr><td colspan="10" style="color:var(--dim)">No port evidence yet — load scan exports on the Overview tab.</td></tr>`;
  $("ppsmTable").innerHTML=html;
@@ -4975,7 +5100,7 @@ function renderColumnManager(){
    const idx=S.config.catalog.indexOf(c);
    const auto=Object.keys(S.hosts).some(hk=>S.auto[hk]&&S.auto[hk][c.name]);
    return `<label style="display:block;padding:2px 0;font-size:12.5px;color:${c.active?"var(--text)":"var(--dim)"};break-inside:avoid">
-     <input type="checkbox" ${c.active?"checked":""} onchange="setColumnActive(${idx},this.checked)">
+     <input type="checkbox" ${c.active?"checked":""} data-change="setColumnActive" data-arg="${idx}">
      ${esc(c.name)}${auto?' <span class="pill" style="color:var(--accent2)" title="detected in scan data">evidence</span>':''}</label>`;
  }).join("");
 }
@@ -4993,14 +5118,14 @@ function renderSTIG(){
  for(const hk of hks){
    const h=S.hosts[hk];
    html+=`<tr class="${h.cred?"":"uncred"}">
-     <td><input type="text" value="${esc(S.stig.device[hk]||"")}" onchange="S.stig.device['${hk}']=this.value"></td>
+     <td><input type="text" value="${esc(S.stig.device[hk]||"")}" data-change="stigSet" data-key="${esc(hk)}" data-field="device"></td>
      <td class="mono">${esc(h.name)}${h.cred?"":' <span class="pill warn" title="no credentialed software enumeration">!</span>'}</td>
      <td class="mono">${esc(h.lastSeen||"")}</td>`;
    for(const c of cols){
      const m=stigMark(hk,c.name);
-     html+=`<td class="stigcell ${m.on?"on":""} ${m.manual?"manual":""}" onclick="toggleStig('${hk}',${JSON.stringify(c.name).replace(/"/g,"&quot;")})">${m.on?"x":""}</td>`;
+     html+=`<td class="stigcell ${m.on?"on":""} ${m.manual?"manual":""}" data-click="toggleStig" data-key="${esc(hk)}" data-col="${esc(c.name)}">${m.on?"x":""}</td>`;
    }
-   html+=`<td><input type="text" value="${esc(S.stig.comments[hk]||"")}" onchange="S.stig.comments['${hk}']=this.value"></td></tr>`;
+   html+=`<td><input type="text" value="${esc(S.stig.comments[hk]||"")}" data-change="stigSet" data-key="${esc(hk)}" data-field="comments"></td></tr>`;
  }
  if(hks.length===0) html+=`<tr><td colspan="${cols.length+4}" style="color:var(--dim)">No hosts yet — load scan exports on the Overview tab. Columns appear as products are detected.</td></tr>`;
  $("stigTable").innerHTML=html;
@@ -5081,7 +5206,7 @@ function renderSoftware(){
    if(f&&!(r.name+" "+r.vendor+" "+r.type).toLowerCase().includes(f)) continue;
    if(r.include) n++;
    shown++;
-   const kj=JSON.stringify(k).replace(/"/g,"&quot;");
+   const ke=esc(k);
    const w=getIntelFusion().swIndex[k];
    const intelBadge=!w?"":w.weap
      ?` <span class="pill" style="color:var(--bad);border-color:var(--bad)" title="threat intel: weaponized CVE(s) ${esc(w.cves.join(", "))} — see Threat Intel tab">intel!</span>`
@@ -5093,20 +5218,20 @@ function renderSoftware(){
      : `<span class="pill" style="color:var(--accent2)" title="${esc(e.match)}">to ${esc(e.date)}</span>`;
    const apColor = r.approval==="Approved"?"var(--accent2)":r.approval==="Denied"?"var(--bad)":r.approval==="Pending"?"var(--warn)":"var(--dim)";
    html+=`<tr style="${r.include?"":"opacity:.45"}">
-     <td><input type="checkbox" ${r.include?"checked":""} onchange="S.software[${kj}].include=this.checked;renderSoftware()"></td>
+     <td><input type="checkbox" ${r.include?"checked":""} data-change="swSet" data-key="${ke}" data-field="include"></td>
      <td class="mono">${r.include?n:""}</td>
-     <td><select style="color:${apColor}" onchange="setApproval(${kj},this.value)">${APPROVAL_STATES.map(x=>`<option ${r.approval===x?"selected":""}>${x}</option>`).join("")}</select></td>
-     <td><input type="text" value="${esc(r.approvedBy)}" onchange="S.software[${kj}].approvedBy=this.value"></td>
-     <td><input type="text" class="mono" value="${esc(r.approvalDate)}" onchange="S.software[${kj}].approvalDate=this.value"></td>
-     <td><input type="text" value="${esc(r.approvalRef)}" onchange="S.software[${kj}].approvalRef=this.value"></td>
-     <td style="text-align:center"><input type="checkbox" ${r.pinVersion?"checked":""} title="approval applies only to version ${esc(r.version)}" onchange="S.software[${kj}].pinVersion=this.checked;S.software[${kj}].approvedVersion=this.checked?S.software[${kj}].version:'';renderSoftware()"></td>
+     <td><select style="color:${apColor}" data-change="setApproval" data-key="${ke}">${APPROVAL_STATES.map(x=>`<option ${r.approval===x?"selected":""}>${x}</option>`).join("")}</select></td>
+     <td><input type="text" value="${esc(r.approvedBy)}" data-change="swSet" data-key="${ke}" data-field="approvedBy"></td>
+     <td><input type="text" class="mono" value="${esc(r.approvalDate)}" data-change="swSet" data-key="${ke}" data-field="approvalDate"></td>
+     <td><input type="text" value="${esc(r.approvalRef)}" data-change="swSet" data-key="${ke}" data-field="approvalRef"></td>
+     <td style="text-align:center"><input type="checkbox" ${r.pinVersion?"checked":""} title="approval applies only to version ${esc(r.version)}" data-change="swPinVersion" data-key="${ke}"></td>
      <td>${eolCell}${intelBadge}</td>
-     ${SW_COLS.map(c=>`<td><input type="text" ${c[0]==="version"?'class="mono"':""} value="${esc(r[c[0]])}" onchange="S.software[${kj}]['${c[0]}']=this.value"></td>`).join("")}
+     ${SW_COLS.map(c=>`<td><input type="text" ${c[0]==="version"?'class="mono"':""} value="${esc(r[c[0]])}" data-change="swSet" data-key="${ke}" data-field="${esc(c[0])}"></td>`).join("")}
      <td>${(()=>{const sc=swSrcOf(r);const col=sc==="listing"?"var(--accent)":sc==="manual"?"var(--warn)":"var(--accent2)";
         return `<span class="pill" style="color:${col};border-color:${col}"${r.listNote?` title="${esc(r.listNote)}"`:""}>${sc}</span>`;})()}</td>
      <td>${(()=>{const extra=(r.listHosts||[]).filter(h=>!r.hosts.includes(h));
         const all=r.hosts.map(esc).concat(extra.map(h=>esc(h)+" [listing]")).join("\n");
-        return `<span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.length}${extra.length?"+"+extra.length:""}</span><div class="hostlist">${all}</div>`;})()}</td></tr>`;
+        return `<span class="pill" style="cursor:pointer" data-click="toggleHostlist">${r.hosts.length}${extra.length?"+"+extra.length:""}</span><div class="hostlist">${all}</div>`;})()}</td></tr>`;
  }
  if(!shown) html+=`<tr><td colspan="${SW_COLS.length+10}" style="color:var(--dim)">${keys.length?"Nothing matches the current filter."+(rpm&&!showOs?" ("+rpm+" Linux OS packages hidden — tick 'show OS packages')":""):"No software evidence yet — load a credentialed scan on the Overview tab."}</td></tr>`;
  $("swTable").innerHTML=html;
@@ -5215,10 +5340,10 @@ function renderAssets(){
    if(f&&!(a.name+" "+a.ip+" "+a.os+" "+a.type+" "+a.owner+" "+a.location+" "+
            a.make+" "+a.model+" "+a.serial+" "+(a.facility||"")+" "+(a.ci||"")).toLowerCase().includes(f)) continue;
    n++;
-   const kj=JSON.stringify(k).replace(/"/g,"&quot;");
+   const ke=esc(k);
    html+=`<tr${a.fromScan?"":' style="background:rgba(240,180,41,.06)"'}>
      <td class="mono">${S.hosts[k]?hostLink(k,String(n)):n}</td>
-     ${ASSET_COLS.map(c=>`<td><input type="text" ${["ip","mac","serial","lastSeen"].includes(c[0])?'class="mono"':""} value="${esc(a[c[0]])}" onchange="S.assets[${kj}]['${c[0]}']=this.value;renderRecon();renderReadiness()"></td>`).join("")}
+     ${ASSET_COLS.map(c=>`<td><input type="text" ${["ip","mac","serial","lastSeen"].includes(c[0])?'class="mono"':""} value="${esc(a[c[0]])}" data-change="assetSet" data-key="${ke}" data-field="${esc(c[0])}"></td>`).join("")}
      <td class="mono" style="text-align:center;color:${SRC_COLOR[assetSrcOf(a)]}" title="scan = detected by the scanner; listing = from a HW/SW listing; both = corroborated; manual = hand-entered">${esc(assetSrcOf(a))}</td></tr>`;
  }
  if(!n) html+=`<tr><td colspan="${ASSET_COLS.length+2}" style="color:var(--dim)">${keys.length?"Nothing matches the filter.":"No assets yet — load scans, or add one manually."}</td></tr>`;
@@ -5343,6 +5468,7 @@ function exportApprovalSheet(){
 async function importApprovals(f){
  if(!f) return;
  try{
+   checkFileSize(f,true);
    const rows=csvRows(await f.text());
    let hdr=-1;
    for(let i=0;i<rows.length;i++){
@@ -5701,10 +5827,10 @@ function parseCkl(text,fileName){
 
 /* ---- STIG Viewer 3 checklist (.cklb, JSON) ---- */
 function looksLikeCklb(text){
- try{const o=JSON.parse(text);return !!(o&&Array.isArray(o.stigs));}catch(e){return false;}
+ try{const o=safeParse(text);return !!(o&&Array.isArray(o.stigs));}catch(e){return false;}
 }
 function parseCklb(text,fileName){
- const o=JSON.parse(text);
+ const o=safeParse(text);
  const ta=o.target_data||{};
  const hostKey=hostKeyFrom(ta.host_name||o.title||"",ta.ip_address||"");
  const h=getHost(hostKey);
@@ -5828,7 +5954,7 @@ function renderStigCompliance(){
    card(cov.gaps.length,"applicable, not assessed",cov.gaps.length>0);
  const views=[["summary","Summary by host / STIG"],["rules","Rule Detail"],["coverage","Coverage vs applicability"]];
  $("scViews").innerHTML=views.map(([k,l])=>
-   `<button class="${scView===k?"":"ghost"}" style="${scView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" onclick="setScView('${k}')">${l}</button>`).join("");
+   `<button class="${scView===k?"":"ghost"}" style="${scView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" data-click="setScView" data-arg="${esc(k)}">${l}</button>`).join("");
  if(!rows.length){
    $("scBody").innerHTML='<div class="panel"><p style="color:var(--dim)">No STIG compliance results loaded. Drop SCC XCCDF output (<code>.xml</code>), STIG Viewer checklists (<code>.ckl</code> / <code>.cklb</code>), or a <code>.zip</code> of either onto the Overview tab.</p></div>';
    return;}
@@ -5972,7 +6098,7 @@ function exportStigCoverage(){
 function hostLink(hk,text,extraStyle){
  const t=text!==undefined?text:((S.hosts[hk]&&S.hosts[hk].name)||hk);
  if(!t) return "";
- return `<span onclick="openHostDetail(${JSON.stringify(hk).replace(/"/g,"&quot;")})" title="Open asset detail"
+ return `<span data-click="openHostDetail" data-arg="${esc(hk)}" title="Open asset detail"
    style="cursor:pointer;color:var(--accent);border-bottom:1px dotted var(--accent);${extraStyle||""}">${esc(t)}</span>`;
 }
 function hostDossier(hk){
@@ -5995,8 +6121,8 @@ function openHostDetail(hk){
  const h=d.h;
  $("hostDrawerTitle").textContent=h.name+(h.ip?"  ·  "+h.ip:"");
  $("hostDrawerActions").innerHTML=
-   `<button onclick="gotoTab('vulns');focusHost(${JSON.stringify(hk).replace(/"/g,"&quot;")});closeHostDetail()">Findings in Vulnerabilities tab</button>
-    <button onclick="exportHostReport(${JSON.stringify(hk).replace(/"/g,"&quot;")})">Export asset report .csv</button>`;
+   `<button data-click="focusHostInVulns" data-arg="${esc(hk)}">Findings in Vulnerabilities tab</button>
+    <button data-click="exportHostReport" data-arg="${esc(hk)}">Export asset report .csv</button>`;
  const row=(k,v)=>v?`<div style="display:flex;gap:10px;padding:3px 0;font-size:12.5px"><span style="color:var(--dim);width:130px;flex:none">${esc(k)}</span><span class="mono">${esc(v)}</span></div>`:"";
  let b="";
  // identity
@@ -6638,8 +6764,8 @@ function renderVulns(){
               ["plugin","Vulnerability Summary"],["host","IP Summary"],["detail","Detail List"],
               ["port","Port Summary"],["family","Plugin Family"],["subnet","Subnet Summary"]];
  $("vulnViews").innerHTML=views.map(([k,l])=>
-   `<button class="${vulnView===k?"":"ghost"}" style="${vulnView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" onclick="setVulnView('${k}')">${l}</button>`).join("")
-   +(vulnHostFocus?` <span class="pill" style="color:var(--accent2);border-color:var(--ok-dim)">focus: ${esc(S.hosts[vulnHostFocus]?S.hosts[vulnHostFocus].name:vulnHostFocus)}</span> <button class="small ghost" onclick="clearFocus()">clear focus</button>`:"");
+   `<button class="${vulnView===k?"":"ghost"}" style="${vulnView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" data-click="setVulnView" data-arg="${esc(k)}">${l}</button>`).join("")
+   +(vulnHostFocus?` <span class="pill" style="color:var(--accent2);border-color:var(--ok-dim)">focus: ${esc(S.hosts[vulnHostFocus]?S.hosts[vulnHostFocus].name:vulnHostFocus)}</span> <button class="small ghost" data-click="clearFocus">clear focus</button>`:"");
  if(!all.length){$("vulnBody").innerHTML='<div class="panel"><p style="color:var(--dim)">No severity-rated findings loaded. Load .nessus exports (or a Tenable CSV with Risk and Plugin Output columns) on the Overview tab.</p></div>';return;}
  const hdrSev='<th style="text-align:center;color:'+SEV_COLOR[4]+'">Crit</th><th style="text-align:center;color:'+SEV_COLOR[3]+'">High</th><th style="text-align:center;color:'+SEV_COLOR[2]+'">Med</th><th style="text-align:center;color:'+SEV_COLOR[1]+'">Low</th><th style="text-align:center">Total</th>';
  let html="", shown=0;
@@ -6666,7 +6792,7 @@ function renderVulns(){
       <td style="font-size:12px">${esc(p.product)}</td>
       <td style="font-size:11.5px;color:var(--dim)">${esc(REMEDY_KIND[p.kind]||p.kind)}</td>
       <td>${sevBar(p.c)}</td>${sevCells(p.c)}
-      <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${p.hostCount}</span><div class="hostlist">${esc(p.hosts.join("\n"))}</div></td>
+      <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${p.hostCount}</span><div class="hostlist">${esc(p.hosts.join("\n"))}</div></td>
       <td class="mono" style="text-align:center;color:${p.c.expl?"var(--bad)":"var(--dim)"}">${p.c.expl||"·"}</td>
       <td class="mono" style="text-align:center;color:${p.c.overdue?"var(--bad)":"var(--dim)"}">${p.c.overdue||"·"}</td>
       <td>${p.tier?`<span class="pill" style="font-weight:700">${p.tier}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
@@ -6686,7 +6812,7 @@ function renderVulns(){
      if(++shown>400){html+='<tr><td colspan="12" style="color:var(--dim)">… narrow the filter or export the CSV.</td></tr>';break;}
      html+=`<tr><td style="font-weight:600">${esc(r.product)}</td>
       <td>${sevBar(r.c)}</td>${sevCells(r.c)}
-      <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hostCount}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
+      <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${r.hostCount}</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td>
       <td class="mono" style="text-align:center">${r.cves.length||"·"}</td>
       <td class="mono" style="text-align:center" title="${r.fixes.length>1?"Separate remediation actions — different platforms or product versions need different patches.":""}">${r.fixes.length||"·"}</td>
       <td style="font-size:12.5px">${r.top?esc(r.top.action):'<span style="color:var(--dim)">—</span>'}${r.fixes.length>1?` <span style="color:var(--dim)">+${r.fixes.length-1} more</span>`:""}</td></tr>`;
@@ -6707,7 +6833,7 @@ function renderVulns(){
       <td style="font-size:12px;color:var(--dim)">${esc(r.os)}</td>
       <td>${sevBar(r.c)}</td>${sevCells(r.c)}
       <td class="mono" style="text-align:center;color:${r.c.overdue?"var(--bad)":"var(--dim)"}">${r.c.overdue||"·"}</td>
-      <td><button class="small" onclick="focusHost(${JSON.stringify(r.hk).replace(/"/g,"&quot;")})">findings</button></td></tr>`;});
+      <td><button class="small" data-click="focusHost" data-arg="${esc(r.hk)}">findings</button></td></tr>`;});
    html+='</table></div>';
 
  } else if(vulnView==="detail"){
@@ -6742,7 +6868,7 @@ function renderVulns(){
      html+=`<tr><td class="mono" style="font-weight:600">${esc(r.key)}</td>
       <td>${sevBar(r.c)}</td>${sevCells(r.c)}
       <td class="mono" style="text-align:center">${r.hosts.length}</td>
-      <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">show</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td></tr>`;});
+      <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">show</span><div class="hostlist">${esc(r.hosts.join("\n"))}</div></td></tr>`;});
    html+='</table></div>';
 
  } else {  // plugin summary (default)
@@ -6770,7 +6896,7 @@ function renderVulns(){
       <td>${ii.tier?`<span class="pill" style="font-weight:700">${ii.tier}</span>`:'<span style="color:var(--dim)">—</span>'}</td>
       <td class="mono" style="font-size:11.5px">${esc(ii.iavm.slice(0,2).join(" "))}</td>
       <td class="mono" style="font-size:11.5px">${esc(cves.slice(0,3).join(", "))}${cves.length>3?` <span style="color:var(--dim)">+${cves.length-3}</span>`:""}</td>
-      <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${r.hosts.size}</span><div class="hostlist">${esc([...r.hosts].sort().join("\n"))}</div></td></tr>`;
+      <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${r.hosts.size}</span><div class="hostlist">${esc([...r.hosts].sort().join("\n"))}</div></td></tr>`;
    }
    html+='</table></div>';
  }
@@ -6914,7 +7040,7 @@ function renderAccountUsers(){
  users.forEach(u=>{
    const age=logonAgeDays(u.lastLogon);
    h+=`<tr><td class="mono" style="font-weight:600">${esc(u.name)}</td>
-     <td><span class="pill" style="cursor:pointer" onclick="this.parentNode.querySelector('.hostlist').style.display=this.parentNode.querySelector('.hostlist').style.display==='block'?'none':'block'">${u.hosts.length}</span><div class="hostlist">${esc(u.hosts.map(x=>x.host+(x.lastLogon?"  "+x.lastLogon:"")).join("\n"))}</div></td>
+     <td><span class="pill" style="cursor:pointer" data-click="toggleHostlist">${u.hosts.length}</span><div class="hostlist">${esc(u.hosts.map(x=>x.host+(x.lastLogon?"  "+x.lastLogon:"")).join("\n"))}</div></td>
      <td class="mono" style="font-size:12px;color:${age===null?"var(--dim)":age>ACCT_STALE_DAYS?"var(--warn)":"var(--accent2)"}">${u.lastLogon?esc(u.lastLogon)+" ("+age+"d)":'<span style="color:var(--dim)">not reported</span>'}</td>
      <td class="mono" style="font-size:12px">${u.lastHost?esc(u.lastHost):""}</td>
      <td>${u.privileged?'<span class="pill" style="color:var(--bad);border-color:var(--bad)">PRIVILEGED</span> ':""}${u.enabled?'<span class="pill" style="color:var(--accent2)">enabled</span>':'<span class="pill" style="color:var(--dim)">disabled</span>'}${u.hosts.length>1?' <span class="pill warn" title="account exists on several machines">'+u.hosts.length+' machines</span>':""}</td></tr>`;});
@@ -6925,7 +7051,7 @@ function renderAccountAudit(){
  if(!$("accBody")) return;
  $("accCtrl").textContent=ctrlHeader("accounts");
  if($("accViews")) $("accViews").innerHTML=[["accounts","By host / account"],["users","By user (who uses what)"]]
-   .map(([k,l])=>`<button class="${accView===k?"":"ghost"}" style="${accView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" onclick="setAccView('${k}')">${l}</button>`).join("");
+   .map(([k,l])=>`<button class="${accView===k?"":"ghost"}" style="${accView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" data-click="setAccView" data-arg="${esc(k)}">${l}</button>`).join("");
  const rows=acctRows();
  const hostsWith=new Set(rows.map(r=>r.host));
  const admins=rows.filter(r=>r.a.flags.admin||r.a.flags.builtin500);
@@ -7029,11 +7155,11 @@ function exportOsPackages(){
 
 function renderSettings(){
  $("settingsGrid").innerHTML=SETTINGS_FIELDS.map(([k,l])=>
-  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings[k])}" onchange="S.settings['${k}']=this.value"></div>`).join("");
+  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings[k])}" data-change="settingSet" data-key="${esc(k)}"></div>`).join("");
  $("boundaryGrid").innerHTML=BOUNDARY_LABELS.map((l,i)=>
-  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings.boundaryDefaults[i]||"")}" onchange="S.settings.boundaryDefaults[${i}]=this.value"></div>`).join("");
+  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings.boundaryDefaults[i]||"")}" data-change="boundaryDefaultSet" data-arg="${i}"></div>`).join("");
  const sf=(arr,el)=>$(el).innerHTML=arr.map(([k,l])=>
-  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings[k]||"")}" onchange="S.settings['${k}']=this.value"></div>`).join("");
+  `<div class="field"><label>${esc(l)}</label><input value="${esc(S.settings[k]||"")}" data-change="settingSet" data-key="${esc(k)}"></div>`).join("");
  sf([["swExportedBy","Exported By"],["swOwner","Information System Owner"],["swSystemName","System Name"],
      ["swDitpr","DITPR ID"],["swOffice","Office / Org"],["swPocName","POC Name"],["swPocPhone","POC Phone"],
      ["swPocEmail","POC E-Mail"],["swReviewedDate","Date Reviewed / Updated"],["swReviewedBy","Reviewed / Updated By"]],"swHeaderGrid");
@@ -7058,18 +7184,31 @@ function migrateConfig(cfg){
  return cfg;
 }
 function applyConfig(){
+ let bad=[];
  try{
-   const cfg=migrateConfig(JSON.parse($("cfgBox").value));
+   const cfg=migrateConfig(safeParse($("cfgBox").value));
    if(!Array.isArray(cfg.catalog)) throw new Error("config needs a 'catalog' array");
+   bad=rejectedPatterns(cfg);
    S.config=cfg;
  }catch(e){alert("Config JSON error: "+e.message);return;}
  invalidateFusion(); // intel weights / aliases may have changed
- runDetection(); renderSTIG(); renderIntel(); renderConfig(); status("Detection config applied.");
+ runDetection(); renderSTIG(); renderIntel(); renderConfig();
+ status("Detection config applied."+rejectNote(bad));
 }
 function resetConfig(){S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));invalidateFusion();renderConfig();runDetection();renderSTIG();renderIntel();}
 
 /* ---------------- exports ---------------- */
-function tsvSafe(v){return String(v??"").replace(/[\t\r\n]+/g," ");}
+/* Spreadsheet-formula neutralisation, applied at the only two cells-to-text choke points
+   (tsvSafe for the tab-delimited PPSM registry, csvq for every .csv export). Scan text
+   reaches an assessor's networked machine as a file, and Excel/LibreOffice treat a leading
+   = @ TAB or CR as a formula -- DDE, WEBSERVICE, HYPERLINK. Leading + or - is only
+   neutralised when what follows is not a plain number, so -5, +5 and -5% keep their numeric
+   type and numeric columns still sum. The apostrophe is visible on CSV import (it is NOT
+   hidden the way a typed-in leading quote is); that visible mark is the honest rendering of
+   a hostile value, and no spreadsheet evaluates it. */
+const CSV_TRIGGER=/^[=@\t\r]/, CSV_SIGNED_TEXT=/^[+-](?!\s*$)(?![\d.,\s]+%?$)/;
+function csvNeutral(v){v=String(v??"");return (CSV_TRIGGER.test(v)||CSV_SIGNED_TEXT.test(v))?"'"+v:v;}
+function tsvSafe(v){return csvNeutral(v).replace(/[\t\r\n]+/g," ");}
 function exportPPSM(){
  const s=S.settings;
  const lines=[PPSM_HEADERS.join("\t")];
@@ -7084,7 +7223,7 @@ function exportPPSM(){
  dl(`PPSM_Registry_${today()}.txt`, S.settings.banner+"\n"+lines.join("\n")+"\n"+S.settings.banner,"text/plain");
  status(`Exported ${lines.length-1} PPSM row(s) — tab-delimited, DoD IS Registration Form v8.0 column order.`);
 }
-function csvq(v){v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function csvq(v){v=csvNeutral(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportPPSMcsv(){
  const rows=[["Include","Protocol","Port","Service","Application","Hosts","Source IP","Destination IP","Boundaries set","Notes"]];
  for(const k of Object.keys(S.ppsm).sort()){const r=S.ppsm[k];
@@ -7116,8 +7255,14 @@ function saveSession(){
 }
 async function loadSession(f){
  if(!f) return;
+ /* Transactional: a malformed session that throws part-way through renderAll() used to leave
+    S replaced and the DOM half-drawn -- the operator's working dataset simply gone. Roll the
+    reference back and redraw. (Writes a hostile file already made into shared objects are not
+    undone by this; the sink fixes and the key guards are what cover that.) */
+ const prev=S;
  try{
-   const obj=JSON.parse(await f.text());
+   checkFileSize(f,true);
+   const obj=safeParse(await f.text());
    if(!obj.meta||!/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(obj.meta.tool)) throw new Error("not a compiler session file");
    obj.config=migrateConfig(obj.config);
    S=Object.assign(newState(),obj);
@@ -7137,7 +7282,8 @@ async function loadSession(f){
    invalidateFusion();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
    status(`Session restored (saved ${obj.meta.saved||"unknown"}).`);
- }catch(e){alert("Session load failed: "+e.message);}
+ }catch(e){ S=prev; try{renderAll();}catch(_){}
+   alert("Session load failed: "+e.message+" - previous dataset restored."); }
  $("sessIn").value="";
 }
 
@@ -7322,7 +7468,7 @@ function renderHelp(topic){
  helpTopic=topic;const h=HELP[topic];if(!h)return;
  $("helpTitle").textContent=h.name;
  $("helpTopics").innerHTML=HELP_ORDER.map(k=>
-   `<button class="${k===topic?"cur":""}" onclick="renderHelp('${k}')">${esc(HELP[k].name)}</button>`).join("");
+   `<button class="${k===topic?"cur":""}" data-click="renderHelp" data-arg="${esc(k)}">${esc(HELP[k].name)}</button>`).join("");
  let s=`<p class="help-lead">${h.lead}</p>`;
  s+=`<div class="help-h">What to do</div><ol class="help-steps">${h.steps.map(x=>`<li>${x}</li>`).join("")}</ol>`;
  if(h.warn)s+=`<div class="warnbox">${h.warn}</div>`;
@@ -7413,8 +7559,8 @@ const WIZ=[
    <div class="wizrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
      <div><b>Load demo data</b><p>Populates six example hosts (Windows workstations, a domain controller, a Linux DB, and an uncredentialed server) so every tab, warning, and export comes alive. Clear it whenever you like.</p></div></div>
    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
-     <button class="primary icon" onclick="loadDemoData();closeWizard();"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>Load demo data</button>
-     <button onclick="openGlossary()">Open the glossary</button>
+     <button class="primary icon" data-click="demoAndCloseWizard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>Load demo data</button>
+     <button data-click="openGlossary">Open the glossary</button>
    </div>
    <p style="color:var(--dim);font-size:12px;margin-top:12px">Not sure what an acronym means? The <b>Glossary</b> defines ACAS, STIG, PPSM, eMASS, MAC level, and the rest in plain terms.</p>`},
  {title:"Make it yours",html:`
@@ -7424,8 +7570,8 @@ const WIZ=[
    <div class="wizrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg></div>
      <div><b>Save an environment profile</b><p>From Settings or Detection Config, save a profile (your config, no scan data) and share it. Everyone loads the same profile and works from an identical baseline — no per-person setup.</p></div></div>
    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
-     <button class="primary" onclick="gotoTab('settings');closeWizard();">Go to Settings</button>
-     <button onclick="loadDemoData();closeWizard();">Load demo data instead</button>
+     <button class="primary" data-click="settingsFromWizard">Go to Settings</button>
+     <button data-click="demoAndCloseWizard">Load demo data instead</button>
    </div>`}
 ];
 let wizStep=0;
@@ -7457,17 +7603,23 @@ function saveProfile(){
 $("profIn").addEventListener("change",e=>loadProfile(e.target.files[0]));
 async function loadProfile(f){
  if(!f) return;
+ const prev=S, prevSettings=S.settings, prevConfig=S.config;   // transactional, as loadSession
+ let bad=[];
  try{
-   const o=JSON.parse(await f.text());
+   checkFileSize(f,true);
+   const o=safeParse(await f.text());
    const isProfile=o.meta&&o.meta.kind==="Compliance-Compiler-Profile";
    const looksLikeSession=o.settings&&o.config;
    if(!isProfile&&!looksLikeSession) throw new Error("not an environment profile (or session) file");
-   if(o.settings) S.settings=Object.assign(S.settings,o.settings);
-   if(o.config) S.config=migrateConfig(o.config);
+   /* Merge into a NEW object rather than mutating S.settings in place: in-place mutation
+      survives the rollback below and would make it a lie. */
+   if(o.settings) S.settings=Object.assign({},S.settings,o.settings);
+   if(o.config){ S.config=migrateConfig(o.config); bad=rejectedPatterns(S.config); }
    invalidateFusion();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
-   status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+o.meta.saved.slice(0,10)+")":""}. Settings and detection rules updated; scan data untouched.`);
- }catch(e){alert("Profile load failed: "+e.message);}
+   status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+o.meta.saved.slice(0,10)+")":""}. Settings and detection rules updated; scan data untouched.`+rejectNote(bad));
+ }catch(e){ S=prev; S.settings=prevSettings; S.config=prevConfig; try{renderAll();}catch(_){}
+   alert("Profile load failed: "+e.message+" - previous settings and detection rules restored."); }
  $("profIn").value="";
 }
 
@@ -7631,10 +7783,175 @@ if(typeof renderAll==="function"){const _ra=renderAll;renderAll=function(){_ra.a
 /* keyboard: Esc closes any overlay */
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeHelp();closeGlossary();closeWizard();}});
 
+/* CSP violations are silent by default. Surface them: during review a blocked handler or a
+   stray network reference must be visible, not latent -- and on a locked build this line is
+   what tells an operator why a control went dead. */
+document.addEventListener("securitypolicyviolation",e=>{
+  const m="CSP blocked "+e.violatedDirective+" ("+(e.blockedURI||"inline")+")"+(e.lineNumber?" line "+e.lineNumber:"");
+  console.warn(m,e); try{status(m);}catch(_){}
+});
+
+/* ================= CSP-safe UI dispatch =================================================
+   Inline on* attributes cannot be covered by a script hash, so every control is driven from
+   markup by a data-<eventtype> attribute naming an entry in ACTIONS. Three things make this
+   safe rather than just indirect:
+     - ACTIONS is an explicit frozen allow-list. Dispatching through window[name] would expose
+       every top-level function in this classic script (hundreds of internals) to markup.
+     - the lookup is hasOwnProperty, so data-click="constructor" / "__proto__" resolve to
+       nothing instead of to an inherited Object.prototype member.
+     - the attribute name carries the event type, so a checkbox with both a click and a change
+       binding cannot double-dispatch.
+   Arguments arrive as data-* attributes and are therefore ALWAYS strings: anything numeric or
+   boolean is coerced explicitly below ("false" is truthy). ========================================= */
+const FILE_INPUTS=new Set(["fileIn","sessIn","profIn","apprIn","baseIn","listIn","intelIn","trendIn"]);
+const BANNERS=new Set(["UNCLASSIFIED","CUI","UNCLASSIFIED//CUI","UNCLASSIFIED//FOUO"]);
+const PPSM_FIELDS=new Set(["include","svc","app","srcIp","dstIp","notes"]);
+const STIG_FIELDS=new Set(["device","comments"]);
+const SW_FIELDS=new Set(["include","approvedBy","approvalDate","approvalRef",...SW_COLS.map(c=>c[0])]);
+const ASSET_FIELDS=new Set(ASSET_COLS.map(c=>c[0]));
+const SETTING_KEYS=new Set([...SETTINGS_FIELDS.map(([k])=>k),
+ "swExportedBy","swOwner","swSystemName","swDitpr","swOffice","swPocName","swPocPhone","swPocEmail",
+ "swReviewedDate","swReviewedBy","swParentSystem","swSubsystem","swNetwork","swHosting","swUii",
+ "swFiscalYear","swPopEnd","swLicenseTerm","swLicense"]);
+const val=el=>el.type==="checkbox"?el.checked:el.value;
+/* an index argument is only ever produced by our own renderers; -1 on anything else so a
+   hand-edited attribute cannot index an array with NaN */
+const idx=el=>{const n=Number(el.dataset.arg);return Number.isInteger(n)&&n>=0?n:-1;};
+/* A data-key is attacker-influenced text: host, port and product keys are built from scan file
+   contents. S.map["__proto__"] returns Object.prototype -- which is TRUTHY, so a plain `if(!r)
+   return` passes and the very next write lands on every object in the page. That is the same
+   defect class safeParse() closes at the JSON boundary; close it here at the markup boundary.
+   Markup-supplied keys resolve to OWN properties only. */
+const hasOwn=(o,k)=>!!o&&typeof o==="object"&&Object.prototype.hasOwnProperty.call(o,k);
+const own=(o,k)=>hasOwn(o,k)?o[k]:null;
+
+const ACTIONS=Object.freeze({
+ /* --- plain verbs: one entry per function named in the markup. Called through an arrow, not
+        bound directly, so the renderAll/renderReadiness wrappers installed below are used. --- */
+ addManualAsset:()=>addManualAsset(), applyConfig:()=>applyConfig(), applyInventory:()=>applyInventory(),
+ applyPpsmFilter:()=>applyPpsmFilter(), applySwDefaults:()=>applySwDefaults(), captureTrendPoint:()=>captureTrendPoint(),
+ clearAll:()=>clearAll(), clearFocus:()=>clearFocus(), clearIntel:()=>clearIntel(), clearListings:()=>clearListings(),
+ clearTrend:()=>clearTrend(), closeGlossary:()=>closeGlossary(), closeHelp:()=>closeHelp(),
+ closeHostDetail:()=>closeHostDetail(), closeModal:()=>closeModal(), closeWizard:()=>closeWizard(),
+ copyEmailSummary:()=>copyEmailSummary(), deleteRptPreset:()=>deleteRptPreset(),
+ exportAccountAudit:()=>exportAccountAudit(), exportAiPackage:()=>exportAiPackage(), exportAll:()=>exportAll(),
+ exportApprovalSheet:()=>exportApprovalSheet(), exportAssets:()=>exportAssets(),
+ exportCombinedReport:()=>exportCombinedReport(), exportDelta:()=>exportDelta(),
+ exportEmassHardware:()=>exportEmassHardware(), exportEmassSoftware:()=>exportEmassSoftware(),
+ exportEol:()=>exportEol(), exportIntel:()=>exportIntel(), exportIpSummary:()=>exportIpSummary(),
+ exportLeadershipReport:()=>exportLeadershipReport(), exportOsPackages:()=>exportOsPackages(),
+ exportPackage:()=>exportPackage(), exportPoam:()=>exportPoam(), exportPPSM:()=>exportPPSM(),
+ exportPPSMcsv:()=>exportPPSMcsv(), exportRecon:()=>exportRecon(), exportRemediationPlan:()=>exportRemediationPlan(),
+ exportScanHealth:()=>exportScanHealth(), exportSoftware:()=>exportSoftware(), exportSTIG:()=>exportSTIG(),
+ exportStigCompliance:()=>exportStigCompliance(), exportStigCoverage:()=>exportStigCoverage(),
+ exportStigOpenFindings:()=>exportStigOpenFindings(), exportStigPoam:()=>exportStigPoam(),
+ exportTrend:()=>exportTrend(), exportVulnDetail:()=>exportVulnDetail(), exportVulns:()=>exportVulns(),
+ fillBoundaryDefaults:()=>fillBoundaryDefaults(), loadDemoData:()=>loadDemoData(), openGlossary:()=>openGlossary(),
+ openWizard:()=>openWizard(), printPreview:()=>printPreview(), renderAccountAudit:()=>renderAccountAudit(),
+ renderAssets:()=>renderAssets(), renderGlossary:()=>renderGlossary(), renderIntel:()=>renderIntel(),
+ renderPPSM:()=>renderPPSM(), renderReadiness:()=>renderReadiness(), renderSoftware:()=>renderSoftware(),
+ renderStigCompliance:()=>renderStigCompliance(), renderVulns:()=>renderVulns(), resetConfig:()=>resetConfig(),
+ rptTouch:()=>rptTouch(), runConsolidation:()=>runConsolidation(), saveBoundaries:()=>saveBoundaries(),
+ saveProfile:()=>saveProfile(), saveRptPreset:()=>saveRptPreset(), saveSession:()=>saveSession(),
+ seedInventoryFromAssets:()=>seedInventoryFromAssets(), setBaselineFromCurrent:()=>setBaselineFromCurrent(),
+ toggleColumnManager:()=>toggleColumnManager(),
+
+ /* --- verbs taking one literal argument --- */
+ /* HELP["__proto__"] is truthy, so openHelp's own `if(!HELP[t])` fallback does not catch it and
+    renderHelp then throws on h.steps. Resolve the topic to an own key first. */
+ openHelp:el=>openHelp(hasOwn(HELP,el.dataset.arg)?el.dataset.arg:undefined),
+ /* gotoTab interpolates its argument into a CSS attribute selector; match the real tab set
+    instead so a quote in a data-arg cannot reach querySelector at all. */
+ gotoTab:el=>{ const t=el.dataset.arg;
+   if([...document.querySelectorAll("#tabs button")].some(b=>b.dataset.t===t)) gotoTab(t); },
+ toggleMenu:el=>toggleMenu(el),
+ renderHelp:el=>{ if(hasOwn(HELP,el.dataset.arg)) renderHelp(el.dataset.arg); },
+ openBoundaries:el=>{ if(hasOwn(S.ppsm,el.dataset.arg)) openBoundaries(el.dataset.arg); },
+ openHostDetail:el=>{ if(hasOwn(S.hosts,el.dataset.arg)) openHostDetail(el.dataset.arg); },
+ focusHost:el=>{ if(hasOwn(S.hosts,el.dataset.arg)) focusHost(el.dataset.arg); },
+ exportHostReport:el=>{ if(hasOwn(S.hosts,el.dataset.arg)) exportHostReport(el.dataset.arg); },
+ setScView:el=>setScView(el.dataset.arg), setVulnView:el=>setVulnView(el.dataset.arg),
+ setAccView:el=>setAccView(el.dataset.arg),
+ pickRptPreset:el=>{ if(hasOwn(rptPresets(),el.dataset.arg)) pickRptPreset(el.dataset.arg); },
+ setIntelScoreSource:el=>setIntelScoreSource(el.value),
+ toggleRptSection:el=>{ const id=el.dataset.arg;
+   if(RPT_SECTIONS.some(x=>x.id===id)) toggleRptSection(id,el.checked); },
+ /* toggleStig writes S.stig.overrides[hk][cn]; an unchecked hk of "__proto__" makes that a
+    write onto Object.prototype. Row keys are host keys and columns are catalog entries. */
+ toggleStig:el=>{ const hk=el.dataset.key,cn=el.dataset.col;
+   if(hasOwn(S.hosts,hk)&&S.config.catalog.some(c=>c.name===cn)) toggleStig(hk,cn); },
+ setApproval:el=>{ if(hasOwn(S.software,el.dataset.key)) setApproval(el.dataset.key,el.value); },
+ removeTrendPoint:el=>{const i=idx(el); if(i>=0) removeTrendPoint(i);},
+ setColumnActive:el=>{const i=idx(el); if(i>=0) setColumnActive(i,el.checked);},
+
+ /* --- coerced arguments: a data-* value is a string, so "false" would be truthy --- */
+ wizGo:el=>wizGo(Number(el.dataset.arg)),
+ swBulkInclude:el=>swBulkInclude(el.dataset.arg==="true"),
+
+ /* --- the hidden file inputs. The synthetic .click() still runs inside the genuine user
+        gesture, so the chooser's activation requirement is satisfied. --- */
+ pickFile:el=>{ if(FILE_INPUTS.has(el.dataset.arg)) $(el.dataset.arg).click(); },
+
+ /* --- banner --- */
+ setBanner:el=>{ if(BANNERS.has(el.dataset.arg)){ S.settings.banner=el.dataset.arg; applyBanner(); } },
+ bannerInput:el=>{ S.settings.banner=el.value; applyBanner(); persistNothingNote(); },
+
+ /* --- compound handlers that used to be semicolon-joined statements in the attribute --- */
+ rerunDetection:()=>{ runDetection(); renderSTIG(); status("Detection re-run. Manual overrides preserved."); },
+ refreshAssets:()=>{ buildAssets(); renderAssets(); status("Refreshed scan-derived fields. Manual entries untouched."); },
+ focusHostInVulns:el=>{ if(!hasOwn(S.hosts,el.dataset.arg)) return;
+   gotoTab("vulns"); focusHost(el.dataset.arg); closeHostDetail(); },
+ demoAndCloseWizard:()=>{ loadDemoData(); closeWizard(); },
+ settingsFromWizard:()=>{ gotoTab("settings"); closeWizard(); },
+ toggleHostlist:el=>{ const l=el.parentNode&&el.parentNode.querySelector(".hostlist");
+   if(l) l.style.display=l.style.display==="block"?"none":"block"; },
+
+ /* --- per-row cell writers. The field/key names are checked against the column definitions
+        so markup can never name an arbitrary property of a state object. --- */
+ ppsmSet:el=>{ const r=own(S.ppsm,el.dataset.key),f=el.dataset.field;
+   if(!r||!PPSM_FIELDS.has(f)) return; r[f]=val(el); if(f==="include") renderPPSM(); },
+ /* S.stig.device / .comments are keyed by host and are written on first edit, so the key is
+    checked against S.hosts rather than against the map being written. */
+ stigSet:el=>{ const f=el.dataset.field,k=el.dataset.key;
+   if(!STIG_FIELDS.has(f)||!S.stig[f]||!hasOwn(S.hosts,k)) return; S.stig[f][k]=el.value; },
+ swSet:el=>{ const r=own(S.software,el.dataset.key),f=el.dataset.field;
+   if(!r||!SW_FIELDS.has(f)) return; r[f]=val(el); if(f==="include") renderSoftware(); },
+ swPinVersion:el=>{ const r=own(S.software,el.dataset.key); if(!r) return;
+   r.pinVersion=el.checked; r.approvedVersion=el.checked?r.version:""; renderSoftware(); },
+ assetSet:el=>{ const a=own(S.assets,el.dataset.key),f=el.dataset.field;
+   if(!a||!ASSET_FIELDS.has(f)) return; a[f]=el.value; renderRecon(); renderReadiness(); },
+ settingSet:el=>{ const k=el.dataset.key; if(SETTING_KEYS.has(k)) S.settings[k]=el.value; },
+ boundaryDefaultSet:el=>{ const i=idx(el); if(i>=0&&i<BOUNDARY_LABELS.length) S.settings.boundaryDefaults[i]=el.value; }
+});
+
+function dispatchUI(ev){
+ const t=ev.target; if(!(t instanceof Element)) return;
+ const el=t.closest("[data-"+ev.type+"]"); if(!el) return;
+ const name=el.getAttribute("data-"+ev.type);
+ if(!Object.prototype.hasOwnProperty.call(ACTIONS,name)){ console.warn("Unmapped UI action:",ev.type,name); return; }
+ ACTIONS[name](el,ev);
+}
+["click","change","input"].forEach(t=>document.addEventListener(t,dispatchUI));
+
+/* Load-time self-check. A data-* value with no ACTIONS entry is a DEAD CONTROL that throws
+   nothing and looks fine -- no functional test necessarily notices. Fail loudly instead.
+   Runs over the built DOM, so it covers renderer output as well as the static body. */
+function auditUIActions(){
+ const bad=new Set();
+ for(const t of ["click","change","input"])
+   for(const el of document.querySelectorAll("[data-"+t+"]")){
+     const n=el.getAttribute("data-"+t);
+     if(!Object.prototype.hasOwnProperty.call(ACTIONS,n)) bad.add(t+':"'+n+'"');
+   }
+ if(bad.size) console.warn("Unmapped UI action(s) in markup:",[...bad].join(", "));
+ return [...bad];
+}
+
 /* first run: greet a new user when there's nothing loaded yet */
 try{ if(!Object.keys(S.hosts).length) setTimeout(openWizard,90); }catch(e){}
 
 renderAll();
+auditUIActions();
 </script>
 </body>
 </html>

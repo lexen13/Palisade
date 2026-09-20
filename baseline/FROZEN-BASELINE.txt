@@ -1,0 +1,89 @@
+PALISADE BASELINE  2026-09-11T19:11:45.325Z
+url:      file://<repo>/palisade.html   (absolute path redacted; this file is published)
+captured against: palisade.html v2.8, 521771 bytes,
+                  sha256 fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97
+chromium: Chrome/150.0.7871.181
+extraFlags: (none)
+
+NOT GATED by baseline/check-frozen.mjs, and therefore free to drift: the
+timestamp, the url, the browser version string, the report iframe srcdoc
+length and its build-time note, and the demoTrigger / generatedHandler
+wording. check-frozen.mjs compares only the evidence numbers the tool
+produces from its demo dataset, plus the four error counters, plus the
+harness verdict. Regenerate this file with:
+  node baseline/harness.mjs "file://$PWD/palisade.html" ./out && \
+    cp ./out/summary.txt baseline/FROZEN-BASELINE.txt   # then redact the url
+
+VERDICT: PASS
+  ok  zeroErrors
+  ok  zeroCsp
+  ok  inlineHandlerFired
+  ok  generatedHandlerFired
+  ok  hosts6
+  ok  coreTablesPopulated
+  ok  meterComputed
+  ok  allTabsClean
+  ok  reportBuilt
+  ok  PASS
+
+demoTrigger: clicked the real "Load demo data" button -> clicked:data-click; inlineHandlerFired=true
+generatedHandler: clicked the innerHTML-generated openBoundaries control (onclick= or data-click=) -> found=true opened=true
+demoLoadError: none
+hosts: 6   intelRows: 6   listingFiles: 1
+meter: 21% (6 of 28 checks pass)
+core table <tr> counts: ppsm=19 stig=8 sw=24 asset=9
+report iframe srcdoc length: 22818  note="4 section(s) requested · built in 9 ms"
+
+console errors: 0
+cdp exceptions: 0
+page window.onerror: 0
+CSP violations: 0
+
+
+tab walk (newErrors per tab):
+  overview         -> pane-overview  err+0
+  settings         -> pane-settings  err+0
+  scanhealth       -> pane-scanhealth  err+0
+  stig             -> pane-stig  err+0
+  stigcompliance   -> pane-stigcompliance  err+0
+  software         -> pane-software  err+0
+  assets           -> pane-assets  err+0
+  ppsm             -> pane-ppsm  err+0
+  vulns            -> pane-vulns  err+0
+  intel            -> pane-intel  err+0
+  accounts         -> pane-accounts  err+0
+  eol              -> pane-eol  err+0
+  delta            -> pane-delta  err+0
+  trend            -> pane-trend  err+0
+  recon            -> pane-recon  err+0
+  reports          -> pane-reports  err+0
+  controls         -> pane-controls  err+0
+  config           -> pane-config  err+0
+
+populated containers (26):
+  ppsmTable  rows=19 children=1 textLen=1570
+  stigTable  rows=8 children=1 textLen=867
+  swTable  rows=24 children=1 textLen=3082
+  assetTable  rows=9 children=1 textLen=393
+  statCards  rows=0 children=11 textLen=135
+  vulnCards  rows=0 children=6 textLen=89
+  intelCards  rows=0 children=6 textLen=109
+  assetCards  rows=0 children=6 textLen=84
+  swCards  rows=0 children=5 textLen=83
+  eolCards  rows=0 children=3 textLen=53
+  scCards  rows=0 children=7 textLen=112
+  shCards  rows=0 children=6 textLen=97
+  accCards  rows=0 children=7 textLen=141
+  rptCards  rows=0 children=4 textLen=67
+  vulnBody  rows=9 children=3 textLen=2391
+  intelBody  rows=7 children=2 textLen=1522
+  accBody  rows=12 children=2 textLen=1734
+  shBody  rows=7 children=3 textLen=1710
+  scBody  rows=0 children=1 textLen=146
+  reconBody  rows=2 children=1 textLen=1157
+  deltaBody  rows=0 children=1 textLen=147
+  readyBody  rows=0 children=28 textLen=3633
+  eolBody  rows=4 children=1 textLen=430
+  controlsBody  rows=0 children=14 textLen=2583
+  settingsGrid  rows=0 children=12 textLen=160
+  boundaryGrid  rows=0 children=16 textLen=528

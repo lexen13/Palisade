@@ -1,0 +1,203 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:a7a609c6-0c29-4697-af2b-b2752cd5543f",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-09-11T17:01:12Z",
+    "authors": [
+      {
+        "name": "Jacob Keith"
+      }
+    ],
+    "supplier": {
+      "name": "Palisade project (Gavin Lee Domingo Johnson, Jacob Keith)",
+      "url": [
+        "https://github.com/lexen13/Palisade"
+      ]
+    },
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "GNU coreutils sha256sum/sha384sum/sha512sum",
+          "version": "9.10",
+          "description": "Produced the hashes recorded in metadata.component.hashes."
+        },
+        {
+          "type": "application",
+          "name": "CPython hashlib",
+          "version": "3.14.6",
+          "description": "Second, independent computation of the same hashes. Both agree."
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "palisade-2.8",
+      "type": "application",
+      "mime-type": "text/html",
+      "name": "Palisade",
+      "version": "2.8",
+      "description": "Single-file, fully offline HTML application that compiles DoD RMF control evidence (STIG applicability, eMASS hardware/software baselines, PPSM registry rows, POA&M drafts, account audits, asset inventories) from Tenable/ACAS scan exports. Opened from file://. No build step, no dependencies, no network calls, no browser storage.",
+      "purl": "pkg:generic/palisade@2.8",
+      "authors": [
+        {
+          "name": "Gavin Lee Domingo Johnson"
+        },
+        {
+          "name": "Jacob Keith"
+        }
+      ],
+      "publisher": "Palisade project",
+      "supplier": {
+        "name": "Palisade project (Gavin Lee Domingo Johnson, Jacob Keith)",
+        "url": [
+          "https://github.com/lexen13/Palisade"
+        ]
+      },
+      "copyright": "Copyright (c) 2026 Gavin Lee Domingo Johnson, Jacob Keith",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "url": "https://spdx.org/licenses/MIT.html"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97"
+        },
+        {
+          "alg": "SHA-384",
+          "content": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f"
+        },
+        {
+          "alg": "SHA-512",
+          "content": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/lexen13/Palisade"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/lexen13/Palisade"
+        },
+        {
+          "type": "license",
+          "url": "LICENSE"
+        },
+        {
+          "type": "release-notes",
+          "url": "CHANGELOG.md"
+        },
+        {
+          "type": "security-contact",
+          "url": "https://github.com/lexen13/Palisade/security/advisories/new",
+          "comment": "GitHub private security advisory intake. See SECURITY.md."
+        },
+        {
+          "type": "documentation",
+          "url": "docs/SBOM.md",
+          "comment": "NTIA minimum-element map, the empty-inventory rationale, and the greps a reviewer runs to falsify this SBOM."
+        },
+        {
+          "type": "documentation",
+          "url": "docs/SSDF-MAPPING.md",
+          "comment": "Voluntary NIST SP 800-218 v1.1 practice map. Not a CISA attestation filing."
+        }
+      ],
+      "properties": [
+        {
+          "name": "palisade:file:bytes",
+          "value": "521771"
+        },
+        {
+          "name": "palisade:file:lineEndings",
+          "value": "LF"
+        },
+        {
+          "name": "palisade:file:bom",
+          "value": "absent"
+        },
+        {
+          "name": "palisade:csp:script-src",
+          "value": "sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q="
+        },
+        {
+          "name": "palisade:csp:scriptBlockBytes",
+          "value": "438777"
+        },
+        {
+          "name": "palisade:csp:scriptBlockCount",
+          "value": "1"
+        },
+        {
+          "name": "palisade:verify:externalUrlRefs",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:scriptSrcAttributes",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:sriIntegrityAttributes",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:linkImgObjectEmbedApplet",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:networkApiCallSites",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:browserStorageCallSites",
+          "value": "0"
+        },
+        {
+          "name": "palisade:verify:packageManagerManifests",
+          "value": "0"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "palisade:sbom:scope",
+        "value": "The released artifact Palisade/palisade.html only. Repository documentation and release tooling are not part of the distributed application."
+      },
+      {
+        "name": "palisade:sbom:emptyInventoryIsAssertion",
+        "value": "components is empty because Palisade has no third-party components at all, not because none were identified. See compositions.aggregate = complete and docs/SBOM.md."
+      },
+      {
+        "name": "palisade:sbom:notAnAttestation",
+        "value": "This SBOM is voluntary evidence of practice. It is not a CISA Secure Software Development Attestation Form and no such form has been filed."
+      }
+    ]
+  },
+  "components": [],
+  "dependencies": [
+    {
+      "ref": "palisade-2.8",
+      "dependsOn": []
+    }
+  ],
+  "compositions": [
+    {
+      "aggregate": "complete",
+      "assemblies": [
+        "palisade-2.8"
+      ],
+      "dependencies": [
+        "palisade-2.8"
+      ]
+    }
+  ]
+}
