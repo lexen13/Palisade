@@ -4,6 +4,95 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.9 — security audit remediation
+
+A second adversarial review, this time of 2.8, is written up in `docs/SECURITY-AUDIT-2.9.md`. It
+found no path from any input to script execution: the 2.8 policy held. It found 87 other issues
+(19 high), concentrated where 2.8's package said things were covered:
+
+- wrong evidence produced silently from hostile or merely unusual input;
+- markup injected without script;
+- a seal and a release chain that verified less than they claimed.
+
+All but six are fixed here. Three of the six are partially fixed and three are residual by design;
+the audit's §7 explains each. Every behavioural fix has a check in the new
+`baseline/security-gate.mjs`. The demo dataset's numbers are unchanged.
+
+- **Keys from files can no longer reach `Object.prototype`.** 2.8 guarded JSON keys, but plugin
+  IDs, software names, intel products, rule ids and catalog columns come from XML and CSV. A
+  plugin ID of `__proto__` polluted every object in the page. A DisplayName of `constructor` threw
+  half-way through an ingest, so every later ingest aborted and the saved session was poisoned.
+  Every map keyed by file data now has a null prototype and is read with own-key checks.
+- **Markup from scans and sessions is escaped everywhere it was not.** This covers the host
+  drawer's port `protocol`, about a dozen renderer sites fed by session *values* (2.8 reviewed
+  keys), and two cells of the exported report. These could not run script, but they could restyle
+  or hide evidence and navigate the tab away with an injected `<meta refresh>`.
+- **CSV exports quote a bare carriage return.** A CR inside a hostname split a row and fabricated
+  a new one in every CSV export. The marking banner and control header now go through the same
+  neutraliser as every other cell.
+- **Session, baseline and profile loads are transactional and normalised.** A failed baseline
+  load no longer replaces the working set. The threat-intel cache from a rejected file is no
+  longer served after "previous dataset restored". A session with `[]` where a map belongs no
+  longer loses every edit on save. Value types are coerced on load.
+- **STIG results are merged correctly.**
+  - A newer SCC run replaces an older one, by its own date. 2.8 kept whichever file was dropped
+    first.
+  - A checklist decision is never overridden by SCC.
+  - SCC and a checklist for the same rule count once.
+  - Blank-identity checklists no longer collide on one host and drop each other's findings.
+  - XCCDF reports the current V-ID from the Group, not the legacy one.
+  - A generic result title such as "Microsoft STIG" no longer covers every STIG.
+- **Listings and approvals mean what they say.** "Unapproved", "Not authorized" and similar are
+  Denied; 2.8 recorded them as Approved. A listing whose identity column is "Device" or "Host" is
+  no longer parsed as a scan. Unknown approval wording is left Not Reviewed and flagged.
+- **The change record is per host.** Security tooling removed from a single host is critical; 2.8
+  reported "No changes". A changed MAC or OS family behind a known host name is flagged. A
+  version upgrade of a security tool is no longer reported as its removal.
+- **Readiness fails on missing evidence.** A host with no scan record or an auth failure no longer
+  passes "credentialed checks". Undated findings no longer count as inside the remediation window.
+- **Files built to hang the tab are bounded.**
+  - An xlsx column beyond XFD is refused.
+  - Zip entries that alias one data region are refused.
+  - Built-in parser regexes are bounded and linear.
+  - The custom-regex validator catches re-spelled nested quantifiers.
+  - Four quadratic paths are now linear.
+- **The seal checks what the browser will enforce.** `tools/seal.mjs --verify` used to pass a
+  file whose policy had been commented out, moved, or widened with `script-src-elem`. It now
+  reads the file the way the parser does and requires:
+  - exactly one policy, first in `<head>`, equal to the canonical 13 directives;
+  - one bare `<script>`;
+  - no NUL bytes and valid UTF-8.
+
+  `csp-lint.sh` can no longer be blinded by a NUL byte. `MANIFEST.json` also records a digest of
+  the markup outside the script, which the CSP hash does not cover.
+- **The release chain.**
+  - CI runs the security gate.
+  - `check-frozen.mjs` counts the browser's own error log.
+  - A release can no longer be silently re-published over (`--clobber` removed).
+  - The attestation covers the digest lists, the manifest and the verification tools.
+  - `.gitignore` covers the evidence package, the HTML reports, the AI digest and compliance
+    profiles.
+- **The documents were corrected where they were wrong.**
+  - The workflow has never run, so no attestation exists. The README said otherwise.
+  - The seal is not tamper evidence against someone who can edit the file. The whole-file digest
+    is the control for that.
+  - 481 `style=` attributes, not 483.
+  - The end-of-support table is not configurable.
+
+  The audit's §9 lists every erratum.
+
+**Behaviour changes:**
+
+1. The three CUI opt-ins (session in package, host names in the AI package and in the report)
+   start unticked whatever the markup says, and the report row cap starts at 40.
+2. Newer STIG results replace older ones.
+3. Blank-identity checklists appear as `UNIDENTIFIED-<FILE>`.
+4. A CSV without a plugin column is refused as a scan.
+5. Readiness checks that used to pass on absent evidence now fail.
+6. Approvals import applies only the four canonical statuses.
+7. Profiles can no longer redefine built-in report presets, and no longer carry catalog columns
+   that scan evidence switched on.
+
 ## 2.8 — security hardening
 
 An adversarial review of 2.7 found two places where a scanned hostname was written into the page

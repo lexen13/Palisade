@@ -47,8 +47,19 @@ STIG_Coverage*.csv
 Trend_Burndown*.csv
 Remediation_Plan*.csv
 Asset_Report*.csv
+# v2.9 audit: these outputs were missing from the list above
+Palisade_Package*.zip
+Leadership_Report*.html
+Assessment_Report*.html
+*_Report_*.html
+AI_GamePlan_Package*.md
+AI_GamePlan_Package*.zip
+Compliance_Profile*.json
 exports/
 output/
+# harness / security-gate scratch output
+baseline/out-*/
+gate/
 
 # Site-specific configuration — keep local, never publish
 config.local.json

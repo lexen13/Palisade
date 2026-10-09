@@ -46,8 +46,15 @@
 #   carrying the /*EXPORT-ONLY-HANDLER*/ marker; everything else unchanged.
 # The v2.7 count of 192 is historical; locking 192 would let 191 handlers
 # return without failing CI.
+#
+# v2.9: every grep runs with -a under a fixed UTF-8 locale. v2.8 did not, and a
+# single NUL byte made grep treat the file as binary and print nothing, so every
+# count read 0 and the lint PASSED a file it had not read. A read-sanity canary
+# now fails the run if the counter cannot see text it knows is there, and
+# script_tags counts <script case-insensitively (<SCRIPT> is the same element).
 # ---------------------------------------------------------------------------
 set -u
+export LC_ALL=C.UTF-8
 
 BL_INLINE_ON_HANDLERS=1
 BL_JAVASCRIPT_URLS=0
@@ -72,12 +79,23 @@ FILE="${1-palisade.html}"
 [ -r "$FILE" ] || { echo "csp-lint: cannot read $FILE" >&2; exit 2; }
 
 # count <extended-regex> [file] — occurrences, not matching lines.
-count() { grep -oEi -- "$1" "${2-$FILE}" 2>/dev/null | grep -c . ; }
-countf() { grep -oF -- "$1" "$FILE" 2>/dev/null | grep -c . ; }
+count() { grep -aoEi -- "$1" "${2-$FILE}" 2>/dev/null | grep -ac . ; }
+countf() { grep -aoF -- "$1" "$FILE" 2>/dev/null | grep -ac . ; }
+
+# Read-sanity canary: if the counter cannot see the policy it knows is there, every
+# count below is meaningless (binary detection, encoding, truncated read).
+if [ "$(count 'http-equiv="Content-Security-Policy"')" -lt 1 ]; then
+  echo "csp-lint: read-sanity canary failed -- cannot see the CSP <meta> in $FILE; refusing to report counts" >&2
+  exit 2
+fi
+if [ "$(tr -d '\000' < "$FILE" | wc -c)" -ne "$(wc -c < "$FILE")" ]; then
+  echo "csp-lint: $FILE contains NUL bytes -- refused" >&2
+  exit 2
+fi
 
 # The static body is everything before the first <script tag. Under a hash-based
 # script-src nothing in it can execute, so its handler count must reach 0.
-SPLIT=$(grep -n -m1 '<script' "$FILE" | cut -d: -f1)
+SPLIT=$(grep -ani -m1 '<script' "$FILE" | cut -d: -f1)
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 if [ -n "${SPLIT:-}" ]; then
   head -n "$((SPLIT - 1))" "$FILE" > "$TMP/body"
@@ -89,13 +107,13 @@ fi
 inline_on_handlers=$(count "$RX_ON_HANDLER")
 body_handlers=$(count "$RX_ON_HANDLER" "$TMP/body")
 script_handlers=$(count "$RX_ON_HANDLER" "$TMP/script")
-exempt_handlers=$(grep -E -- "$RX_ON_HANDLER" "$FILE" 2>/dev/null | grep -cF '/*EXPORT-ONLY-HANDLER*/')
+exempt_handlers=$(grep -aE -- "$RX_ON_HANDLER" "$FILE" 2>/dev/null | grep -acF '/*EXPORT-ONLY-HANDLER*/')
 javascript_urls=$(count 'javascript:')
 setattribute_on=$(countf 'setAttribute("on')
 setattribute_style=$(countf 'setAttribute("style')
 style_csstext=$(count '\.style\.cssText')
 string_arg_timers=$(count "$RX_STRING_TIMER")
-script_tags=$(countf '<script')
+script_tags=$(count '<script\b')
 absolute_http_urls=$(count 'https?://')
 
 if [ "$BASELINE_MODE" = 1 ]; then

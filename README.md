@@ -286,8 +286,10 @@ it first.
 ## Configuration
 
 The Detection Config tab holds the STIG catalog, vendor and type inference rules, hostname
-device rules, noise filters, the end-of-support date table, and the threat-intel column
-aliases and scoring weights — all editable JSON, no code changes needed.
+device rules, noise filters, and the threat-intel column aliases and scoring weights — all
+editable JSON, no code changes needed. The end-of-support date table is not part of it: it is a
+constant (`EOL_TABLE`) in the file, changed by a release, so verify its dates against the vendor
+lifecycle pages.
 
 The shipped rules are deliberately generic. **Keep site-specific configuration local**: export
 your environment profile and store it outside the repository rather than committing internal
@@ -356,16 +358,21 @@ repository or anything in it.
 reaching the network at all — the core claim in machine-checkable form:
 
 ```
-default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q=';
+default-src 'none'; script-src 'sha256-rXLlUraYkQK0AWyOdItde6nM7Vp4Okl31uF8o7Q6XsQ=';
 style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none';
 frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none';
 manifest-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
+**Verify the digest first.** Compare `sha256sum palisade.html` with `SHA256SUMS` taken from the
+repository, not from wherever you got the file. That is the check that ties a copy to this
+project. Everything below checks that the copy is internally consistent, and someone who can edit
+the file can make it consistent again.
+
 **Recompute the script hash yourself.** `script-src` is the SHA-256 of the single inline script
-block, and a hash makes `'unsafe-inline'` be ignored for script — which is what kills every
-injected `on*` attribute. Hash the bytes between `<script>` and `</script>` and compare them to
-what the file claims:
+block. It names only that hash, with neither `'unsafe-inline'` nor `'unsafe-hashes'`, so an
+injected `on*` attribute or `<script>` element has nothing in the policy that admits it. Hash the
+bytes between `<script>` and `</script>` and compare them to what the file claims:
 
 ```sh
 computed=$(perl -0777 -ne 'print $1 if /<script(?![^>]*\bsrc=)[^>]*>(.*?)<\/script>/s' \
@@ -376,8 +383,12 @@ claimed=$(grep -o 'sha256-[A-Za-z0-9+/=]*' palisade.html | head -1)
 
 A single changed byte anywhere in that block breaks the match, and the browser then refuses to
 run the only script in the file — the page loads styled, clickable, and completely inert. That is
-the seal working, not a bug. `node tools/seal.mjs palisade.html --verify` does the same check plus
-byte hygiene, version consistency and the inline-handler invariants.
+the seal working, not a bug. The recipe above proves only that the hash matches. It does not
+prove the browser will apply the policy, because a policy that is commented out or placed after
+other markup is ignored. `node tools/seal.mjs palisade.html --verify` does the same check and also
+confirms the policy is the canonical one, sits first in `<head>` outside any comment, and governs
+the only script. It also checks byte hygiene, version consistency and the inline-handler
+invariants.
 
 **Verify the published digests.**
 
@@ -395,20 +406,27 @@ default from Node 22) and a Chromium-family browser.
 ```sh
 node baseline/harness.mjs "file://$PWD/palisade.html" ./gate
 node baseline/check-frozen.mjs ./gate/result.json baseline/FROZEN-BASELINE.txt
+node baseline/security-gate.mjs "file://$PWD/palisade.html" ./gate
 ```
 
-Both exit non-zero on failure. `bash tools/csp-lint.sh palisade.html` reports the CSP attack
-surface against its locked baseline. The same three checks run on every push and tag in
-[`.github/workflows/verify.yml`](.github/workflows/verify.yml); a release tag additionally attests
-that those exact bytes were published by that workflow from that commit — which is a statement
-about publication, not a reproducible or hermetic build, because there is no build step to
-reproduce.
+All three exit non-zero on failure. `security-gate.mjs` feeds the page the hostile inputs from
+the v2.9 audit, one check per fixed finding: prototype-named keys, markup in scan and session
+values, CSV formula and row tricks, ReDoS lines, crafted archives, legacy sessions. Its first
+checks prove the policy is in `<head>` and enforced. `bash tools/csp-lint.sh palisade.html`
+reports the CSP attack surface against its locked baseline.
+
+[`.github/workflows/verify.yml`](.github/workflows/verify.yml) is written to run all of these on
+every push and tag, and to attest a tagged release's files, which is a statement about
+publication, not a reproducible build. **As of 2026-10-09 it has never run:** the repository has
+no workflow runs, tags or releases, so no attestation exists yet. Until one does, the digests in
+`SHA256SUMS` and the commands above are the evidence.
 
 **The documents.**
 
 | Document | What it answers |
 |---|---|
-| [`docs/SECURITY-ASSESSMENT.md`](docs/SECURITY-ASSESSMENT.md) | The assessment memo — what was found, what was fixed, what was tested, and what remains |
+| [`docs/SECURITY-AUDIT-2.9.md`](docs/SECURITY-AUDIT-2.9.md) | The v2.9 security audit — 87 issues found in v2.8, how each was fixed, what remains, and the errata to the documents below |
+| [`docs/SECURITY-ASSESSMENT.md`](docs/SECURITY-ASSESSMENT.md) | The v2.8 assessment memo — what was found, what was fixed, what was tested, and what remains (superseded in part by the v2.9 audit) |
 | [`docs/MOBILE-CODE-DETERMINATION.md`](docs/MOBILE-CODE-DETERMINATION.md) | The mobile-code category determination and the basis for it |
 | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) | Trust boundaries, assumed adversary, and what the design does not defend against |
 | [`docs/SBOM.md`](docs/SBOM.md) | The SBOM notes; the machine-readable forms are `palisade.cdx.json` (CycloneDX) and `palisade.spdx.json` (SPDX) |

@@ -1,4 +1,4 @@
-# Palisade 2.8 — SBOM notes
+# Palisade 2.9 — SBOM notes
 
 Two files, one artifact, same facts:
 
@@ -15,16 +15,16 @@ been edited and neither should be trusted.
 | | |
 |---|---|
 | file | `palisade.html` |
-| version | 2.8 |
-| bytes | 521,771 |
-| sha256 | `fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97` |
-| sha384 | `40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f` |
-| sha512 | `c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6` |
+| version | 2.9 |
+| bytes | 572,143 |
+| sha256 | `84ea3d3299d58bf4f0413d54c97b82772f80d19d460cad146d9815c524a32994` |
+| sha384 | `4bc5c68aeb3ed9ba59558f86a3964c78fe13b38b2ff991ee6921c2206f3089b4c82ed67c54c87180b1a4d2d2e1d39b4b` |
+| sha512 | `451b0b3381b9692e4532ddb2a71154bebdfa61adccb317791e3d99234bc3c9484eb54e340ae806d7dd9dddcbeedab1420ecd6e1eb65faff8492ebcd5fdd97fe0` |
 | line endings / BOM | LF only / none |
 | licence | MIT |
 
 Digests were computed twice, from the shipped bytes, by two implementations that share no code
-(GNU coreutils 9.10 `sha256sum`/`sha384sum`/`sha512sum`, and CPython 3.14.6 `hashlib`). They
+(GNU coreutils 9.4 `sha256sum`/`sha384sum`/`sha512sum`, and CPython 3.13.16 `hashlib`). They
 agree, and they agree with `MANIFEST.json` emitted by `tools/seal.mjs --manifest`.
 
 ## NTIA minimum elements — where each one lives
@@ -36,8 +36,8 @@ The seven data fields from *The Minimum Elements For a Software Bill of Material
 |---|---|---|
 | Supplier name | `metadata.supplier.name`, and `metadata.component.supplier.name` | `packages[0].supplier` (`Organization: …`), `originator` |
 | Component name | `metadata.component.name` = `Palisade` | `packages[0].name` = `palisade` |
-| Version of the component | `metadata.component.version` = `2.8` | `packages[0].versionInfo` = `2.8` |
-| Other unique identifiers | `metadata.component.purl` = `pkg:generic/palisade@2.8`; `hashes[]` (SHA-256/384/512) | `packages[0].externalRefs[0].referenceLocator` (same purl); `checksums[]`; `packageVerificationCode` |
+| Version of the component | `metadata.component.version` = `2.9` | `packages[0].versionInfo` = `2.9` |
+| Other unique identifiers | `metadata.component.purl` = `pkg:generic/palisade@2.9`; `hashes[]` (SHA-256/384/512) | `packages[0].externalRefs[0].referenceLocator` (same purl); `checksums[]`; `packageVerificationCode` |
 | Dependency relationship | `dependencies[0].dependsOn` = `[]`, plus `components` = `[]` and `compositions[0].aggregate` = `complete` | `relationships`: `DEPENDS_ON → NONE`, plus exactly one package and `CONTAINS` the one file |
 | Author of SBOM data | `metadata.authors[0].name` | `creationInfo.creators` (`Person: …`, `Organization: …`, two `Tool:` entries) |
 | Timestamp | `metadata.timestamp` | `creationInfo.created` |
@@ -123,7 +123,8 @@ python3 ../tools/sbom-check.py palisade.html palisade.cdx.json palisade.spdx.jso
 
 `seal.mjs` and `csp-lint.sh` ship **inside this repository** at `tools/`, because a reviewer
 needs to verify the seal without being handed a second bundle; `.github/workflows/verify.yml`
-runs both of them from the repository root on every push, pull request and tag. `sbom-check.py`
+is written to run both of them from the repository root on every push, pull request and tag. As
+of 2026-10-09 it has never run (no workflow runs, tags or releases), so no attestation exists yet. `sbom-check.py`
 is *not* shipped: it lives in the review workspace beside the repository and is handed over as
 part of the evidence bundle, so adjust its path to wherever you unpacked that. None of the three
 is part of the single file a user receives, and none of them is needed to run Palisade.

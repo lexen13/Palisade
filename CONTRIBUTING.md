@@ -95,8 +95,10 @@ compares all four and fails the release if they disagree.
 
 `palisade.html` carries a Content-Security-Policy whose `script-src` is the SHA-256 of its own
 script block. **Any edit to the script invalidates it and the page stops working entirely** — it
-loads styled and inert, with the expected hash in the console. That is deliberate: it is what
-lets an assessor trust that the file they opened is the file that was reviewed.
+loads styled and inert, with the expected hash in the console. That is deliberate: it catches
+accidental damage (CRLF, a BOM, a stray edit) before anyone relies on the file. It is not tamper
+evidence against someone who can edit the file, because they can re-seal it. The whole-file
+digest in `SHA256SUMS` is the control for that.
 
 So after any change to the script:
 
@@ -104,7 +106,14 @@ So after any change to the script:
 node tools/seal.mjs palisade.html --seal     # recompute and write the hash
 node tools/seal.mjs palisade.html --verify   # must exit 0
 node baseline/harness.mjs "file://$PWD/palisade.html" baseline/out-current
+node baseline/check-frozen.mjs baseline/out-current/result.json
+node baseline/security-gate.mjs "file://$PWD/palisade.html" baseline/out-current
 ```
+
+`security-gate.mjs` holds one check per security finding fixed in v2.9. If you change a parser,
+a renderer, an export or a load path, it must still pass. If you fix a new finding, add its
+check. Never delete one to make the gate pass. `baseline/out-current/` is scratch output: do not
+commit it.
 
 `--verify` runs before every commit and every release. It is a release step, not a build step:
 the file is complete and openable before and after it runs, and it is never generated from
@@ -112,8 +121,10 @@ sources. Two things will make it fail that are easy to do by accident — saving
 CRLF line endings, and adding a UTF-8 BOM. Both change the bytes the browser hashes. Keep the
 file LF-only with no BOM.
 
-Inline `on*` handlers no longer work anywhere in this file — a hash in `script-src` makes the
-browser ignore `'unsafe-inline'`, so an `onclick=` attribute is a dead control. Wire UI up with
+Inline `on*` handlers no longer work anywhere in this file. `script-src` carries only the
+script's hash, with neither `'unsafe-inline'` nor `'unsafe-hashes'`, so an `onclick=` attribute
+is a dead control. Do not add either keyword: `seal.mjs` refuses any policy that is not the
+canonical one. Wire UI up with
 `data-click` / `data-change` and add the action to the `ACTIONS` table instead. The one
 exception is tagged `/*EXPORT-ONLY-HANDLER*/` and is written into a downloaded report, which is
 a separate document with its own policy.

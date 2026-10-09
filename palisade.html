@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Palisade v2.8 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
+<!-- Palisade v2.9 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (digests in SHA256SUMS and MANIFEST.json there; take them from the repository, not from this copy). Single file, no build step, no network, no storage. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,9 +15,9 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-rXLlUraYkQK0AWyOdItde6nM7Vp4Okl31uF8o7Q6XsQ='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Palisade v2.8</title>
+<title>Palisade v2.9</title>
 <style>
   /* ================================================================
      Palisade — instrument console theme
@@ -410,7 +410,7 @@
         <path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <div class="t">
-      <h1>Palisade <span class="ver">v2.8</span>
+      <h1>Palisade <span class="ver">v2.9</span>
         <span class="badge"><span class="dot"></span>Offline</span></h1>
       <div class="sub">Turns Tenable / ACAS scan exports into audit-ready control evidence &mdash; all parsing local, no network calls</div>
     </div>
@@ -1235,11 +1235,15 @@ const LOGON_PATTERNS=[
 ];
 function parseLogonDate(v){
  const t=String(v||"").trim();
- if(!t||/^(never|n\/a|none|unknown|not available)$/i.test(t)) return "";
- const d=new Date(t.replace(/\s+\(.*\)$/,""));
- if(!isNaN(d)&&d.getFullYear()>1990&&d.getTime()<=Date.now()+86400000) return d.toISOString().slice(0,10);
+ if(!t||t.length>80||/^(never|n\/a|none|unknown|not available)$/i.test(t)) return "";
+ const d=new Date(t.replace(/\s+\([^()]*\)$/,""));
+ const sane=x=>!isNaN(x)&&x.getFullYear()>1990&&x.getTime()<=Date.now()+86400000;
+ if(sane(d)) return d.toISOString().slice(0,10);
+ /* the YYYY/MM/DD fallback gets the same bounds: "2099/01/01" used to be accepted (a negative
+    age, no stale-logon flag, and the enclave's "most recent logon"), and 2026/13/45 normalised */
  const m=t.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
- if(m){const dd=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(dd)) return dd.toISOString().slice(0,10);}
+ if(m&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31){const dd=new Date(+m[1],+m[2]-1,+m[3]);
+   if(sane(dd)&&dd.getMonth()===+m[2]-1) return dd.toISOString().slice(0,10);}
  return "";
 }
 function logonAgeDays(iso){
@@ -1249,25 +1253,42 @@ function logonAgeDays(iso){
 }
 function acctGet(h,name,src){
  name=String(name||"").trim(); if(!name||name.length>64) return null;
- h.accounts=h.accounts||{};
+ h.accounts=h.accounts||dataMap();
  const k=name.toUpperCase();
- if(!h.accounts[k]) h.accounts[k]={name,src:src||"",rid:"",flags:{},groups:[],lastLogon:""};
+ if(!ownKey(h.accounts,k)) h.accounts[k]={name,src:src||"",rid:"",flags:{},groups:[],lastLogon:""};
  else if(!("lastLogon" in h.accounts[k])) h.accounts[k].lastLogon="";
  else if(src&&!h.accounts[k].src) h.accounts[k].src=src;
  return h.accounts[k];
 }
+/* One enumerated-account line -> {name, rid, tail}. Windows forbids " / \ [ ] : ; | = , + * ? < >
+   in account names; ( ) ' # ! % & ~ ^ { } are legal. v2.8 whitelisted [\w.$@ .-], so a renamed
+   built-in Administrator called "admin (maint)", or "o'brien", was dropped with no warning -- an
+   AC-2 inventory missing exactly the privileged accounts an attacker would rename. Lines are
+   length-bounded before any regex (the old pattern was quadratic on an internal space run). */
+const ACCT_BAD_CH=/["\/\\\[\]:;|=,+*?<>\x00-\x1f]/;
+function acctLine(l){
+ let s=String(l).replace(/^[-\u2022*]\s*/,"");
+ let rid="", tail="";
+ const t=s.match(/\(\s*id\s+(\d+)([^()]*)\)$/i);
+ if(t){rid=t[1]; tail=t[2]; s=s.slice(0,t.index);}
+ s=s.replace(/^[^\s\\"\/\[\]:;|=,+*?<>]+\\/,"").trim();      // DOMAIN\ or HOST\ prefix
+ if(!s||s.length>64||ACCT_BAD_CH.test(s)) return null;
+ return {name:s,rid,tail};
+}
 function acctIngest(h,pname,text){
  const cfg=acctPluginFor(pname); if(!cfg) return;
+ const MAXL=256;
  if(cfg.kind==="logon"){
    /* Two shapes: "User : name" followed by "Last logon : date" on a later line, and
       a single line carrying both. Track the current account across lines. */
    let cur=null;
    for(const raw of String(text).split("\n")){
-     const l=raw.trim(); if(!l) continue;
+     const l=raw.trim(); if(!l||l.length>MAXL) continue;
      const um=l.match(/^(?:user\s*(?:name)?|account)\s*:\s*(\S{1,64})/i);
      if(um){cur=acctGet(h,um[1]); continue;}
-     const bm=l.match(/^[-\u2022*]?\s*(?:[\w.$-]+\\)?([\w.$@-][\w.$@ .-]{0,62}?)\s*[-\u2013]\s*last\s+log(?:on|in)\s*:?\s*(.+)$/i);
-     if(bm){const a=acctGet(h,bm[1]); const d=parseLogonDate(bm[2]);
+     const bi=l.search(/\s[-\u2013]\s*last\s+log(?:on|in)\b/i);
+     if(bi>0){const al=acctLine(l.slice(0,bi)); const a=al&&acctGet(h,al.name);
+       const d=parseLogonDate(l.slice(bi).replace(/^\s[-\u2013]\s*last\s+log(?:on|in)\b\s*:?\s*/i,""));
        if(a&&d&&(!a.lastLogon||d>a.lastLogon)) a.lastLogon=d; continue;}
      for(const re of LOGON_PATTERNS){
        const m=l.match(re);
@@ -1282,11 +1303,14 @@ function acctIngest(h,pname,text){
  if(cfg.kind==="groups"){
    let grp="";
    for(const raw of String(text).split("\n")){
-     const l=raw.trim(); if(!l) continue;
+     const l=raw.trim(); if(!l||l.length>MAXL) continue;
      const g=l.match(/^group name\s*:\s*(.+)$/i);
      if(g){grp=g[1].trim();continue;}
-     const m=l.match(/^[-\u2022*]?\s*(?:[\w.$-]+\\)?([\w.$@-][\w.$@ .-]{0,62})\s*(\(.*\))?$/);
-     if(m&&grp){const a=acctGet(h,m[1]);
+     if(!grp) continue;
+     /* Nessus labels each member "(User)" / "(Group)": that label is dropped, but any other
+        parenthesis is part of the name (it used to be swallowed, minting a different account) */
+     const al=acctLine(l.replace(/\s*\((?:user|group|alias|computer|well-known group|domain user|local user)\)\s*$/i,""));
+     if(al){const a=acctGet(h,al.name);
        if(a){if(!a.groups.includes(grp))a.groups.push(grp);
          if(/^administrators$/i.test(grp))a.flags.admin=true;}}
    }
@@ -1294,18 +1318,17 @@ function acctIngest(h,pname,text){
  }
  for(const raw of String(text).split("\n")){
    const l=raw.trim();
-   if(!l||l.endsWith(":")) continue;
+   if(!l||l.endsWith(":")||l.length>MAXL) continue;
    if(/^(the following|it was possible|note[: ]|nessus|host sid|computer name|- none|using the supplied)/i.test(l)) continue;
    const lm=l.match(/^user\s*(?:name)?\s*:\s*(\S{1,64})/i);          // "Username : root"
    if(lm){const a=acctGet(h,lm[1],cfg.src); if(a&&cfg.kind==="flag")a.flags[cfg.flag]=true; continue;}
-   const m=l.match(/^[-\u2022*]?\s*(?:[\w.$-]+\\)?([\w.$@-][\w.$@ .-]{0,62}?)\s*(?:\(\s*id\s+(\d+)([^)]*)\))?\s*$/i);
-   if(!m) continue;
-   const a=acctGet(h,m[1],cfg.src); if(!a) continue;
-   if(m[2]) a.rid=m[2];
+   const al=acctLine(l);
+   if(!al) continue;
+   const a=acctGet(h,al.name,cfg.src); if(!a) continue;
+   if(al.rid) a.rid=al.rid;
    if(cfg.kind==="flag") a.flags[cfg.flag]=true;
-   const tail=(m[3]||"");
-   if(m[2]==="500"||/administrator account/i.test(tail)) a.flags.builtin500=true;
-   if(m[2]==="501"||/guest account/i.test(tail)) a.flags.guest=true;
+   if(al.rid==="500"||/administrator account/i.test(al.tail)) a.flags.builtin500=true;
+   if(al.rid==="501"||/guest account/i.test(al.tail)) a.flags.guest=true;
  }
 }
 /* Days without a logon before an enabled account is worth reviewing. Organizations
@@ -1340,6 +1363,9 @@ function acctAssess(a){
 const EOL_TABLE = [
  {match:"Windows 10 Enterprise LTSC 2021", date:"2027-01-12", note:"LTSC 2021 - longer lifecycle than mainstream Win10"},
  {match:"Windows 10 Enterprise LTSC 2019", date:"2029-01-09", note:"LTSC 2019"},
+ {match:"Windows 10 IoT Enterprise LTSC 2021", date:"2032-01-13", note:"IoT LTSC 2021 - verify against the vendor lifecycle page"},
+ {match:"Windows 10 IoT Enterprise LTSC 2019", date:"2029-01-09", note:"IoT LTSC 2019 - verify against the vendor lifecycle page"},
+ {match:"Windows 10 IoT Enterprise LTSC",  date:"",           note:"IoT LTSC build - confirm exact release for date"},
  {match:"Windows 10 Enterprise LTSC",      date:"",           note:"LTSC build - confirm exact release for date"},
  {match:"Windows 10",                      date:"2025-10-14", note:"Mainstream Windows 10 end of support; ESU may extend"},
  {match:"Windows 8",                       date:"2023-01-10", note:""},
@@ -1681,12 +1707,39 @@ function activeCols(){return S.config.catalog.filter(c=>c.active);}
    subject length buys nothing -- an exponential pattern already hangs on ~30 characters. So
    static rejection is the only portable control, and it is deliberately PARTIAL: it catches the
    classic nested-quantifier class ((a+)+ (a*)* (\d+)+ ((ab)+)+) and over-long sources, and it does
-   NOT catch adjacent overlap (a*a*) or alternation overlap ((a|ab)*). Verified against all 34
-   built-in re: patterns in DEFAULT_CONFIG and EOL_TABLE: zero rejections. */
-const RE_NESTED_QUANT=/\((?:[^()\\]|\\.)*[*+](?:[^()\\]|\\.)*\)\s*[*+{]/;                  // (a+)+  (a*)*  (\d+)+  (...)+{n,}
-const RE_NESTED_GROUP=/\((?:[^()\\]|\\.)*\((?:[^()\\]|\\.)*\)[*+](?:[^()\\]|\\.)*\)\s*[*+{]/;  // ((...)+...)+
+   NOT catch adjacent overlap (a*a*). Verified against all 32 built-in re: patterns in
+   DEFAULT_CONFIG and EOL_TABLE: zero rejections.
+   2.9: v2.8 matched the literal shape "(...+...)+" with two regexes, so trivial re-spellings of
+   the same class passed -- (?:(.+))+$ (a non-capturing wrapper), (a{1,})+$ ({1,} is +), (a|aa)+$
+   -- and (?:(.+))+$ is exponential on any 30-character line of a real scan blob. This walks the
+   source with a group stack instead: a group whose body holds a quantifier or an alternation,
+   at any depth, may not itself be repeated. Escapes and [...] classes are skipped. */
 function unsafeRegexSource(src){
- return src.length>LIMITS.REGEX_SOURCE_CHARS||RE_NESTED_QUANT.test(src)||RE_NESTED_GROUP.test(src);
+ src=String(src);
+ if(src.length>LIMITS.REGEX_SOURCE_CHARS) return true;
+ const stack=[]; let cls=false;
+ for(let i=0;i<src.length;i++){
+   const c=src[i];
+   if(c==="\\"){i++;continue;}
+   if(cls){if(c==="]")cls=false;continue;}
+   if(c==="["){cls=true;continue;}
+   if(c==="("){
+     stack.push({q:false});
+     const pre=/^\?(?::|=|!|<=|<!|<[A-Za-z_$][\w$]*>)/.exec(src.slice(i+1));   // group syntax, not a quantifier
+     if(pre) i+=pre[0].length;
+     continue;
+   }
+   if(c===")"){
+     const g=stack.pop(); if(!g) return true;
+     const rp=/^(?:[*+]|\{(\d+)(?:,(\d*))?\})/.exec(src.slice(i+1));
+     const repeated=!!rp&&(rp[0]==="*"||rp[0]==="+"||(rp[2]!==undefined?(rp[2]===""||+rp[2]>1):+rp[1]>1));
+     if(repeated&&g.q) return true;
+     if(stack.length&&(g.q||repeated)) stack[stack.length-1].q=true;
+     continue;
+   }
+   if(stack.length&&(c==="*"||c==="+"||c==="?"||c==="{"||c==="|")) stack[stack.length-1].q=true;
+ }
+ return stack.length>0;
 }
 /* Every re: pattern a loaded config can carry, so a profile author is TOLD which rule stopped
    matching instead of quietly losing detections. */
@@ -1724,7 +1777,7 @@ function patMatch(pattern,hay){
 let S = newState();
 function newState(){
  return {
-  meta:{tool:"Palisade", ver:"2.8", saved:null},
+  meta:{tool:"Palisade", ver:"2.9", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
             banner:"UNCLASSIFIED",
@@ -1737,26 +1790,27 @@ function newState(){
             swFiscalYear:"",swUii:"",swPopEnd:"",swLicense:"",swLicenseTerm:"",
             ppsmHideEphemeral:true, ppsmEphemeralFloor:49152, ppsmMinHosts:1,
             // report presets a team defines here; they ride in the environment profile
-            reportPresets:{}},
+            reportPresets:dataMap()},
   filesLoaded:[],
-  hosts:{},        // key -> {key,ip,name,os,lastSeen,blob,cred,sw:[],ports:{...}}
-  ppsm:{},         // key "tcp/445" -> row {...}
-  stig:{overrides:{}, comments:{}, device:{}},
-  software:{},     // key "name|version" -> row {name,version,vendor,type,...,hosts:[],include,manual{}}
+  // every map below is keyed by file-derived text, so it is prototype-free (see dataMap)
+  hosts:dataMap(), // key -> {key,ip,name,os,lastSeen,blob,cred,sw:[],ports:{...}}
+  ppsm:dataMap(),  // key "tcp/445" -> row {...}
+  stig:{overrides:dataMap(), comments:dataMap(), device:dataMap()},
+  software:dataMap(), // key "name|version" -> row {name,version,vendor,type,...,hosts:[],include,manual{}}
   inventory:[],    // authoritative asset list: [{name,type,note}]
-  assets:{},       // curated asset inventory: key -> {name,ip,mac,os,type,make,model,serial,
+  assets:dataMap(),// curated asset inventory: key -> {name,ip,mac,os,type,make,model,serial,
                    //   location,owner,status,criticality,inScope,lastSeen,notes,fromScan}
-  stigResults:{},  // hostKey -> benchmarkKey -> {title,version,release,source,when,rules:[...]}
+  stigResults:dataMap(), // hostKey -> benchmarkKey -> {title,version,release,source,when,rules:[...]}
   trend:[],        // [{taken,label,stats:{...}}] one point per assessment cycle
   baseline:null,   // snapshot from a prior session, for delta
   delta:null,      // computed change record
   intel:emptyIntel(), // fused cyber threat intelligence (SASR-E and similar sheets)
   listings:emptyListings(), // ingested HW/SW baseline listings (records + per-file mapping reports)
   config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
-  auto:{}
+  auto:dataMap()
  };
 }
-function emptyIntel(){return {rows:{}, files:[], scoreSource:"blended"};}
+function emptyIntel(){return {rows:dataMap(), files:[], scoreSource:"blended"};}
 function emptyListings(){return {hw:[], sw:[], files:[], conflicts:[]};}
 
 /* ---------------- utilities ---------------- */
@@ -1775,6 +1829,26 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 function safeParse(text){
   return JSON.parse(text,function(k,v){ if(k==="__proto__") return undefined; return v; });
 }
+/* safeParse closes the JSON door only. Scan files reach the same plain-object maps through
+   other doors: a .nessus pluginID, a CSV "Plugin Name" cell, a software DisplayName, an XCCDF
+   rule id. Every one of those was used as a key with the `m[k]||(m[k]=...)` idiom, and for
+   "__proto__" / "constructor" / "toString" the read returns an inherited member -- so the write
+   lands on Object.prototype or on a built-in function, or the next method call throws and the
+   ingest silently aborts. (2.9 audit, finding P-1.) The fix is structural rather than per-site:
+   every map keyed by file-derived text is created WITHOUT a prototype, so a lookup can only
+   ever see own data. JSON.stringify, Object.keys, for..in and Object.values behave identically
+   on such maps, so sessions and exports are byte-for-byte unchanged. */
+function dataMap(o){
+ const m=Object.create(null);
+ if(o&&typeof o==="object"&&!Array.isArray(o)) for(const k of Object.keys(o)) m[k]=o[k];
+ return m;
+}
+function ownKey(o,k){return o!=null&&Object.prototype.hasOwnProperty.call(o,k);}
+/* One line of text for a dialog, an e-mail bullet or a log: a value read from a file must not
+   be able to add lines that read as the tool's own words. */
+function oneLine(s,max){const t=String(s??"").replace(/[\s\u2028\u2029]+/g," ").trim();return max&&t.length>max?t.slice(0,max)+"…":t;}
+/* A count or score read back from a session file is attacker-chosen text until proven otherwise. */
+function numOr(v,d){const n=Number(v);return Number.isFinite(n)?n:d;}
 /* When DL_CAPTURE is set, every export writes into it instead of downloading.
    That is what lets the package bundler reuse all 29 export functions unchanged
    rather than keeping a second copy of their formatting. */
@@ -1796,6 +1870,10 @@ const LIMITS=Object.freeze({
   INFLATE_ENTRY_BYTES:  256*1024*1024,  // one inflated zip entry (deflate ceiling is ~1032:1)
   INFLATE_ARCHIVE_BYTES:768*1024*1024,  // all inflated entries of one archive together
   SHEET_ROWS:           1048576,        // Excel's maximum; never truncates a legal worksheet
+  SHEET_COLS:           16384,          // Excel's maximum (XFD); a larger cell reference is corrupt
+  SHEETS_PER_WORKBOOK:  64,             // worksheets read per workbook; the rest are named in a warning
+  ZIP_ENTRIES:          10000,          // central-directory entries read per archive
+  TEXT_LINE_CHARS:      512,            // one software / account / scan-info line, before any regex runs
   REGEX_SOURCE_CHARS:   512             // a config re: pattern longer than this is rejected
 });
 /* Checked BEFORE f.text()/f.arrayBuffer(), so an oversize file is refused without ever being
@@ -1845,69 +1923,115 @@ async function ingestFiles(list){
      const text=await f.text();
      if(/\.nessus$/i.test(f.name)||/^\s*<\?xml/.test(text.slice(0,200))&&text.includes("<NessusClientData")){
        const n=parseNessus(text,f.name); S.filesLoaded.push({name:f.name,type:"nessus",hosts:n});
-     }else if(/\.(ckl|cklb)$/i.test(f.name)||looksLikeXccdf(text)||looksLikeCkl(text)||(/\.json$/i.test(f.name)&&looksLikeCklb(text))){
-       const n=ingestStigResultText(text,f.name,warns);
-       S.filesLoaded.push({name:f.name,type:"stig",hosts:n}); stigNew+=n;
      }else if(/\.(csv|tsv)$/i.test(f.name)){
+       /* Extension first: a Tenable CSV whose Plugin Output quotes "<TestResult" from a host's
+          banner used to be content-sniffed as XCCDF and refused whole. */
        const sep=/\.tsv$/i.test(f.name)?"\t":",";
        if(sniffIntelSheet(text,sep)){ intelNew+=ingestIntelRows(f.name,csvRows(text,sep),warns); }
        else if(sniffListingSheet(text,sep)){ const r=ingestListingRows(f.name,csvRows(text,sep),warns); listNew.hw+=r.hw; listNew.sw+=r.sw; }
-       else { const n=parseTenableCSV(text,warns); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
+       else if(looksLikeTenableCsv(text,sep)){ const n=parseTenableCSV(text,warns,f.name); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
+       /* Never fall through to the scan parser on a guess: a HW listing headed "Device, IP
+          Address, ..." used to be minted host-by-host as scan-detected assets. */
+       else warns.push(f.name+": not recognized as a Tenable export (no Plugin ID / Plugin Name column), a threat-intel sheet (no CVE column), or a HW/SW listing (no hostname or software-name column) — nothing ingested; extend listingAliases / intelAliases in Detection Config if this is a listing or intel sheet");
+     }else if(/\.(ckl|cklb)$/i.test(f.name)||looksLikeXccdf(text)||looksLikeCkl(text)||(/\.json$/i.test(f.name)&&looksLikeCklb(text))){
+       const n=ingestStigResultText(text,f.name,warns);
+       S.filesLoaded.push({name:f.name,type:"stig",hosts:n}); stigNew+=n;
      }else{ warns.push(f.name+": unrecognized format (expected .nessus, .csv, or .xlsx threat-intel sheet)"); }
    }catch(err){ warns.push(f.name+": parse error — "+err.message); }
  }
  $("fileIn").value=""; if($("intelIn"))$("intelIn").value=""; if($("listIn"))$("listIn").value="";
  invalidateFusion();
- mergeHostsByIp(); rebuildPPSMFromHosts(); const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
- renderAll();
+ /* The post-parse pipeline used to run outside every try: one throw left S half-rebuilt, the
+    screen stale, and the status line and warning banner untouched -- a silent failure. */
+ let added=[];
+ try{ mergeHostsByIp(); rebuildPPSMFromHosts(); added=runDetection(); buildSoftware(); buildAssets(); applyListings(); }
+ catch(err){ warns.push("post-load processing failed — "+err.message+". The dataset may be incomplete; save nothing from it, reload the page and report this."); }
+ try{ renderAll(); }catch(err){ warns.push("rendering failed — "+err.message); }
  $("parseWarnings").textContent=warns.join("  |  ");
  let msg=`Loaded ${S.filesLoaded.length} file(s), ${Object.keys(S.hosts).length} host(s), ${Object.keys(S.ppsm).length} unique port tuple(s).`;
  if(intelNew) msg+=` Threat intel: ${Object.keys(S.intel.rows).length} CVE record(s) on file.`;
  if(listNew.hw||listNew.sw) msg+=` HW/SW listing: +${listNew.hw} hardware, +${listNew.sw} software row(s) ingested — see Assets and Software tabs.`;
  if(stigNew) msg+=` STIG compliance: ${stigNew} rule result(s) ingested.`;
  if(added.length) msg+=` Auto-added STIG columns: ${added.join(", ")} — set versions in Detection Config.`;
+ if(warns.length) msg+=` ${warns.length} warning(s) — see the banner above.`;
  status(msg);
 }
 
 /* Host key: prefer NetBIOS/FQDN short name; fall back to IP (never split an IP on dots). */
 function hostKeyFrom(name,ip){
  let k=(name||"").trim();
- if(k&&!/^\d{1,3}(\.\d{1,3}){3}$/.test(k)) return k.toUpperCase().split(".")[0];
+ if(k&&!/^\d{1,3}(\.\d{1,3}){3}$/.test(k)){
+   // first non-empty label: ".evil" used to key to "" and fold every such host together
+   const short=k.toUpperCase().split(".").find(Boolean);
+   if(short) return short;
+   k="";
+ }
  return (ip||k||"unknown").trim().toUpperCase();
 }
 /* If a named host and an IP-keyed host are the same machine, fold the IP one in. */
 function mergeHostsByIp(){
- const byIp={};
+ const byIp=dataMap();
  for(const k in S.hosts){const h=S.hosts[k];
-   if(h.ip&&!/^\d{1,3}(\.\d{1,3}){3}$/.test(k)) byIp[h.ip]=k;}
+   /* An IP that only a checklist or XCCDF file claimed is the file's word, not the scanner's:
+      it must not make a self-named result the owner of a scanned host's address. */
+   if(h.ip&&h.ipFrom!=="checklist"&&!/^\d{1,3}(\.\d{1,3}){3}$/.test(k)) byIp[h.ip]=k;}
  for(const k of Object.keys(S.hosts)){
    if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(k)) continue;
    const target=byIp[S.hosts[k].ip||k];
    if(!target||target===k) continue;
    const src=S.hosts[k], dst=S.hosts[target];
    for(const pk in src.ports){
-     if(!dst.ports[pk]) dst.ports[pk]=src.ports[pk];
+     if(!ownKey(dst.ports,pk)) dst.ports[pk]=src.ports[pk];
      else src.ports[pk].evidence.forEach(e=>{if(!dst.ports[pk].evidence.includes(e))dst.ports[pk].evidence.push(e);});
    }
    (src.sw||[]).forEach(s=>{if(!dst.sw.some(x=>x.n===s.n&&x.v===s.v))dst.sw.push(s);});
+   /* Carry the whole finding -- ports, family, patch dates, solution -- not just its severity:
+      dropping patchPub silently removed the past-remediation-window flag from the POA&M. */
    for(const fk in (src.findings||{})){
      const sf=src.findings[fk];
-     addFinding(dst,sf.id,sf.name,sf.sev,sf.cvss,sf.cves,sf.expl);
+     addFinding(dst,sf.id,sf.name,sf.sev,sf.cvss,sf.cves,sf.expl,{family:sf.family,
+       patchPub:sf.patchPub,pluginPub:sf.pluginPub,solution:sf.solution,synopsis:sf.synopsis});
+     const df=ownKey(dst.findings,sf.id)?dst.findings[sf.id]:null;
+     if(df) (sf.ports||[]).forEach(p=>{if(!df.ports.includes(p))df.ports.push(p);});
    }
+   if(src.accounts){dst.accounts=dst.accounts||dataMap();
+     for(const ak in src.accounts) if(!ownKey(dst.accounts,ak)) dst.accounts[ak]=src.accounts[ak];}
+   if(src.scan&&!dst.scan) dst.scan=src.scan;
    dst.blob+="\n"+src.blob;
    (dst.src=dst.src||[]).push(...(src.src||[]));
    dst.cred=dst.cred||src.cred;
    if(!dst.os&&src.os) dst.os=src.os;
+   if(!dst.mac&&src.mac) dst.mac=src.mac;
    if(src.lastSeen&&(!dst.lastSeen||src.lastSeen>dst.lastSeen)) dst.lastSeen=src.lastSeen;
    delete S.hosts[k];
-   if(S.stig.overrides[k]){S.stig.overrides[target]=Object.assign(S.stig.overrides[target]||{},S.stig.overrides[k]);delete S.stig.overrides[k];}
+   if(S.stig.overrides[k]){S.stig.overrides[target]=Object.assign(S.stig.overrides[target]||dataMap(),S.stig.overrides[k]);delete S.stig.overrides[k];}
    delete S.stig.device[k];
+   /* The asset row and the STIG results keyed by the IP move with the host. Left behind, the
+      asset stayed "scan-detected" forever (a phantom second row for one machine) and a
+      checklist that carried only an IP was orphaned, so its host read "applicable, not assessed". */
+   if(S.assets[k]){
+     if(!S.assets[target]){S.assets[target]=S.assets[k]; S.assets[target].name=dst.name;}
+     else{const a=S.assets[target], b=S.assets[k];
+       for(const f of Object.keys(b)) if(f!=="name"&&f!=="fromScan"&&b[f]&&!a[f]) a[f]=b[f];}
+     delete S.assets[k];
+   }
+   if(S.stigResults&&S.stigResults[k]){
+     const into=S.stigResults[target]||(S.stigResults[target]=dataMap());
+     for(const sk in S.stigResults[k]){
+       const from=S.stigResults[k][sk];
+       if(!into[sk]){into[sk]=from;continue;}
+       const have=new Set(into[sk].rules.map(ruleKeyOf));
+       from.rules.forEach(r=>{if(!have.has(ruleKeyOf(r)))into[sk].rules.push(r);});
+     }
+     delete S.stigResults[k];
+   }
  }
 }
 function getHost(key){
- if(!S.hosts[key]) S.hosts[key]={key,ip:"",name:key,os:"",lastSeen:"",blob:"",cred:false,sw:[],ports:{},findings:{}};
+ if(!S.hosts[key]) S.hosts[key]={key,ip:"",name:key,os:"",lastSeen:"",blob:"",cred:false,sw:[],ports:dataMap(),findings:dataMap()};
  if(!S.hosts[key].sw) S.hosts[key].sw=[];
- if(!S.hosts[key].findings) S.hosts[key].findings={};
+ if(!S.hosts[key].findings) S.hosts[key].findings=dataMap();
+ if(!S.hosts[key].ports) S.hosts[key].ports=dataMap();
  return S.hosts[key];
 }
 /* CVE-bearing vulnerability finding on a host (the joinable core of a scan result). */
@@ -1932,8 +2056,13 @@ function addFinding(h,pid,pname,sev,cvss,cves,expl,meta){
  // (configuration weaknesses) -- both feed the Vulnerabilities tab and POA&M draft
  if((!cves||!cves.length)&&!(sev>0)) return;
  cves=cves||[];
- const f=h.findings[pid]||(h.findings[pid]={id:pid,name:pname||("plugin "+pid),sev:0,cvss:0,
-   cves:[],expl:false,family:"",ports:[],patchPub:"",pluginPub:"",solution:"",synopsis:""});
+ pid=String(pid??"");
+ /* Plugin names are bounded at the boundary: every later regex over them (remedy parsing,
+    product cleanup) is then bounded too. A real Tenable plugin name is well under 200 chars. */
+ const nm=String(pname||("plugin "+pid)).slice(0,LIMITS.TEXT_LINE_CHARS);
+ if(!ownKey(h.findings,pid)) h.findings[pid]={id:pid,name:nm,sev:0,cvss:0,
+   cves:[],expl:false,family:"",ports:[],patchPub:"",pluginPub:"",solution:"",synopsis:""};
+ const f=h.findings[pid];
  f.ports=f.ports||[];
  f.sev=Math.max(f.sev,sev||0);
  f.cvss=Math.max(f.cvss,cvss||0);
@@ -1951,16 +2080,22 @@ function addFinding(h,pid,pname,sev,cvss,cves,expl,meta){
 const CVE_RE=/CVE-\d{4}-\d{4,7}/gi;
 function cvesIn(s){return [...String(s||"").matchAll(CVE_RE)].map(m=>m[0].toUpperCase());}
 function addSoftware(h,text){
- h.blob+="\n"+text; h.cred=true;
+ text=String(text??"");
+ h.blob+="\n"+text;
+ const before=h.sw.length;
  let inUpdates=false;
  for(let raw of text.split("\n")){
    let l=raw.trim();
    if(!l) continue;
+   if(l.length>LIMITS.TEXT_LINE_CHARS) l=l.slice(0,LIMITS.TEXT_LINE_CHARS);  // bounds every regex below
    const bare=l.replace(/^[\s\u2022\u00b7*+\u2013\u2014-]+/,"");
-   if(/^the following updates?\b/i.test(bare)){inUpdates=true;continue;}
+   /* Section sentinels are honoured only in Nessus's own header shape (ends with ":"), so a
+      host cannot hide every later product by registering a DisplayName "The following updates". */
+   if(/^the following updates?\b[^\[]*:$/i.test(bare)){inUpdates=true;continue;}
    if(/^the following (software|applications?)\b/i.test(bare)){inUpdates=false;continue;}
    if(inUpdates) continue;                                   // KB/patch list, not the software inventory
-   if(/\bKB\d{6,}\b/.test(bare)) continue;                   // stray KB entry outside the updates block
+   // stray KB entry outside the updates block: only update-shaped lines, not any name with a KB in it
+   if(/^(?:(?:security |cumulative |servicing stack |critical )?update|hotfix)\b.*\bKB\d{6,}\b|^\(?KB\d{6,}\b|\(KB\d{6,}\)\s*(?:\[|$)/i.test(bare)) continue;
    if(/^[-=_]{3,}$/.test(l)||l.endsWith(":")) continue;
    let p=null;
    if(/\|/.test(bare) && /-\d/.test(bare)) p=parseRpmLine(bare);   // rpm -qa shape (RHEL hosts)
@@ -1970,6 +2105,9 @@ function addSoftware(h,text){
    if(/^\{?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{0,12}\}?$/.test(p.n.replace(/\s+/g,""))) continue;
    if(!h.sw.some(s=>s.n===p.n&&s.v===p.v)) h.sw.push(p);
  }
+ /* "Credentialed software data" means software data: an enumeration plugin whose output
+    parsed to nothing is not evidence of an inventory, and used to turn the readiness check green. */
+ if(h.sw.length>before) h.cred=true;
 }
 /* RHEL "rpm -qa" output as returned by SSH software enumeration:
    "name-version-release|epoch  date"
@@ -1986,12 +2124,16 @@ function parseSwLine(l){
  let v="";
  // Nessus emits some software lines with a leading bullet/dash and some without.
  // Without stripping it, "- Google Chrome" and "Google Chrome" become two products.
- l=String(l).replace(/^[\s\u2022\u00b7*+\u2013\u2014-]+/,"").trim();
+ l=String(l).slice(0,LIMITS.TEXT_LINE_CHARS).replace(/^[\s\u2022\u00b7*+\u2013\u2014-]+/,"").trim();
  if(!l) return null;
  let m=l.match(/\[\s*version\s+([^\]]+)\]/i);
  if(m){v=m[1].trim(); l=l.slice(0,m.index).trim();}
  else{
-   m=l.match(/\[([^\]]*\d[^\]]*)\]/);                        // any bracketed token containing a digit
+   /* any bracketed token containing a digit. Was /\[([^\]]*\d[^\]]*)\]/ -- two overlapping
+      spans around \d, cubic on "[1[1[1..." with no closing bracket (a 10 KB DisplayName hung
+      the tab). Linear: walk the bracketed tokens, take the first holding a digit. */
+   const br=/\[([^\[\]]*)\]/g; let t;
+   while((t=br.exec(l))){ if(/\d/.test(t[1])){ m=t; break; } }
    if(m){v=m[1].trim(); l=l.slice(0,m.index).trim();}
  }
  l=l.replace(/\s{2,}.*$/,"").replace(/[\s,;]+$/,"").trim();  // drop trailing "[installed on ...]" remnants
@@ -2010,10 +2152,14 @@ function parseSwLine(l){
  return {n:l,v:v};
 }
 function addPort(h,proto,port,svc,evid){
- proto=(proto||"tcp").toLowerCase(); port=parseInt(port,10);
- if(!port||port<=0) return;
+ /* The protocol attribute is host-reported text that becomes half of the PPSM key and is
+    rendered in four places. v2.8 escaped two of them; the asset drawer still wrote it raw.
+    Tenable emits tcp / udp / icmp / sctp -- keep it to a token, so it can never carry markup. */
+ proto=String(proto||"tcp").toLowerCase().replace(/[^a-z0-9._-]/g,"").slice(0,16)||"tcp";
+ port=parseInt(port,10);
+ if(!port||port<=0||port>65535) return;
  const k=proto+"/"+port;
- if(!h.ports[k]) h.ports[k]={proto,port,svc:"",evidence:[]};
+ if(!ownKey(h.ports,k)) h.ports[k]={proto,port,svc:"",evidence:[]};
  const p=h.ports[k];
  if(svc && svc!=="general" && svc!=="unknown" && !p.svc) p.svc=svc;
  if(evid && p.evidence.length<6 && !p.evidence.includes(evid)) p.evidence.push(evid);
@@ -2030,7 +2176,7 @@ function parseNessus(text,srcName){
    rh.querySelectorAll("HostProperties > tag").forEach(t=>props[t.getAttribute("name")]=t.textContent);
    const key=hostKeyFrom(props["netbios-name"]||props["host-fqdn"]||"", props["host-ip"]||rh.getAttribute("name")||"");
    const h=getHost(key);
-   h.ip=props["host-ip"]||h.ip;
+   if(props["host-ip"]){h.ip=props["host-ip"]; h.ipFrom="scan";}
    if(!h.name||h.name===h.key) h.name=key;
    h.mac   = h.mac   || (props["mac-address"]||"").split(/\r?\n/)[0].trim();
    h.fqdn  = h.fqdn  || props["host-fqdn"]||"";
@@ -2049,6 +2195,10 @@ function parseNessus(text,srcName){
    const end=props["HOST_END"]||props["host_end"]||"";
    if(end){const d=new Date(end); if(!isNaN(d)) h.lastSeen=d.toISOString().slice(0,10);}
    const names=new Set();
+   /* This ReportHost's own record of its scan. Collected first and merged once, so a second
+      file for the same host replaces the credential verdict only if it is the newer scan --
+      not whichever file happened to be processed last. */
+   let scanRec=null, authIssue="";
    rh.querySelectorAll("ReportItem").forEach(ri=>{
      const pid=ri.getAttribute("pluginID"), port=ri.getAttribute("port"),
            proto=ri.getAttribute("protocol"), svc=ri.getAttribute("svc_name"),
@@ -2065,8 +2215,8 @@ function parseNessus(text,srcName){
      }
      const cves=[...ri.querySelectorAll("cve")].map(c=>c.textContent.trim().toUpperCase()).filter(x=>/^CVE-\d{4}-\d{4,7}$/.test(x));
      const sev=parseInt(ri.getAttribute("severity"),10)||0;
-     if(pid==="19506"){const out=ri.querySelector("plugin_output"); if(out) scanInfoIngest(h,out.textContent);}
-     if(acctAuthFailure(pname)) (h.scan=h.scan||{}).authIssue=pname;
+     if(pid==="19506"){const out=ri.querySelector("plugin_output"); if(out) scanRec=parseScanInfo(out.textContent);}
+     if(acctAuthFailure(pname)) authIssue=pname;
      if(cves.length||sev>0){
        const c3=ri.querySelector("cvss3_base_score"), c2=ri.querySelector("cvss_base_score");
        const cvss=parseFloat(c3?c3.textContent:(c2?c2.textContent:""))||0;
@@ -2079,6 +2229,7 @@ function parseNessus(text,srcName){
          solution:txt("solution"), synopsis:txt("synopsis")});
      }
    });
+   if(scanRec||authIssue) mergeScanRecord(h,Object.assign(scanRec||{},authIssue?{authIssue}:{}));
    h.blob+="\n"+[...names].join("\n");
  });
  return count;
@@ -2097,7 +2248,12 @@ function csvRows(t,sep){
  if(f!==""||row.length){row.push(f);rows.push(row);}
  return rows;
 }
-function parseTenableCSV(text,warns){
+/* A Tenable export always names its plugin: Plugin ID / Plugin / Plugin Name / Plugin Output. */
+function looksLikeTenableCsv(text,sep){
+ const rows=csvRows(String(text).slice(0,32768),sep).slice(0,3);
+ return rows.some(r=>(r||[]).map(normHdr).some(h=>/^plugin(?: id| name| output| text|id)?$/.test(h)));
+}
+function parseTenableCSV(text,warns,srcName){
  const rows=csvRows(text);
  if(rows.length<2) throw new Error("empty CSV");
  const hdr=rows[0].map(x=>x.trim().toLowerCase());
@@ -2114,19 +2270,34 @@ function parseTenableCSV(text,warns){
        iCvss=[col("cvss v3.0 base score"),col("cvss v3 base score"),col("cvss3 base score"),col("cvss v2.0 base score"),col("cvss base score")].find(x=>x>=0)??-1;
  if(iIp<0&&iDns<0) throw new Error("no host column (need IP Address or DNS Name)");
  if(iOut<0) warns.push("CSV has no Plugin Output column — software detection will be OS-inference only");
- const seen=new Set();
+ const seen=new Set(); let short=0;
+ const iMac=[col("mac address"),col("mac")].find(x=>x>=0)??-1;
  for(let r=1;r<rows.length;r++){
    const row=rows[r]; if(row.length<2) continue;
+   /* A row cut short (an interrupted download) is skipped and counted, not half-ingested. */
+   if(row.length<hdr.length&&r===rows.length-1){short++;continue;}
    let key=hostKeyFrom(iDns>=0?row[iDns]:"", iIp>=0?row[iIp]:"");
    if(!key) continue;
    const h=getHost(key); seen.add(key);
-   if(iIp>=0&&row[iIp]) h.ip=row[iIp];
+   if(iIp>=0&&row[iIp]){h.ip=row[iIp]; h.ipFrom="scan";}
+   if(iMac>=0&&row[iMac]&&!h.mac) h.mac=String(row[iMac]).split(/\r?\n/)[0].trim();
+   /* Provenance, as the .nessus path records it, so Ingest integrity can audit CSV hosts too. */
+   let srec={file:srcName||"",ip:iIp>=0?(row[iIp]||""):"",mac:iMac>=0?String(row[iMac]||"").split(/\r?\n/)[0].trim():"",
+      os:"",name:iDns>=0?(row[iDns]||""):""};
+   h.src=h.src||[];
+   {const prior=h.src.find(x=>x.file===srec.file&&x.ip===srec.ip&&x.mac===srec.mac);
+    if(prior) srec=prior; else if(h.src.length<40) h.src.push(srec);}
    if(iSeen>=0&&row[iSeen]){const d=new Date(row[iSeen]); if(!isNaN(d)) h.lastSeen=d.toISOString().slice(0,10);}
-   const pname=iName>=0?row[iName]:"";
+   const pname=iName>=0?(row[iName]||""):"";
    if(iPort>=0) addPort(h,iProto>=0?row[iProto]:"tcp",row[iPort],"",pname);
-   const pid=iPid>=0?String(row[iPid]).trim():"";
-   if(SOFTWARE_PLUGINS.has(pid)&&iOut>=0){addSoftware(h,row[iOut]);}
-   if(iOut>=0&&pname&&acctPluginFor(pname)) acctIngest(h,pname,row[iOut]||"");
+   const pid=iPid>=0?String(row[iPid]??"").trim():"";
+   const pout=iOut>=0?String(row[iOut]??""):"";
+   if(SOFTWARE_PLUGINS.has(pid)&&iOut>=0){addSoftware(h,pout);}
+   if(iOut>=0&&pname&&acctPluginFor(pname)) acctIngest(h,pname,pout);
+   /* Scan Health was blind to CSV input: 19506 and the authentication-failure plugins were read
+      only on the .nessus path, so an uncredentialed CSV dataset passed the credential gate. */
+   if(pid==="19506"&&iOut>=0) scanInfoIngest(h,pout);
+   if(acctAuthFailure(pname)) (h.scan=h.scan||{}).authIssue=pname;
    {
      const cves=iCve>=0?cvesIn(row[iCve]):[];
      const sev={critical:4,high:3,medium:2,low:1}[String(iRisk>=0?row[iRisk]:"").trim().toLowerCase()]||0;
@@ -2134,11 +2305,12 @@ function parseTenableCSV(text,warns){
        addFinding(h,pid||("csv:"+(pname||"finding")),pname,sev,iCvss>=0?parseFloat(row[iCvss])||0:0,cves,false);
    }
    if(/operating system/i.test(pname)&&iOut>=0&&!h.os){
-     const m=row[iOut].match(/(Microsoft Windows [^\r\n,]+|Red Hat[^\r\n,]+|Cisco[^\r\n,]+)/);
-     if(m) h.os=m[1];
+     const m=pout.match(/(Microsoft Windows [^\r\n,]+|Red Hat[^\r\n,]+|Cisco[^\r\n,]+)/);
+     if(m){h.os=m[1]; srec.os=h.os;}
    }
    if(pname) h.blob+="\n"+pname;
  }
+ if(short) warns.push((srcName||"CSV")+": last row is shorter than the header (truncated file?) and was skipped");
  return seen.size;
 }
 
@@ -2148,12 +2320,12 @@ function rebuildPPSMFromHosts(){
    const h=S.hosts[hk];
    for(const pk in h.ports){
      const p=h.ports[pk];
-     if(!S.ppsm[pk]){
+     if(!ownKey(S.ppsm,pk)){
        const eph = S.settings.ppsmHideEphemeral && p.port >= (S.settings.ppsmEphemeralFloor||49152);
        S.ppsm[pk]={proto:p.proto,port:p.port,svc:p.svc||SVC_GUESS[p.port]||"",app:"",
          srcIp:"",dstIp:"",notes:eph?"dynamic/ephemeral range - not a registrable service":"",
          include:!eph, ephemeral:eph,
-         boundaries:[...S.settings.boundaryDefaults],hosts:[]};
+         boundaries:BOUNDARY_LABELS.map((_,i)=>String((S.settings.boundaryDefaults||[])[i]??"")),hosts:[]};
      }
      const row=S.ppsm[pk];
      if(!row.svc&&p.svc) row.svc=p.svc;
@@ -2164,18 +2336,19 @@ function rebuildPPSMFromHosts(){
 
 /* ---------------- STIG detection ---------------- */
 function runDetection(){
- S.auto={}; const added=[];
+ S.auto=dataMap(); const added=[];
  for(const hk in S.hosts){
    const h=S.hosts[hk], blob=(h.os+"\n"+h.blob).toLowerCase();
-   S.auto[hk]={};
+   S.auto[hk]=dataMap();
    for(const c of S.config.catalog){
      let hit=(c.patterns||[]).some(p=>patMatch(p,blob));
      if(!hit&&c.osPatterns) hit=c.osPatterns.some(p=>patMatch(p,h.os));
-     if(hit&&!c.active){c.active=true;added.push(c.name);}
+     // autoActive: switched on by scan evidence, so a saved profile does not carry it (2.9)
+     if(hit&&!c.active){c.active=true;c.autoActive=true;added.push(c.name);}
      S.auto[hk][c.name]=hit;
    }
-   if(!(hk in S.stig.device)){
-     const rule=S.config.deviceRules.find(r=>h.name.toUpperCase().includes(r.pattern.toUpperCase()));
+   if(!ownKey(S.stig.device,hk)){
+     const rule=(S.config.deviceRules||[]).find(r=>r&&r.pattern&&String(h.name).toUpperCase().includes(String(r.pattern).toUpperCase()));
      S.stig.device[hk]=rule?rule.type:(/(virtual|vmware|hyper-v)/i.test(h.os)?"Virtual Machine":"");
    }
  }
@@ -2184,11 +2357,13 @@ function runDetection(){
  return added;
 }
 function isNoise(name){
- const l=name.toLowerCase();
- return (S.config.noisePatterns||[]).some(p=>p&&l.includes(p.toLowerCase()));
+ const l=String(name).toLowerCase();
+ /* a degenerate pattern (" ", "a") from a shared profile used to exclude every product and
+    turn "approval decisions recorded" green on an empty list */
+ return (S.config.noisePatterns||[]).some(p=>{const t=String(p??"").trim().toLowerCase();return t.length>=3&&l.includes(t);});
 }
 function computeUnmapped(){
- const map={};
+ const map=dataMap();
  const pats=[]; S.config.catalog.forEach(c=>(c.patterns||[]).forEach(p=>p&&pats.push(p)));
  for(const hk in S.hosts){
    for(const s of (S.hosts[hk].sw||[])){
@@ -2268,7 +2443,7 @@ function eolFindings(){
  // Host OS is already represented as a software row; only add hosts whose OS produced no
  // software row (uncredentialed hosts), and merge host lists rather than duplicating.
  const seenNames=new Set(out.map(x=>x.row.name.toLowerCase()));
- const osGroups={};
+ const osGroups=dataMap();
  for(const hk in S.hosts){
    const h=S.hosts[hk]; if(!h.os) continue;
    const e=eolFor(h.os,"");
@@ -2291,7 +2466,7 @@ function eolFindings(){
    sometimes without, sometimes with the version baked into the display name. These are
    the same product and should be one row. */
 function normBase(name){
- return String(name).toLowerCase()
+ return String(name).slice(0,LIMITS.TEXT_LINE_CHARS).toLowerCase()   // bounds the trailing-strip regexes on listing cells
    .replace(/\s+/g," ")
    .replace(/\s*[\(\[]\s*(?:x64|x86|64[- ]?bit|32[- ]?bit)\s*[\)\]]\s*$/,"")  // bracketed arch suffix
    .replace(/\s+(?:x64|x86|64[- ]?bit|32[- ]?bit)\s*$/,"")                       // bare arch suffix
@@ -2301,7 +2476,7 @@ function normBase(name){
 }
 /* Returns a report of what it merged so the change is reviewable, not silent. */
 function consolidateSoftware(){
- const groups={};
+ const groups=dataMap();
  for(const k of Object.keys(S.software)){
    const b=normBase(S.software[k].name);
    (groups[b]=groups[b]||[]).push(k);
@@ -2386,14 +2561,17 @@ function applySwDefaults(){
  renderSoftware(); status(`Filled ${n} empty cell(s) from enclave defaults. Existing entries untouched.`);
 }
 function stigMark(hk,cn){
- const o=S.stig.overrides[hk];
- if(o&&cn in o) return {on:o[cn],manual:true};
- return {on:!!(S.auto[hk]&&S.auto[hk][cn]),manual:false};
+ const o=ownKey(S.stig.overrides,hk)?S.stig.overrides[hk]:null;
+ // own keys only: a column named "constructor" was marked on every host via the prototype chain
+ if(o&&ownKey(o,cn)) return {on:!!o[cn],manual:true};
+ const a=ownKey(S.auto,hk)?S.auto[hk]:null;
+ return {on:!!(a&&ownKey(a,cn)&&a[cn]),manual:false};
 }
 function toggleStig(hk,cn){
  const cur=stigMark(hk,cn);
- S.stig.overrides[hk]=S.stig.overrides[hk]||{};
- const auto=!!(S.auto[hk]&&S.auto[hk][cn]);
+ if(!ownKey(S.stig.overrides,hk)) S.stig.overrides[hk]=dataMap();
+ const a=ownKey(S.auto,hk)?S.auto[hk]:null;
+ const auto=!!(a&&ownKey(a,cn)&&a[cn]);
  const next=!cur.on;
  if(next===auto) delete S.stig.overrides[hk][cn]; else S.stig.overrides[hk][cn]=next;
  renderSTIG();
@@ -2404,7 +2582,7 @@ function snapshot(){
  const s={taken:new Date().toISOString(),hosts:{},software:{},ports:{},cols:[]};
  for(const hk in S.hosts){
    const h=S.hosts[hk];
-   s.hosts[hk]={name:h.name,ip:h.ip,os:h.os,lastSeen:h.lastSeen,cred:h.cred,
+   s.hosts[hk]={name:h.name,ip:h.ip,mac:h.mac||"",os:h.os,lastSeen:h.lastSeen,cred:h.cred,
      stig:activeCols().filter(c=>stigMark(hk,c.name).on).map(c=>c.name)};
  }
  for(const k in S.software){s.software[k]={name:S.software[k].name,version:S.software[k].version,hosts:[...S.software[k].hosts]};}
@@ -2412,39 +2590,66 @@ function snapshot(){
  s.cols=activeCols().map(c=>c.name);
  return s;
 }
+/* A baseline is checked for shape before it is trusted: a 40-byte {"taken","hosts"} file used to
+   be stored, then break every later renderAll() and make any session saved afterwards unloadable. */
+function validSnapshot(o){
+ const obj=x=>x&&typeof x==="object"&&!Array.isArray(x);
+ return !!(o&&typeof o.taken==="string"&&obj(o.hosts)&&obj(o.software)&&obj(o.ports)&&Array.isArray(o.cols)
+   &&Object.values(o.software).every(r=>obj(r)&&Array.isArray(r.hosts))
+   &&Object.values(o.hosts).every(h=>obj(h)&&(h.stig===undefined||Array.isArray(h.stig))));
+}
 function computeDelta(){
  const b=S.baseline; if(!b){S.delta=null;return;}
+ if(!validSnapshot(b)){S.baseline=null;S.delta=null;return;}
  const cur=snapshot();
+ const has=(m,k)=>ownKey(m,k);
  const d={taken:cur.taken, baselineTaken:b.taken,
-   hostsAdded:[],hostsRemoved:[],swAdded:[],swRemoved:[],swHostChange:[],
-   portsAdded:[],portsRemoved:[],colsAdded:[],stigChanges:[]};
- Object.keys(cur.hosts).forEach(k=>{if(!b.hosts[k])d.hostsAdded.push(cur.hosts[k].name);});
- Object.keys(b.hosts).forEach(k=>{if(!cur.hosts[k])d.hostsRemoved.push(b.hosts[k].name);});
+   hostsAdded:[],hostsRemoved:[],swAdded:[],swRemoved:[],swHostChange:[],swHostLost:[],
+   portsAdded:[],portsRemoved:[],colsAdded:[],stigChanges:[],hostIdentity:[]};
+ Object.keys(cur.hosts).forEach(k=>{if(!has(b.hosts,k))d.hostsAdded.push(cur.hosts[k].name);});
+ Object.keys(b.hosts).forEach(k=>{if(!has(cur.hosts,k))d.hostsRemoved.push(b.hosts[k].name);});
+ const removedHosts=new Set(d.hostsRemoved);
  Object.keys(cur.software).forEach(k=>{
-   if(!b.software[k])d.swAdded.push({k,name:cur.software[k].name,version:cur.software[k].version,hosts:cur.software[k].hosts.length});
+   if(!has(b.software,k))d.swAdded.push({k,name:cur.software[k].name,version:cur.software[k].version,hosts:cur.software[k].hosts.length});
    else{
-     const nb=b.software[k].hosts.length,nc=cur.software[k].hosts.length;
-     if(nb!==nc)d.swHostChange.push({name:cur.software[k].name,version:cur.software[k].version,from:nb,to:nc});
+     const bh=b.software[k].hosts, ch=cur.software[k].hosts;
+     if(bh.length!==ch.length)d.swHostChange.push({name:cur.software[k].name,version:cur.software[k].version,from:bh.length,to:ch.length});
+     /* Per-host loss, by set rather than by count: Defender disappearing from one workstation
+        while another still runs it used to be "No changes detected". Hosts that dropped out of
+        the scan entirely are already reported as removed hosts. */
+     const cs=new Set(ch);
+     bh.filter(h=>!cs.has(h)&&!removedHosts.has(h)).forEach(h=>
+       d.swHostLost.push({name:cur.software[k].name,version:cur.software[k].version,host:h}));
    }});
- Object.keys(b.software).forEach(k=>{if(!cur.software[k])d.swRemoved.push({name:b.software[k].name,version:b.software[k].version});});
- Object.keys(cur.ports).forEach(k=>{if(!b.ports[k])d.portsAdded.push(k+(cur.ports[k].svc?" ("+cur.ports[k].svc+")":""));});
- Object.keys(b.ports).forEach(k=>{if(!cur.ports[k])d.portsRemoved.push(k+(b.ports[k].svc?" ("+b.ports[k].svc+")":""));});
+ Object.keys(b.software).forEach(k=>{if(!has(cur.software,k))d.swRemoved.push({name:b.software[k].name,version:b.software[k].version});});
+ Object.keys(cur.ports).forEach(k=>{if(!has(b.ports,k))d.portsAdded.push(k+(cur.ports[k].svc?" ("+cur.ports[k].svc+")":""));});
+ Object.keys(b.ports).forEach(k=>{if(!has(cur.ports,k))d.portsRemoved.push(k+(b.ports[k].svc?" ("+b.ports[k].svc+")":""));});
  cur.cols.forEach(c=>{if(!b.cols.includes(c))d.colsAdded.push(c);});
  Object.keys(cur.hosts).forEach(k=>{
-   if(!b.hosts[k])return;
-   const bs=new Set(b.hosts[k].stig), cs=new Set(cur.hosts[k].stig);
+   if(!has(b.hosts,k))return;
+   const bs=new Set(b.hosts[k].stig||[]), cs=new Set(cur.hosts[k].stig);
    const add=[...cs].filter(x=>!bs.has(x)), rem=[...bs].filter(x=>!cs.has(x));
    if(add.length||rem.length)d.stigChanges.push({host:cur.hosts[k].name,added:add,removed:rem});
+   /* Same name, different machine? The key is a self-reported short name, so compare what the
+      scanner itself observed. Older baselines carry no MAC; absence is never a change. */
+   const bh=b.hosts[k], ch=cur.hosts[k];
+   const macB=String(bh.mac||"").toUpperCase(), macC=String(ch.mac||"").toUpperCase();
+   if(macB&&macC&&macB!==macC) d.hostIdentity.push({host:ch.name,field:"MAC",from:bh.mac,to:ch.mac});
+   const fb=osFamily(bh.os), fc=osFamily(ch.os);
+   if(fb&&fc&&fb!==fc) d.hostIdentity.push({host:ch.name,field:"OS family",from:bh.os,to:ch.os});
+   if(bh.ip&&ch.ip&&bh.ip!==ch.ip) d.hostIdentity.push({host:ch.name,field:"IP",from:bh.ip,to:ch.ip});
  });
  d.total=d.hostsAdded.length+d.hostsRemoved.length+d.swAdded.length+d.swRemoved.length+
-   d.portsAdded.length+d.portsRemoved.length+d.stigChanges.length;
- classifyDelta(d);
+   d.portsAdded.length+d.portsRemoved.length+d.stigChanges.length+
+   d.swHostLost.filter(x=>SEC_TOOLING.some(re=>re.test(x.name))).length+d.hostIdentity.length;
+ classifyDelta(d,cur);
  S.delta=d;
 }
 /* Severity tiering. A new font pack and Defender disappearing are not the same event. */
 const SEC_TOOLING=[/defender/i,/antivirus/i,/mcafee/i,/symantec/i,/endpoint/i,/nessus/i,/tenable/i,/activclient/i,/bitlocker/i,/firewall/i];
-function classifyDelta(d){
+function classifyDelta(d,cur){
  const items=[];
+ const curBases=new Set(Object.values((cur&&cur.software)||{}).map(r=>normBase(r.name)));
  const approvalOf=name=>{
    const hit=Object.keys(S.software).find(k=>S.software[k].name.toLowerCase()===String(name).toLowerCase());
    return hit?S.software[hit]:null;
@@ -2465,9 +2670,22 @@ function classifyDelta(d){
  });
  d.swRemoved.forEach(x=>{
    const sec=SEC_TOOLING.some(re=>re.test(x.name));
-   items.push({sev:sec?"critical":"review",cat:"Software removed",item:x.name+(x.version?" "+x.version:""),
-     detail:sec?"SECURITY TOOLING removed from the enclave":"Software no longer present"});
+   /* An upgrade re-keys name|version, so it reads as remove + add. A routine ActivClient or
+      Defender update used to be recorded as CRITICAL "removed from the enclave" every month. */
+   const upgraded=curBases.has(normBase(x.name));
+   items.push({sev:sec&&!upgraded?"critical":"review",cat:upgraded?"Software version changed":"Software removed",
+     item:x.name+(x.version?" "+x.version:""),
+     detail:upgraded?"This version is gone; the same product is still present at another version":
+       sec?"SECURITY TOOLING removed from the enclave":"Software no longer present"});
  });
+ (d.swHostLost||[]).forEach(x=>{
+   if(!SEC_TOOLING.some(re=>re.test(x.name))) return;   // other per-host churn stays in the raw detail
+   items.push({sev:"critical",cat:"Security tooling removed from host",item:x.host,
+     detail:x.name+(x.version?" "+x.version:"")+" was present on this host at baseline and is not now"});
+ });
+ (d.hostIdentity||[]).forEach(x=>items.push({sev:x.field==="IP"?"review":"critical",cat:"Host identity changed",
+   item:x.host,detail:x.field+" "+x.from+" → "+x.to+(x.field==="IP"?" (DHCP, or a different machine using this name)"
+     :" — a different machine may be answering to this name; confirm before trusting its evidence")}));
  d.portsAdded.forEach(x=>items.push({sev:"unauthorized",cat:"Port newly listening",item:x,
    detail:"New listening service since baseline - confirm it is registered and required"}));
  d.portsRemoved.forEach(x=>items.push({sev:"info",cat:"Port no longer listening",item:x,detail:""}));
@@ -2552,6 +2770,11 @@ function ingestIntelRows(name,rows,warns){
  if(hdrIdx<0) throw new Error("no CVE column recognized — if the sheet names it differently, add that header to intelAliases in Detection Config");
  const cols=Object.keys(map.assign).map(Number);
  let nRows=0,nCve=0,noCve=0;
+ /* Multi-valued fields dedupe through a Set kept beside each list for this call: Array.includes
+    before every push was quadratic (50,000 product values on one CVE took ~50 s). */
+ const seenVals=new Map();
+ const addUniq=(t,fld,x)=>{let m=seenVals.get(t); if(!m){m=dataMap(); seenVals.set(t,m);}
+   const s=m[fld]||(m[fld]=new Set(t[fld])); if(!s.has(x)){s.add(x); t[fld].push(x);}};
  for(let r=hdrIdx+1;r<rows.length;r++){
    const row=rows[r];
    if(!row||!row.some(c=>String(c??"").trim())) continue;
@@ -2563,17 +2786,17 @@ function ingestIntelRows(name,rows,warns){
    for(const cve of cves){
      const t=S.intel.rows[cve]||(S.intel.rows[cve]={cve,vendors:[],products:[],desc:"",published:"",
        cvss:0,rfScore:0,rfSev:"",weap:false,expDb:false,vector:"",perms:"",reports:0,
-       actors:[],countries:[],total:0,relate:0,cto:"",iavm:[],extra:{},srcs:[]});
+       actors:[],countries:[],total:0,relate:0,cto:"",iavm:[],extra:dataMap(),srcs:[]});
      for(const i of cols){
        const fld=map.assign[i], v=row[i];
        if(v==null||String(v).trim()==="") continue;
        switch(fld){
          case "cve": break;
-         case "vendors":   splitMulti(v).forEach(x=>{if(!t.vendors.includes(x))t.vendors.push(x);}); break;
-         case "products":  splitMulti(v).forEach(x=>{if(!t.products.includes(x))t.products.push(x);}); break;
-         case "actor":     splitMulti(v).forEach(x=>{if(!t.actors.includes(x))t.actors.push(x);}); break;
-         case "country":   splitMulti(v).forEach(x=>{if(!t.countries.includes(x))t.countries.push(x);}); break;
-         case "iavm":      splitMulti(v).forEach(x=>{if(!t.iavm.includes(x))t.iavm.push(x);}); break;
+         case "vendors":   splitMulti(v).forEach(x=>addUniq(t,"vendors",x)); break;
+         case "products":  splitMulti(v).forEach(x=>addUniq(t,"products",x)); break;
+         case "actor":     splitMulti(v).forEach(x=>addUniq(t,"actors",x)); break;
+         case "country":   splitMulti(v).forEach(x=>addUniq(t,"countries",x)); break;
+         case "iavm":      splitMulti(v).forEach(x=>addUniq(t,"iavm",x)); break;
          case "desc":      if(String(v).length>t.desc.length)t.desc=String(v).slice(0,600); break;
          case "published": {const d=intelDate(v); if(d&&(!t.published||d<t.published))t.published=d;} break;
          case "cvss":      t.cvss=Math.max(t.cvss,intelNum(v)); break;
@@ -2593,7 +2816,7 @@ function ingestIntelRows(name,rows,warns){
      rows[hdrIdx].forEach((hdr,i)=>{
        if(map.assign[i]!==undefined) return;
        const v=row[i]; if(v==null||String(v).trim()==="") return;
-       if(Object.keys(t.extra).length<10&&!(hdr in t.extra)) t.extra[hdr]=String(v).slice(0,240);
+       if(Object.keys(t.extra).length<10&&!ownKey(t.extra,hdr)) t.extra[hdr]=String(v).slice(0,240);
      });
      if(!t.srcs.includes(name)) t.srcs.push(name);
      nCve++;
@@ -2618,21 +2841,36 @@ function zipOpen(buf){
    if(dv.getUint32(i,true)===0x06054b50){e=i;break;}}
  if(e<0) throw new Error("not a valid zip archive");
  const cnt=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true);
- const entries={};
+ if(cnt>LIMITS.ZIP_ENTRIES) throw new Error("archive lists "+cnt+" entries; the tool reads at most "+LIMITS.ZIP_ENTRIES);
+ const entries=dataMap(), offsets=new Set();
  for(let i=0;i<cnt;i++){
    if(dv.getUint32(p,true)!==0x02014b50) break;
    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true),
          nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true),
          off=dv.getUint32(p+42,true);
    if(csize===0xFFFFFFFF||off===0xFFFFFFFF) throw new Error("zip64 archives are not supported - extract the files and load them directly");
+   /* Many names aliasing one data region made a 5 MB SCC zip parse the same XCCDF 65,535 times.
+      A well-formed archive never shares a local header between entries. */
+   if(offsets.has(off)) throw new Error("malformed archive: two directory entries point at the same data");
+   offsets.add(off);
    entries[td.decode(u8.subarray(p+46,p+46+nl))]={method,csize,off};
    p+=46+nl+el+cl;
  }
  async function read(nm){
-   const en=entries[nm]; if(!en) return null;
-   const q=en.off, nl=dv.getUint16(q+26,true), el=dv.getUint16(q+28,true);
+   const en=ownKey(entries,nm)?entries[nm]:null; if(!en) return null;
+   const q=en.off;
+   if(q+30>u8.length||dv.getUint32(q,true)!==0x04034b50) throw new Error(nm+": bad local file header");
+   const nl=dv.getUint16(q+26,true), el=dv.getUint16(q+28,true);
+   if(td.decode(u8.subarray(q+30,q+30+nl))!==nm) throw new Error(nm+": directory and local header disagree on the entry name");
    const raw=u8.subarray(q+30+nl+el, q+30+nl+el+en.csize);
-   if(en.method===0) return td.decode(raw);
+   if(en.method===0){
+     /* stored entries count against the same per-archive ceiling as inflated ones */
+     inflated+=raw.length;
+     if(raw.length>LIMITS.INFLATE_ENTRY_BYTES||inflated>LIMITS.INFLATE_ARCHIVE_BYTES)
+       throw new Error(nm+": archive content exceeds the tool's limit ("+Math.round(LIMITS.INFLATE_ENTRY_BYTES/1048576)+" MiB per entry, "
+         +Math.round(LIMITS.INFLATE_ARCHIVE_BYTES/1048576)+" MiB per archive)");
+     return td.decode(raw);
+   }
    if(en.method!==8) throw new Error("unsupported zip compression (method "+en.method+")");
    if(typeof DecompressionStream==="undefined")
      throw new Error("this browser cannot inflate archives offline - extract the files and load them directly");
@@ -2640,7 +2878,9 @@ function zipOpen(buf){
       never materialised: one deflate-raw stream can amplify ~1032:1, i.e. ~4 MB of archive
       into ~4 GB of memory. Buffering first and checking afterwards would defeat the point. */
    const rd=new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
-   const chunks=[]; let total=0;
+   /* decoded as it streams: holding the chunks, a joined ArrayBuffer and the string at once
+      tripled the peak for every entry */
+   const sd=new TextDecoder(); const parts=[]; let total=0;
    for(;;){
      const {done,value}=await rd.read(); if(done) break;
      total+=value.length; inflated+=value.length;
@@ -2649,10 +2889,10 @@ function zipOpen(buf){
        throw new Error(nm+": inflated size exceeds the tool's limit ("+Math.round(LIMITS.INFLATE_ENTRY_BYTES/1048576)+" MiB per entry, "
          +Math.round(LIMITS.INFLATE_ARCHIVE_BYTES/1048576)+" MiB per archive) - possible decompression bomb");
      }
-     chunks.push(value);
+     parts.push(sd.decode(value,{stream:true}));
    }
-   const out=await new Blob(chunks).arrayBuffer();
-   return td.decode(new Uint8Array(out));
+   parts.push(sd.decode());
+   return parts.join("");
  }
  return {names:Object.keys(entries), read};
 }
@@ -2667,7 +2907,11 @@ async function readXlsxSheets(buf){
  const unzip=z.read;
  const xml=s=>parseXmlStrict(s,"sheet XML");
  const ssRaw=await unzip("xl/sharedStrings.xml");
- const shared=ssRaw?[...xml(ssRaw).getElementsByTagName("si")].map(si=>si.textContent):[];
+ /* cell text is the <t> runs only: <rPh> phonetic guides are never displayed by Excel, and
+    textContent appended them to product and vendor names */
+ const cellText=el=>{const ts=[...el.getElementsByTagName("t")].filter(t=>!(t.parentNode&&t.parentNode.localName==="rPh"));
+   return ts.length?ts.map(t=>t.textContent).join(""):el.textContent;};
+ const shared=ssRaw?[...xml(ssRaw).getElementsByTagName("si")].map(cellText):[];
  let sheetFiles=z.names.filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n))
    .sort((a,b)=>parseInt(a.match(/\d+/)[0],10)-parseInt(b.match(/\d+/)[0],10));
  const colOf=r=>{const m=String(r||"").match(/^([A-Z]+)\d+$/);if(!m)return -1;
@@ -2678,9 +2922,12 @@ async function readXlsxSheets(buf){
      const row=[]; let seq=0;
      for(const c of rEl.getElementsByTagName("c")){
        let ci=colOf(c.getAttribute("r")); if(ci<0) ci=seq;
+       /* One cell at column MWLQKWU made a 4.29-billion-slot sparse row that every later
+          forEach walked: a 1.6 KB workbook hung the tab. Excel stops at XFD (16,384). */
+       if(ci>=LIMITS.SHEET_COLS) throw new Error("cell reference "+String(c.getAttribute("r")).slice(0,16)+" is beyond Excel's last column (XFD) - corrupt or hostile worksheet");
        seq=ci+1;
        const t=c.getAttribute("t"); let v="";
-       if(t==="inlineStr"){const is=c.getElementsByTagName("is")[0]; v=is?is.textContent:"";}
+       if(t==="inlineStr"){const is=c.getElementsByTagName("is")[0]; v=is?cellText(is):"";}
        else{const ve=c.getElementsByTagName("v")[0];
          if(ve){v=ve.textContent;
            if(t==="s")v=shared[parseInt(v,10)]??"";
@@ -2693,13 +2940,18 @@ async function readXlsxSheets(buf){
    return out;
  }
  const sheets=[];
- for(const sf of sheetFiles.slice(0,8)){
+ /* v2.8 read the first 8 worksheets and said nothing about the rest: an intel or listing tab
+    ninth in the workbook vanished with a success message. Read up to the stated limit and name
+    anything beyond it. */
+ for(const sf of sheetFiles.slice(0,LIMITS.SHEETS_PER_WORKBOOK)){
    const doc=xml(await unzip(sf));
-   /* Row cap bounds array growth only -- the DOM is already built by parseXmlStrict above;
-      B2's inflate cap is the control that bounds THAT. */
+   /* Row cap bounds array growth only -- the DOM is already built by parseXmlStrict above.
+      The inflate cap bounds the BYTES that reach the parser, not the memory the DOM costs:
+      element-dense XML measured ~160x its size in renderer memory. Stated as a residual. */
    sheets.push({name:"sheet "+sf.match(/\d+/)[0],rows:extractRows(doc,LIMITS.SHEET_ROWS)});
  }
  if(!sheets.length) throw new Error("workbook has no worksheets");
+ sheets.skipped=Math.max(0,sheetFiles.length-LIMITS.SHEETS_PER_WORKBOOK);
  return sheets;
 }
 /* Route each worksheet of a workbook to the right ingester: threat-intel sheets and
@@ -2707,6 +2959,7 @@ async function readXlsxSheets(buf){
    (or a listing behind a cover sheet) lands correctly. */
 async function ingestWorkbook(f,warns){
  const sheets=await readXlsxSheets(await f.arrayBuffer());
+ if(sheets.skipped) warns.push(f.name+": only the first "+LIMITS.SHEETS_PER_WORKBOOK+" worksheets were read; "+sheets.skipped+" more were ignored — split the workbook");
  let intel=0,hw=0,sw=0,routed=0;
  for(const sh of sheets){
    const label=f.name+(sheets.length>1?" ["+sh.name+"]":"");
@@ -2774,10 +3027,15 @@ function ingestListingRows(name,rows,warns){
    if(sc.ok&&sc.score>best){best=sc.score;hdrIdx=i;map=sc.map;}
  }
  if(hdrIdx<0) throw new Error("no recognizable HW/SW listing header — if your listing names columns differently, add them to listingAliases in Detection Config");
- const F={}; for(const i in map.assign)(F[map.assign[i]]=F[map.assign[i]]||[]).push(Number(i));
- const val=(row,fld)=>{                    // duplicate headers (two "Description" columns) merge
-   const parts=(F[fld]||[]).map(i=>String(row[i]??"").trim()).filter(Boolean);
-   return [...new Set(parts)].join(" — ");
+ const F=dataMap(); for(const i in map.assign)(F[map.assign[i]]=F[map.assign[i]]||[]).push(Number(i));
+ /* duplicate headers (two "Description" columns) merge -- but never identity fields: "Asset
+    Name" + "Hostname" joined into one key minted a phantom asset. Identity takes the first value. */
+ const IDENT=new Set(["hostname","serial","ip","mac","name","version"]);
+ let identSplit=0;
+ const val=(row,fld)=>{
+   const parts=[...new Set((F[fld]||[]).map(i=>String(row[i]??"").trim().slice(0,LIMITS.TEXT_LINE_CHARS)).filter(Boolean))];
+   if(IDENT.has(fld)){ if(parts.length>1) identSplit++; return parts[0]||""; }
+   return parts.join(" — ");
  };
  // The HW/SW discriminator: a mapped "kind" column if the header names one; otherwise
  // scan unmapped columns for one whose data values are HW/SW -- in real listings this
@@ -2815,7 +3073,9 @@ function ingestListingRows(name,rows,warns){
    }
    if(kind==="HW"){
      if(!(rec.host||rec.serial||rec.model||rec.desc)){skipped++;continue;}
-     rec.dk=[rec.host,rec.serial,rec.model,rec.desc].join("|").toUpperCase();
+     /* ip/mac/location are part of identity for gear with no hostname or serial: three
+        "Access switch, C9200" rows in three closets were silently folded into one */
+     rec.dk=[rec.host,rec.serial,rec.model,rec.desc,rec.ip,rec.mac,rec.host||rec.serial?"":rec.location].join("|").toUpperCase();
      if(!hwSeen.has(rec.dk)){hwSeen.add(rec.dk);S.listings.hw.push(rec);nHw++;}
    }else if(kind==="SW"){
      if(!rec.name){skipped++;continue;}
@@ -2827,6 +3087,7 @@ function ingestListingRows(name,rows,warns){
  S.listings.files.push({name,rows:nRows,hw:nHw,sw:nSw,skipped,kindSource,
    matched:map.matched,ignored:map.ignored.filter(h=>h&&h!=="(blank)")});
  if(skipped) warns.push(`${name}: ${skipped} row(s) had no usable identity (or unrecognized HW/SW type) and were skipped`);
+ if(identSplit) warns.push(`${name}: ${identSplit} row(s) carry two different values for one identity field (e.g. Asset Name and Hostname) — the first column was used`);
  return {hw:nHw,sw:nSw};
 }
 
@@ -2838,7 +3099,7 @@ const LISTING_TYPE_HINTS=[["hypervisor|esxi","Hypervisor"],["virtual machine","V
 function listingDeviceType(rec){
  if(rec.devtype) return rec.devtype;
  const host=(rec.host||"").toUpperCase();
- const rule=host&&S.config.deviceRules.find(x=>host.includes(x.pattern.toUpperCase()));
+ const rule=host&&(S.config.deviceRules||[]).find(x=>x&&x.pattern&&host.includes(String(x.pattern).toUpperCase()));
  if(rule) return rule.type;
  const hay=(rec.desc+" "+rec.model+" "+rec.name).toLowerCase();
  const hint=LISTING_TYPE_HINTS.find(([re])=>new RegExp("\\b(?:"+re+")\\b").test(hay));
@@ -2847,11 +3108,12 @@ function listingDeviceType(rec){
 /* Asset key: hostname (same keying as scans, so listing and scan rows meet on the same
    asset) -> serial (matching an existing asset's serial first, so a hostname-less listing
    row still lands on the right machine) -> a slug of description/model as last resort. */
-function listingAssetKey(rec){
+function listingAssetKey(rec,serialIdx){
  if(rec.host) return hostKeyFrom(rec.host,"");
  if(rec.serial){
    const ser=rec.serial.trim().toUpperCase();
-   const bySerial=Object.keys(S.assets).find(k=>(S.assets[k].serial||"").trim().toUpperCase()===ser);
+   const bySerial=serialIdx?serialIdx.get(ser)
+     :Object.keys(S.assets).find(k=>(S.assets[k].serial||"").trim().toUpperCase()===ser);
    return bySerial||("SN-"+ser.replace(/\s+/g,""));
  }
  const base=(rec.desc||rec.model||"").toUpperCase().replace(/[^A-Z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
@@ -2864,37 +3126,48 @@ function applyListings(){
  if(!S.listings.hw.length&&!S.listings.sw.length){S.listings.conflicts=[];return;}
  const conflicts=[];
  const differs=(a,b)=>String(a).trim().toUpperCase()!==String(b).trim().toUpperCase();
+ /* Indexed once per call. Two linear scans per row (serial lookup, normBase twin lookup) made
+    this quadratic: 8,000 software rows took 28 s, and it reruns on every ingest. */
+ const serialIdx=new Map();
+ for(const k of Object.keys(S.assets)){const s=String(S.assets[k].serial||"").trim().toUpperCase(); if(s&&!serialIdx.has(s)) serialIdx.set(s,k);}
  for(const rec of S.listings.hw){
-   const key=listingAssetKey(rec); if(!key) continue;
+   const key=listingAssetKey(rec,serialIdx); if(!key) continue;
    if(!S.assets[key]) S.assets[key]={name:rec.host?key:(rec.desc||rec.model||key),
      ip:"",mac:"",type:"",os:"",make:"",model:"",serial:"",location:"",facility:"",ci:"",
      drawing:"",diagram:"",owner:"",status:rec.status||"Active",criticality:"",inScope:"Y",
      lastSeen:"",notes:"",fromScan:false,fromListing:true};
    const a=S.assets[key]; a.fromListing=true;
+   /* listFields remembers what the listing supplied, so Clear listings can take exactly that
+      back out (it used to leave every value behind, relabelled as scan evidence), and so the
+      scanner's own MAC can replace a paper MAC that got there first. */
+   a.listFields=a.listFields||{};
    [["make",rec.vendor],["model",rec.model],["serial",rec.serial],["location",rec.location],
     ["facility",rec.facility],["ci",rec.ci],["drawing",rec.drawing],["diagram",rec.diagram],
     ["owner",rec.owner],["criticality",rec.criticality],["os",rec.os],["ip",rec.ip],
     ["mac",rec.mac],["notes",rec.desc]].forEach(([f,v])=>{
      if(!v) return;
-     if(!a[f]) a[f]=v;
-     else if(["make","model","serial","os","ip"].includes(f)&&differs(a[f],v))
+     if(!a[f]){a[f]=v; a.listFields[f]=v;}
+     else if(["make","model","serial","os","ip","mac","location"].includes(f)&&differs(a[f],v))
        conflicts.push({asset:a.name,field:f,have:a[f],listing:v,src:rec.src});
    });
-   if(!a.type) a.type=listingDeviceType(rec);
+   if(a.serial&&!serialIdx.has(String(a.serial).trim().toUpperCase())) serialIdx.set(String(a.serial).trim().toUpperCase(),key);
+   if(!a.type){a.type=listingDeviceType(rec); if(a.type) a.listFields.type=a.type;}
  }
  let created=false;
+ const baseIdx=new Map();
+ for(const k of Object.keys(S.software)){const r=S.software[k];
+   const bk=normBase(r.name)+"\u0000"+String(r.version).trim(); if(!baseIdx.has(bk)) baseIdx.set(bk,k);}
  for(const rec of S.listings.sw){
    const key=rec.name+"|"+(rec.version||"");
-   let row=S.software[key];
+   let row=ownKey(S.software,key)?S.software[key]:null;
    if(!row){
      // same product under a slightly different display name at the same version -> reuse
-     const nb=normBase(rec.name), ver=String(rec.version||"").trim();
-     const alt=Object.keys(S.software).find(k=>normBase(S.software[k].name)===nb
-       &&String(S.software[k].version).trim()===ver);
+     const alt=baseIdx.get(normBase(rec.name)+"\u0000"+String(rec.version||"").trim());
      row=alt?S.software[alt]:null;
    }
    if(!row){
      created=true;
+     baseIdx.set(normBase(rec.name)+"\u0000"+String(rec.version||"").trim(),key);
      row=S.software[key]={
        name:rec.name, version:rec.version||"",
        vendor:rec.vendor||inferVendor(rec.name),
@@ -2910,19 +3183,30 @@ function applyListings(){
      };
    }
    row.fromListing=true; row.listHosts=row.listHosts||[];
-   if(!row.vendor&&rec.vendor) row.vendor=rec.vendor;
+   if(!row.vendor&&rec.vendor){row.vendor=rec.vendor; row.listVendor=rec.vendor;}
    if(rec.host){const hn=hostKeyFrom(rec.host,""); if(!row.listHosts.includes(hn)) row.listHosts.push(hn);}
    if(rec.desc&&!row.listNote) row.listNote=rec.desc;
    if(rec.approval&&row.approval==="Not Reviewed"){
-     const ap=normHdr(rec.approval);
-     const m=/(denied|rejected|prohibited|not approved|unauthorized|banned)/.test(ap)?"Denied"
-            :/(pending|in review|review)/.test(ap)?"Pending"
-            :/(approved|authorized)/.test(ap)||ap==="yes"||ap==="y"?"Approved":"";
+     const m=listingApproval(rec.approval);
      if(m){row.approval=m; if(!row.approvalRef) row.approvalRef="listing: "+rec.src;}
+     else conflicts.push({asset:rec.name+(rec.version?" "+rec.version:""),field:"approval (unrecognized wording — left Not Reviewed)",
+       have:row.approval,listing:rec.approval,src:rec.src});
    }
  }
  S.listings.conflicts=conflicts;
  if(created){invalidateFusion();consolidateSoftware();}
+}
+/* Negations first, and the positive words anchored. A bare /(approved|authorized)/ test used
+   to record "Unapproved", "Disapproved", "Not Authorized", "Not yet approved" and "Never
+   approved" as Approved -- into the eMASS software baseline, citing the listing as the authority.
+   Wording that matches nothing is surfaced, never guessed. */
+function listingApproval(raw){
+ const ap=normHdr(raw);
+ if(!ap) return "";
+ if(/\b(?:denied|deny|rejected|prohibited|banned|revoked|withdrawn|disallowed|unauthori[sz]ed|unapproved|disapproved|un approved|dis approved|non approved|not(?: yet)? (?:approved|authori[sz]ed|permitted|allowed)|never approved)\b/.test(ap)||ap==="no"||ap==="n") return "Denied";
+ if(/\b(?:pending|in review|under review|awaiting|submitted|requested)\b/.test(ap)||ap==="review") return "Pending";
+ if(/^(?:conditionally |provisionally )?(?:approved|authori[sz]ed)\b/.test(ap)||ap==="yes"||ap==="y") return "Approved";
+ return "";
 }
 function swSrcOf(r){
  const scan=r.hosts&&r.hosts.length>0, list=!!r.fromListing;
@@ -2934,7 +3218,7 @@ function swSrcOf(r){
    has moved off the documented baseline. */
 function swReconcile(){
  const matched=[],scanOnly=[],listingOnly=[],drift=[];
- const listBases={};
+ const listBases=dataMap();
  for(const k in S.software){const r=S.software[k];
    if(r.rpm||!r.include) continue;
    if(r.fromListing)(listBases[normBase(r.name)]=listBases[normBase(r.name)]||[]).push(r);}
@@ -2957,16 +3241,32 @@ function swReconcile(){
 }
 function clearListings(){
  if(!S.listings.files.length){status("No HW/SW listings loaded.");return;}
- if(!confirm("Remove all ingested HW/SW listing data?\n\nListing-only assets and software rows are removed; scan evidence, manual assets, and your edits stay.")) return;
+ if(!confirm("Remove all ingested HW/SW listing data?\n\nValues the listing filled in are taken back out. Listing-only assets you have edited are kept as manual assets; untouched listing-only assets and software rows are removed. Scan evidence and manual assets stay.")) return;
+ /* Take back exactly what the listing supplied (and only while it is still the listing's
+    value -- a field edited since is the operator's). v2.8 left every listing value behind,
+    relabelled "scan", so the documented clear-and-reload could never correct a wrong serial. */
+ const EDITABLE=["make","model","serial","location","facility","ci","drawing","diagram","owner",
+   "criticality","notes","os","ip","mac","status"];
+ let kept=0;
  for(const k of Object.keys(S.assets)){const a=S.assets[k];
    if(!a.fromListing) continue;
-   if(a.fromScan) a.fromListing=false; else delete S.assets[k];}
+   const lf=a.listFields||{};
+   for(const f of Object.keys(lf)) if(a[f]===lf[f]) a[f]="";
+   delete a.listFields;
+   if(a.fromScan){a.fromListing=false; continue;}
+   const edited=EDITABLE.some(f=>a[f]&&!(f==="status"&&a[f]==="Active"));
+   if(edited){a.fromListing=false; kept++;
+     a.notes=(a.notes?a.notes+" | ":"")+"kept after listing cleared: edited by hand";}
+   else delete S.assets[k];}
  for(const k of Object.keys(S.software)){const r=S.software[k];
    if(!r.fromListing) continue;
+   if(/^listing: /.test(r.approvalRef||"")){r.approval="Not Reviewed"; r.approvalRef="";}
+   if(r.listVendor&&r.vendor===r.listVendor) r.vendor=inferVendor(r.name);
+   delete r.listVendor;
    if(r.hosts.length){r.fromListing=false;r.listHosts=[];delete r.listNote;}
    else delete S.software[k];}
  S.listings=emptyListings(); invalidateFusion(); consolidateSoftware(); renderAll();
- status("HW/SW listing data cleared. Scan-derived evidence untouched.");
+ status("HW/SW listing data cleared. Scan-derived evidence untouched."+(kept?` ${kept} edited listing-only asset(s) kept as manual entries.`:""));
 }
 /* ---- loaded-listings mapping report (rendered on the Assets tab) ---- */
 function renderListings(){
@@ -2974,7 +3274,7 @@ function renderListings(){
  if(!S.listings.files.length){p.style.display="none";return;}
  p.style.display="block";
  let h=S.listings.files.map(f=>
-   `<div style="margin-bottom:10px"><b>${esc(f.name)}</b> <span style="color:var(--dim)">— ${f.rows} row(s): ${f.hw} hardware, ${f.sw} software${f.skipped?`, ${f.skipped} skipped`:""} · HW/SW column: ${esc(f.kindSource)}</span><br>
+   `<div style="margin-bottom:10px"><b>${esc(f.name)}</b> <span style="color:var(--dim)">— ${numOr(f.rows,0)} row(s): ${numOr(f.hw,0)} hardware, ${numOr(f.sw,0)} software${numOr(f.skipped,0)?`, ${numOr(f.skipped,0)} skipped`:""} · HW/SW column: ${esc(f.kindSource)}</span><br>
     <span style="font-size:12px;color:var(--dim)">mapped: </span>${f.matched.map(([hd,fld])=>`<span class="pill" title="&rarr; ${esc(fld)}" style="margin:1px 3px 1px 0">${esc(hd)}</span>`).join("")}
     ${f.ignored.length?`<br><span style="font-size:12px;color:var(--dim)">ignored (unmapped): ${esc(f.ignored.join(", "))}</span>`:""}</div>`).join("");
  if(S.listings.conflicts.length){
@@ -2987,8 +3287,11 @@ function renderListings(){
 }
 
 /* ---- fusion + priority scoring ---- */
-let _fusion=null;
-function invalidateFusion(){_fusion=null;}
+/* The cache is bound to the state object it was computed from. A rejected session used to
+   leave its own fusion (its CVEs, hosts, P1 count) cached and served against the restored
+   dataset, under a "previous dataset restored" message. */
+let _fusion=null, _fusionFor=null;
+function invalidateFusion(){_fusion=null;_fusionFor=null;}
 function normProd(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
 /* Score sources available for prioritization. Sheets like SASR-E carry their own
    composite score (fed by RF, ExploitDB, SANS, etc.) that downstream DoD reporting
@@ -3004,7 +3307,7 @@ function intelScoreSources(){
  if(has("rfScore")) srcs.push({id:"rfScore",label:"RF Risk Score"});
  if(has("cvss"))    srcs.push({id:"cvss",   label:"CVSS"});
  if(has("relate"))  srcs.push({id:"relate", label:"Relate score"});
- const cnt={},num={};
+ const cnt=dataMap(),num=dataMap();
  rows.forEach(t=>{for(const h in (t.extra||{})){cnt[h]=(cnt[h]||0)+1;
    if(/^[\s$]*-?\d+(\.\d+)?\s*%?$/.test(String(t.extra[h]).trim())) num[h]=(num[h]||0)+1;}});
  for(const h in cnt) if(cnt[h]>=3&&num[h]/cnt[h]>=0.7) srcs.push({id:"extra:"+h,label:"Sheet column: "+h});
@@ -3020,7 +3323,7 @@ function setIntelScoreSource(v){
  status(`Priority scoring now driven by: ${s?s.label:v}. Tiers recomputed.`);
 }
 function getIntelFusion(){
- if(_fusion) return _fusion;
+ if(_fusion&&_fusionFor===S) return _fusion;
  const W=Object.assign({},DEFAULT_CONFIG.intelWeights,S.config.intelWeights||{});
  const sources=intelScoreSources();
  let sel=S.intel.scoreSource||"blended";
@@ -3030,7 +3333,7 @@ function getIntelFusion(){
  let sheetMax=0;
  if(sel!=="blended") for(const c in S.intel.rows) sheetMax=Math.max(sheetMax,intelRawScore(S.intel.rows[c],sel));
  // index: CVE -> scan findings carrying it
- const byCve={}; let scannedCves=new Set();
+ const byCve=dataMap(); let scannedCves=new Set();
  for(const hk in S.hosts){const h=S.hosts[hk];
    for(const pid in (h.findings||{})){const f=h.findings[pid];
      f.cves.forEach(c=>{scannedCves.add(c);
@@ -3063,7 +3366,7 @@ function getIntelFusion(){
  const prodTok=[];
  rows.forEach(r=>r.t.products.forEach(pd=>{const n=normProd(pd);
    if(n.length>=4)prodTok.push({n,r});}));
- const swIndex={};
+ const swIndex=dataMap();
  for(const k in S.software){
    const r=S.software[k]; if(r.rpm) continue;
    const swn=normProd(r.name); if(swn.length<4) continue;
@@ -3079,6 +3382,7 @@ function getIntelFusion(){
    hostsAffected,weapOnNet,p1,weights:W,
    scoreSource:sel,scoreLabel:(sources.find(s=>s.id===sel)||{label:"Blended formula"}).label,
    scoreNormalized:sel!=="blended"&&sheetMax>100};
+ _fusionFor=S;
  return _fusion;
 }
 function intelForProductName(name){
@@ -3100,7 +3404,7 @@ function renderIntel(){
  if(S.intel.files.length){
    mp.style.display="block";
    $("intelMapBody").innerHTML=S.intel.files.map(f=>
-     `<div style="margin-bottom:10px"><b>${esc(f.name)}</b> <span style="color:var(--dim)">— ${f.rows} row(s), ${f.cveRows} CVE row(s)${f.noCve?`, ${f.noCve} skipped (no CVE)`:""}</span><br>
+     `<div style="margin-bottom:10px"><b>${esc(f.name)}</b> <span style="color:var(--dim)">— ${numOr(f.rows,0)} row(s), ${numOr(f.cveRows,0)} CVE row(s)${numOr(f.noCve,0)?`, ${numOr(f.noCve,0)} skipped (no CVE)`:""}</span><br>
       <span style="font-size:12px;color:var(--dim)">mapped: </span>${f.matched.map(([h,fld])=>`<span class="pill" title="&rarr; ${esc(fld)}" style="margin:1px 3px 1px 0">${esc(h)}</span>`).join("")}
       ${f.ignored.length?`<br><span style="font-size:12px;color:var(--dim)">kept as passthrough (unmapped): ${esc(f.ignored.join(", "))}</span>`:""}</div>`).join("")+
      `<p style="color:var(--dim);font-size:12px">A column mapped wrong or missed? Adjust <b>intelAliases</b> in Detection Config, clear intel, and re-load the sheet.</p>`;
@@ -3129,7 +3433,7 @@ function renderIntel(){
    const findings=[...new Set(r.hits.map(x=>x.pname))];
    html+=`<tr>
      <td>${tierPill(r.tier)}</td>
-     <td class="mono" style="color:${r.tier?TIER_COLOR[r.tier]:"var(--dim)"};font-weight:700" title="${fu.scoreSource==="blended"?"blended formula score":esc(fu.scoreLabel)+" (raw: "+r.raw+(fu.scoreNormalized?", normalized to 0-100 for tiering":"")+")"}">${r.score}</td>
+     <td class="mono" style="color:${r.tier?TIER_COLOR[r.tier]:"var(--dim)"};font-weight:700" title="${fu.scoreSource==="blended"?"blended formula score":esc(fu.scoreLabel+" (raw: "+r.raw+(fu.scoreNormalized?", normalized to 0-100 for tiering":"")+")")}">${esc(r.score)}</td>
      <td class="mono" title="${esc(r.t.desc||"")}">${esc(r.cve)}</td>
      <td class="mono">${esc(r.t.iavm.join(" "))}</td>
      <td class="mono">${r.cvss?r.cvss.toFixed(1):"—"}</td>
@@ -3206,13 +3510,20 @@ const RPT_THEME={
 /* On-network intel rows grouped by product: prefer the matched software-inventory
    product, fall back to the intel sheet's product, then the plugin name. */
 function productExposure(){
- const groups={};
+ const groups=dataMap();
  if(!Object.keys(S.intel.rows).length) return [];
  const fu=getIntelFusion();
+ /* CVE -> inventory product, built once (was a full swIndex scan per intel row: O(rows x
+    software), a minute per render on a hostile 30,000-line inventory). Among inventory names
+    claiming a CVE the SHORTEST wins -- the most specific name for the product. First-match
+    let one hostile host's DisplayName that strings every product together ("Google Chrome
+    Adobe Acrobat DC Linux Kernel ...") take over the attribution of every weaponized CVE. */
+ const byCve=dataMap();
+ for(const k in fu.swIndex){const w=fu.swIndex[k];
+   for(const c of w.cves) if(!byCve[c]||normProd(w.name).length<normProd(byCve[c]).length) byCve[c]=w.name;}
  for(const r of fu.rows){
    if(!r.hosts.length) continue;
-   let prod="";
-   for(const k in fu.swIndex){if(fu.swIndex[k].cves.includes(r.cve)){prod=fu.swIndex[k].name;break;}}
+   let prod=byCve[r.cve]||"";
    if(!prod) prod=r.t.products[0]||(r.hits[0]&&r.hits[0].pname)||r.cve;
    const g=groups[prod]||(groups[prod]={name:prod,hosts:new Set(),cves:[],weap:false,best:0,tier:{P1:0,P2:0,P3:0,P4:0}});
    r.hosts.forEach(h=>g.hosts.add(h));
@@ -3223,7 +3534,7 @@ function productExposure(){
  return Object.values(groups).sort((a,b)=>(b.weap?1:0)-(a.weap?1:0)||b.best-a.best||b.hosts.size-a.hosts.size);
 }
 function osFootprint(){
- const m={};
+ const m=dataMap();
  for(const hk in S.hosts){const h=S.hosts[hk];
    const os=(h.os||"Unknown").replace(/\s+Service Pack.*$/i,"").trim()||"Unknown";
    (m[os]=m[os]||{os,hosts:[]}).hosts.push(h.name);}
@@ -3320,8 +3631,10 @@ function rptBarPath(x,y,w,h,r){
    +" V"+(y+h-r)+" A"+r+" "+r+" 0 0 1 "+(x+w-r)+" "+(y+h)+" H"+x+" Z";
 }
 function rptTicks(vmax){
+ /* a session trend stat of 1e999 parses to Infinity: the loop never ended (~4 GiB, then a RangeError) */
+ if(!Number.isFinite(vmax)||vmax<=0) vmax=1;
  const step=vmax<=5?1:vmax<=10?2:vmax<=25?5:vmax<=50?10:vmax<=100?20:Math.ceil(vmax/50)*10;
- const out=[];for(let v=0;v<=vmax;v+=step)out.push(v);return out;
+ const out=[];for(let v=0;v<=vmax&&out.length<64;v+=step)out.push(v);return out;
 }
 function rptChart(title,rows,T,legend){
  if(!rows.length) return "";
@@ -3435,7 +3748,9 @@ function exportLeadershipReport(){
     +items.map(i=>'<tr>'
       +'<td style="border:1px solid '+T.grid+';padding:6px 9px;white-space:nowrap;color:'+T.ink2+'">'+sevMark(i.sev,T)+'</td>'
       +'<td style="border:1px solid '+T.grid+';padding:6px 9px;font-weight:600">'+esc(i.action)+'</td>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px" title="'+esc((i.hosts||[]).join(", "))+'">'+esc(i.scope)+'</td>'
+      /* no host-name tooltip: this is the e-mailable leadership artifact, and its own footer
+         says host-level detail stays in the compiler session (2.9 audit, finding C-1) */
+      +'<td style="border:1px solid '+T.grid+';padding:6px 9px">'+esc(i.scope)+'</td>'
       +'<td style="border:1px solid '+T.grid+';padding:6px 9px;color:'+T.ink2+'">'+esc(i.why)+'</td>'
       +'<td style="border:1px solid '+T.grid+';padding:6px 9px">'+esc(i.effort)+'</td></tr>').join("")
     +'</table>';}).join("");
@@ -3453,7 +3768,7 @@ function exportLeadershipReport(){
   +' &middot; produced fully offline by Palisade</p>'
   +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px">'
   +tile(st.endpoints,"endpoints scanned")
-  +tile(st.p1,"P1 — act now",st.p1?T.critical:T.ink)
+  +(L.fu?tile(st.p1,"P1 CVE(s) — act now",st.p1?T.critical:T.ink):tile("n/a","P1 — needs a threat-intel sheet"))
   +tile(st.eol,"unsupported components",st.eol?T.serious:T.ink)
   +tile(st.actions,"recommended actions")+'</div>'
   +rptCharts(T)
@@ -3470,20 +3785,25 @@ function exportLeadershipReport(){
 /* ---- plain-text executive summary (for the e-mail body) ---- */
 function buildEmailSummary(){
  const L=buildLenses(), st=lensStats(L), s=S.settings;
- const lines=[s.banner,"","CYBER RISK SUMMARY — "+(s.isName||"(system)")+" — "+today(),""];
- lines.push("Posture: "+st.endpoints+" endpoints scanned; "+st.p1+" weaponized vulnerability group(s) confirmed on the network; "+st.eol+" component(s) past vendor support.");
+ const lines=[oneLine(s.banner),"","CYBER RISK SUMMARY — "+oneLine(s.isName||"(system)")+" — "+today(),""];
+ /* st.p1 counts P1 CVEs, not groups; and without an intel sheet it is not a measurement at all */
+ lines.push("Posture: "+st.endpoints+" endpoints scanned; "
+   +(L.fu?st.p1+" weaponized CVE(s) confirmed on the network (P1); ":"weaponization not assessed (no threat-intel sheet loaded); ")
+   +st.eol+" component(s) past vendor support.");
  if(L.fu) lines.push("Priority scoring source: "+L.fu.scoreLabel+".");
  lines.push("");
  const top=(name,items,n)=>{if(!items.length)return;
    lines.push(name.toUpperCase()+":");
-   items.slice(0,n).forEach(i=>lines.push("  - "+i.action+" — "+i.scope+". "+i.why));
+   /* one bullet per item: a host-reported OS string carrying newlines used to add bullets of
+      its own to the e-mail body ("... COMPLETED, verified by ISSM") */
+   items.slice(0,n).forEach(i=>lines.push("  - "+oneLine(i.action)+" — "+oneLine(i.scope)+". "+oneLine(i.why)));
    if(items.length>n) lines.push("  (+"+(items.length-n)+" more in the attached report)");
    lines.push("");};
  top("Act now (quick strikes)",L.quick,5);
  top("Low-hanging fruit",L.fruit,4);
  top("Campaigns to plan",L.camp,4);
  top("Modernization / budget",L.modern,4);
- lines.push("Full detail, charts, and host-level scope are in the attached report. Approval and scheduling decisions remain with the ISSM.","",s.banner);
+ lines.push("Full detail, charts, and host-level scope are in the attached report. Approval and scheduling decisions remain with the ISSM.","",oneLine(s.banner));
  return lines.join("\n");
 }
 function copyEmailSummary(){
@@ -3509,7 +3829,7 @@ function exportAiPackage(){
  const digest={
   system:s.isName||"(unnamed system)", generated:today(), endpoints:st.endpoints,
   scoreSource:L.fu?L.fu.scoreLabel:"n/a (no threat intel loaded)",
-  summary:{p1Groups:st.p1, unsupportedComponents:st.eol, recommendedActions:st.actions},
+  summary:{p1Cves:L.fu?st.p1:null, quickStrikeActions:L.quick.length, unsupportedComponents:st.eol, recommendedActions:st.actions},
   productExposure:L.px.slice(0,25).map(g=>({product:g.name,endpoints:g.hosts.size,hosts:strip([...g.hosts]),
     weaponized:g.weap,cves:g.cves.slice(0,10),topScore:g.best})),
   osFootprint:L.osf.map(o=>({os:o.os,endpoints:o.hosts.length,hosts:strip(o.hosts),
@@ -3879,7 +4199,7 @@ const RPT_SECTIONS = [
                all.some(r=>!r.boundaries.filter(x=>x&&x.trim()).length)]],T)
    +rptTable([{h:"Proto",w:"64px"},{h:"Port",a:"r",w:"64px",mono:true},"Service","Application",
               {h:"Hosts",a:"r",w:"58px"},{h:"Boundaries",a:"c",w:"84px"}],
-     cut.rows.map(r=>[esc(r.proto.toUpperCase()), String(r.port), esc(r.svc||""), esc(r.app||""),
+     cut.rows.map(r=>[esc(String(r.proto).toUpperCase()), esc(String(r.port)), esc(r.svc||""), esc(r.app||""),
         String(r.hosts.length),
         (r.boundaries.filter(x=>x&&x.trim()).length||rptTag("none",T.warning,T))+""]),
      T, rptCapNote(cut,"port tuples"))
@@ -3967,7 +4287,7 @@ const RPT_SECTIONS = [
     [["Critical findings","crit"],["High findings","high"],["Past remediation window","overdue"],
      ["CAT I open","catI"],["Open STIG findings","stigOpen"],["Unsupported components","eol"]]
      .filter(([,k])=>first[k]!==undefined||last[k]!==undefined)
-     .map(([l,k])=>[esc(l),String(first[k]||0),String(last[k]||0),delta(first[k],last[k])]),T);
+     .map(([l,k])=>[esc(l),esc(String(numOr(first[k],0))),esc(String(numOr(last[k],0))),delta(numOr(first[k],0),numOr(last[k],0))]),T);
   return rptLead("<b>"+pts.length+"</b> assessment cycles, "+esc(pts[0].taken)+" to "+esc(pts[pts.length-1].taken)+".")+h
    +rptCtrl("trend");
  }},
@@ -4039,8 +4359,15 @@ const RPT_PRESETS_BUILTIN = {
    note:"Every section that has data. Long by design — this is the archive copy.",
    sections:RPT_SECTIONS.map(x=>x.id)}
 };
+/* Custom presets may add, never redefine: a profile carrying reportPresets.issm with two
+   sections used to replace "ISSM / assessor package" under its familiar label and drop twelve
+   sections of evidence from the package. saveRptPreset() only ever writes u_ keys. */
 function rptPresets(){
- return Object.assign({},RPT_PRESETS_BUILTIN,(S.settings&&S.settings.reportPresets)||{});
+ const c=(S.settings&&S.settings.reportPresets)||{}, ok=dataMap();
+ for(const k of Object.keys(c)){const p=c[k];
+   if(!/^u_[a-z0-9_]+$/.test(k)||ownKey(RPT_PRESETS_BUILTIN,k)||!p||typeof p!=="object"||!Array.isArray(p.sections)) continue;
+   ok[k]={name:String(p.name||k),note:String(p.note||""),sections:p.sections.filter(id=>RPT_SECTIONS.some(x=>x.id===id))};}
+ return Object.assign(dataMap(),RPT_PRESETS_BUILTIN,ok);
 }
 
 /* =================== document assembly ================================== */
@@ -4308,7 +4635,7 @@ async function exportPackage(){
  const entries=cap.map(f=>{const m=pkgMeta(f.name);
    return {name:root+"/"+m.folder+"/"+f.name, data:f.text, plain:f.name, meta:m,
            bytes:new Blob([f.text]).size,
-           rows:/\.csv$/i.test(f.name)?Math.max(0,String(f.text).split("\n").length-1):null};});
+           rows:/\.csv$/i.test(f.name)?Math.max(0,csvRows(String(f.text)).length-1):null};});
  entries.sort((a,b)=>a.name.localeCompare(b.name));
  entries.unshift({name:root+"/index.html", data:pkgIndex(entries), plain:"index.html",
                   meta:{folder:"",who:"",what:""}, bytes:0, rows:null});
@@ -4371,7 +4698,7 @@ let rptSel=RPT_PRESETS_BUILTIN.leadership.sections.slice();
 let rptPrevTimer=null;
 
 function rptCustomPresets(){
- if(!S.settings.reportPresets) S.settings.reportPresets={};
+ if(!S.settings.reportPresets||typeof S.settings.reportPresets!=="object") S.settings.reportPresets=dataMap();
  return S.settings.reportPresets;
 }
 function rptOpts(){
@@ -4460,9 +4787,9 @@ function saveRptPreset(){
 }
 function deleteRptPreset(){
  const custom=rptCustomPresets();
- if(!custom[rptPreset]){alert("Built-in presets cannot be deleted. Select one of your own saved presets first.");return;}
- const nm=custom[rptPreset].name;
- if(!confirm('Delete the preset "'+nm+'"?')) return;
+ if(!ownKey(custom,rptPreset)||ownKey(RPT_PRESETS_BUILTIN,rptPreset)){alert("Built-in presets cannot be deleted. Select one of your own saved presets first.");return;}
+ const nm=String(custom[rptPreset].name||rptPreset);
+ if(!confirm('Delete the preset "'+oneLine(nm,80)+'"?')) return;
  delete custom[rptPreset];
  rptPreset="leadership"; rptSel=RPT_PRESETS_BUILTIN.leadership.sections.slice();
  renderRptBuilder(); rptTouch();
@@ -4507,10 +4834,13 @@ function trendDateOf(){
  const ds=Object.values(S.hosts).map(h=>h.lastSeen).filter(Boolean).sort();
  return ds.length?ds[ds.length-1]:today();
 }
-function addTrendPoint(label,when,stats){
+function addTrendPoint(label,when,stats,noReplace){
  S.trend=S.trend||[];
  const pt={taken:when||trendDateOf(),label:label||"",stats:stats||trendStats()};
  const i=S.trend.findIndex(p=>p.taken===pt.taken);
+ /* the import path never overwrites a cycle already on the timeline (a foreign file used to
+    replace the operator's own captured point silently); re-capturing the current dataset may */
+ if(i>=0&&noReplace) return null;
  if(i>=0) S.trend[i]=pt; else S.trend.push(pt);
  S.trend.sort((a,b)=>String(a.taken).localeCompare(String(b.taken)));
  return pt;
@@ -4524,7 +4854,7 @@ function captureTrendPoint(){
 }
 function removeTrendPoint(i){
  if(!S.trend[i]) return;
- if(!confirm("Remove the trend point for "+S.trend[i].taken+"?")) return;
+ if(!confirm("Remove the trend point for "+oneLine(S.trend[i].taken,40)+"?")) return;
  S.trend.splice(i,1); renderTrend();
  status("Trend point removed.");
 }
@@ -4537,19 +4867,15 @@ async function ingestTrendSessions(files){
      checkFileSize(f,true);
      const o=safeParse(await f.text());
      if(!o.meta||!(/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||""))) throw new Error("not a Palisade session file");
-     o.config=migrateConfig(o.config);
-     S=Object.assign(newState(),o);
-     for(const k in S.hosts){
-       S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);
-       S.hosts[k].findings=S.hosts[k].findings||{}; S.hosts[k].accounts=S.hosts[k].accounts||{};
-       S.hosts[k].scan=S.hosts[k].scan||{};
-     }
-     S.stigResults=S.stigResults||{};
+     S=normalizeSessionState(Object.assign(newState(),o));
      invalidateFusion(); runDetection(); buildSoftware();
      const stats=trendStats(), when=trendDateOf();
-     const label=(o.meta.saved||"").slice(0,10);
+     const label=String((o.meta.saved||"")).slice(0,10);
      S=keep;
-     addTrendPoint(label&&label!==when?label:"",when,stats); added++;
+     /* a scan date in the future would become "now" on the timeline and drive the readiness trend check */
+     if(when>today()) throw new Error("newest scan date "+oneLine(when,20)+" is in the future");
+     if(!addTrendPoint(label&&label!==when?label:"",when,stats,true)) throw new Error("a cycle dated "+when+" is already on the timeline (remove it first to replace it)");
+     added++;
    }catch(e){ S=keep; problems.push(f.name+": "+e.message); }
  }
  invalidateFusion(); renderTrend(); renderReadiness();
@@ -4610,7 +4936,8 @@ function renderTrend(){
    $("trendBody").innerHTML='<div class="panel"><p style="color:var(--dim)">No trend points yet. Use <b>Capture current as a cycle</b> after loading a dataset, or <b>Add from prior sessions</b> to rebuild history from the session files you already save each cycle.</p></div>';
    return;
  }
- const first=pts[0].stats, last=pts[pts.length-1].stats;
+ const first=pts[0].stats||{}, last=pts[pts.length-1].stats||{};
+ const nv=v=>(v===null||v===undefined)?"—":esc(String(v));   // every stat rendered through here
  $("trendCards").innerHTML=card(pts.length,"cycles on timeline")+
    card(last.crit,"critical now",last.crit>0)+
    card(last.catI,"CAT I open now",last.catI>0)+
@@ -4647,22 +4974,22 @@ function renderTrend(){
    const a=first[k]===undefined?null:first[k], b=last[k]===undefined?null:last[k];
    const better=k==="stigScore";
    let chg="";
-   if(a!==null&&b!==null){const d=b-a;
+   if(a!==null&&b!==null){const d=numOr(b,0)-numOr(a,0);
      chg=d===0?'<span style="color:var(--dim)">no change</span>'
-       :`<span style="color:${(better?d>0:d<0)?"var(--accent2)":"var(--bad)"}">${d>0?"+":""}${d}${better?"%":""}</span>`;}
-   h+=`<tr><td>${lbl}</td><td class="mono" style="text-align:center">${a===null?"—":a}${better&&a!==null?"%":""}</td>
-     <td class="mono" style="text-align:center">${b===null?"—":b}${better&&b!==null?"%":""}</td>
+       :`<span style="color:${(better?d>0:d<0)?"var(--accent2)":"var(--bad)"}">${d>0?"+":""}${esc(d)}${better?"%":""}</span>`;}
+   h+=`<tr><td>${lbl}</td><td class="mono" style="text-align:center">${nv(a)}${better&&a!==null?"%":""}</td>
+     <td class="mono" style="text-align:center">${nv(b)}${better&&b!==null?"%":""}</td>
      <td class="mono" style="text-align:center">${chg}</td></tr>`;});
  h+='</table></div><p style="color:var(--dim);font-size:12px;margin-top:8px">Green is movement in the good direction for that metric — down for findings, up for compliance score. Cycles are keyed by the newest scan date in each dataset, so points land where the evidence says rather than when they were captured.</p></div>';
  // point list
  h+='<div class="panel"><h2>Cycles on the timeline</h2><div class="tablewrap" style="max-height:none"><table>'
   +'<tr><th>Date</th><th>Label</th><th style="text-align:center">Hosts</th><th style="text-align:center">Crit</th><th style="text-align:center">High</th><th style="text-align:center">CAT I</th><th style="text-align:center">Score</th><th></th></tr>';
  pts.forEach((p,i)=>{h+=`<tr><td class="mono">${esc(p.taken)}</td><td>${esc(p.label||"")}</td>
-   <td class="mono" style="text-align:center">${p.stats.hosts}</td>
-   <td class="mono" style="text-align:center;color:${p.stats.crit?"var(--bad)":"var(--dim)"}">${p.stats.crit}</td>
-   <td class="mono" style="text-align:center">${p.stats.high}</td>
-   <td class="mono" style="text-align:center;color:${p.stats.catI?"var(--bad)":"var(--dim)"}">${p.stats.catI}</td>
-   <td class="mono" style="text-align:center">${p.stats.stigScore===null?"—":p.stats.stigScore+"%"}</td>
+   <td class="mono" style="text-align:center">${nv(p.stats.hosts)}</td>
+   <td class="mono" style="text-align:center;color:${p.stats.crit?"var(--bad)":"var(--dim)"}">${nv(p.stats.crit)}</td>
+   <td class="mono" style="text-align:center">${nv(p.stats.high)}</td>
+   <td class="mono" style="text-align:center;color:${p.stats.catI?"var(--bad)":"var(--dim)"}">${nv(p.stats.catI)}</td>
+   <td class="mono" style="text-align:center">${p.stats.stigScore===null||p.stats.stigScore===undefined?"—":nv(p.stats.stigScore)+"%"}</td>
    <td><button class="small ghost danger" data-click="removeTrendPoint" data-arg="${i}">remove</button></td></tr>`;});
  h+='</table></div></div>';
  $("trendBody").innerHTML=h;
@@ -4692,22 +5019,30 @@ function setBaselineFromCurrent(){
  addTrendPoint("","",trendStats()); renderTrend();
  status("Baseline set from current data, and this cycle recorded on the trend timeline. Next month's scans will diff against this.");
 }
+/* Transactional, like loadSession. v2.8 swapped S for the foreign file's state and restored it
+   only on success: any throw (a legacy session with config.columns, an sw that is not an array)
+   left the colleague's dataset as the live one while the screen still showed the operator's,
+   so the next export or Save session wrote the wrong enclave. */
 async function loadBaseline(f){
  if(!f)return;
+ const keep=S, prevBaseline=S.baseline;
  try{
    checkFileSize(f,true);
    const o=safeParse(await f.text());
-   if(o.meta&&/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||"")){
-     // a full prior session: build a snapshot from its contents
-     const keep=S; S=Object.assign(newState(),o);
-     for(const k in S.hosts){S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);}
-     runDetection(); buildSoftware();
-     const snap=snapshot(); S=keep; S.baseline=snap;
-   } else if(o.taken&&o.hosts){ S.baseline=o; }
+   let snap;
+   if(o&&typeof o==="object"&&o.meta&&SESSION_TOOL_RE.test(String(o.meta.tool||""))){
+     // a full prior session: build a snapshot from its contents, never as the live state
+     try{ S=normalizeSessionState(Object.assign(newState(),o)); invalidateFusion();
+       runDetection(); buildSoftware(); snap=snapshot(); }
+     finally{ S=keep; invalidateFusion(); }
+   } else if(validSnapshot(o)) snap=o;
    else throw new Error("not a session or baseline file");
-   computeDelta(); renderDelta();
-   status(`Baseline loaded (captured ${S.baseline.taken.slice(0,10)}). Delta computed.`);
- }catch(e){alert("Baseline load failed: "+e.message);}
+   S.baseline=snap; computeDelta(); renderDelta();
+   status(`Baseline loaded (captured ${oneLine(String(S.baseline.taken).slice(0,10))}). Delta computed.`);
+ }catch(e){
+   S=keep; S.baseline=prevBaseline; invalidateFusion();
+   try{computeDelta(); renderDelta();}catch(_){}
+   alert("Baseline load failed: "+e.message+" - your working dataset is unchanged.");}
  $("baseIn").value="";
 }
 
@@ -4730,7 +5065,7 @@ function assetSrcOf(a){
 function buildAssets(){
  for(const hk in S.hosts){
    const h=S.hosts[hk];
-   if(!S.assets[hk]){
+   if(!ownKey(S.assets,hk)){
      S.assets[hk]={name:h.name,ip:h.ip||"",mac:h.mac||"",
        type:S.stig.device[hk]||"",os:h.os||"",make:"",model:"",serial:"",
        location:"",facility:"",ci:"",drawing:"",diagram:"",
@@ -4740,15 +5075,19 @@ function buildAssets(){
      const a=S.assets[hk];                      // refresh scan-derived fields only
      a.fromScan=true;                           // promotes listing-created assets once they scan
      if(h.ip) a.ip=h.ip;
-     if(h.mac&&!a.mac) a.mac=h.mac;
+     /* the scanner's MAC is evidence; a MAC the listing filled in first is paperwork and gives
+        way (the listing's value then surfaces as a conflict instead of shipping as "both") */
+     if(h.mac&&(!a.mac||(a.listFields&&a.listFields.mac===a.mac&&a.mac!==h.mac))){a.mac=h.mac; if(a.listFields) delete a.listFields.mac;}
      if(h.os) a.os=h.os;
      if(h.lastSeen) a.lastSeen=h.lastSeen;
      if(!a.type&&S.stig.device[hk]) a.type=S.stig.device[hk];
    }
  }
- // mark assets that are in the inventory but produced no scan this cycle
+ /* Scan-detected means "has a host record now". v2.8 only ever set false when the flag was
+    undefined, so an asset whose host was later folded into a named record (mergeHostsByIp)
+    stayed "Scan Detected: Y" forever -- a phantom second inventory row for one machine. */
  for(const k in S.assets){
-   if(!S.hosts[k]&&S.assets[k].fromScan===undefined) S.assets[k].fromScan=false;
+   if(!ownKey(S.hosts,k)) S.assets[k].fromScan=false;
  }
 }
 function assetKeys(){
@@ -4768,8 +5107,9 @@ function addManualAsset(){
 }
 function seedInventoryFromAssets(){
  if(!Object.keys(S.assets).length){alert("No assets yet - load scans first.");return;}
+ // fixed positions: a blank type used to be filtered out, shifting the note into the type slot
  const lines=assetKeys().map(k=>{const a=S.assets[k];
-   return [a.name,a.type,a.notes||(a.fromScan?"seeded from scan":"")].filter(Boolean).join(", ");});
+   return [a.name,a.type||"",oneLine(a.notes||(a.fromScan?"seeded from scan":""))].join(", ").replace(/(, )+$/,"");});
  $("invBox").value=lines.join("\n");
  applyInventory();
  status(`Seeded ${lines.length} asset(s) into the reconciliation list. Curate it, then treat it as authoritative.`);
@@ -4795,7 +5135,9 @@ function parseInventory(text){
    const parts=line.split(/[,\t]/).map(x=>x.trim().replace(/^"|"$/g,""));
    const name=(parts[0]||"").toUpperCase();
    if(!name||/^(host\s*name|hostname|asset|name|device)$/i.test(parts[0]))return;
-   rows.push({name:name.split(".")[0],type:parts[1]||"",note:parts[2]||""});
+   /* keyed exactly as scans key hosts: "192.0.2.10".split(".")[0] made every IP-keyed host
+      both "never scanned" and "unaccounted" */
+   rows.push({name:hostKeyFrom(parts[0],""),type:parts[1]||"",note:parts[2]||""});
  });
  return rows;
 }
@@ -4901,11 +5243,15 @@ function readiness(staleDays){
  }
  const hkAll=Object.keys(S.hosts);
  if(hkAll.length){
-   const noCred=hkAll.filter(k=>{const hh=S.hosts[k];return hh.scan&&hh.scan.credChecks&&!scanCredOk(hh);});
+   /* An authentication-failure plugin (e.g. SSH privilege escalation failed) means local checks
+      were partial even when 19506 says "yes"; and a host with no scan record at all is not
+      evidence of success. v2.8 passed this check on both. */
+   const noCred=hkAll.filter(k=>{const hh=S.hosts[k];return hh.scan&&((hh.scan.credChecks&&!scanCredOk(hh))||hh.scan.authIssue);});
    const noInfo=hkAll.filter(k=>!(S.hosts[k].scan&&S.hosts[k].scan.credChecks));
-   push(noCred.length===0,true,"Credentialed checks succeeded (per scan record)",
-     noCred.length?`${noCred.length} host(s) report credentialed checks failed: ${noCred.slice(0,6).map(k=>S.hosts[k].name).join(", ")}`
-       :(noInfo.length?`${noInfo.length} host(s) did not report scan info (plugin 19506)`:"all hosts authenticated"));
+   push(noCred.length===0&&noInfo.length===0,true,"Credentialed checks succeeded (per scan record)",
+     noCred.length?`${noCred.length} host(s) report credentialed checks failed or partial: ${noCred.slice(0,6).map(k=>S.hosts[k].name+(S.hosts[k].scan.authIssue?" ("+S.hosts[k].scan.authIssue+")":"")).join(", ")}`
+       +(noInfo.length?`; ${noInfo.length} more did not report scan info (plugin 19506)`:"")
+       :(noInfo.length?`${noInfo.length} host(s) did not report scan info (plugin 19506) — credential status unknown`:"all hosts authenticated"));
    const feeds=[...new Set(hkAll.map(k=>(S.hosts[k].scan||{}).feed).filter(Boolean))];
    const oldest=feeds.map(feedAgeDays).filter(x=>x!==null).sort((a,b)=>b-a)[0];
    if(oldest!==undefined) push(oldest<=30,true,"Plugin feed current (within 30 days)",
@@ -4915,7 +5261,7 @@ function readiness(staleDays){
      `${pols.length} different policies: ${pols.join(" | ")}`);
    const au=ingestAudit();
    push(au.conflicts.length===0,false,"Host association verified (no identity conflicts)",
-     au.conflicts.length?`${au.conflicts.length} asset(s) show conflicting MAC/OS across sources — see Scan Health, Ingest integrity`
+     au.conflicts.length?`${au.conflicts.length} identity conflict(s) (MAC / OS family / IP disagree across sources) — see Scan Health, Ingest integrity`
        :`${au.totalEntries} report entr${au.totalEntries===1?"y":"ies"} merged into ${au.assets} asset(s), identities consistent`);
  }
  if((S.trend||[]).length>=2){
@@ -4946,9 +5292,12 @@ function readiness(staleDays){
    push(false,true,"STIG compliance results loaded",
      "no SCC or checklist results — the matrix shows which STIGs apply but nothing shows whether they pass");
  }
- const overdueN=vulnInstances().filter(i=>i.overdue).length;
- if(overdueN||vulnInstances().length) push(overdueN===0,true,"No findings past remediation window",
-   overdueN?`${overdueN} finding instance(s) past the window set in Detection Config`:"all within window");
+ const vi=vulnInstances(), overdueN=vi.filter(i=>i.overdue).length;
+ /* an undated finding cannot be shown to be within the window; v2.8 counted it as "within" */
+ const undated=vi.filter(i=>i.age===null).length;
+ if(overdueN||vi.length) push(overdueN===0&&undated===0,true,"No findings past remediation window",
+   (overdueN?`${overdueN} finding instance(s) past the window set in Detection Config`:"none past the window")
+   +(undated?`; ${undated} instance(s) carry no patch/plugin publication date, so the window cannot be assessed for them`:overdueN?"":" (all dated)"));
  const vG=vulnGroups();
  if(vG.length){
    const crit=vG.filter(g=>g.sev===4).length;
@@ -5021,7 +5370,9 @@ function renderStats(){
  $("uncredPanel").style.display=uncred.length?"block":"none";
  $("uncredList").innerHTML=uncred.map(h=>hostLink(h.key,h.name+(h.ip?" ("+h.ip+")":""))).join("   ");
 }
-function card(n,l,warn){return `<div class="card${warn?" warn":""}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`;}
+/* escapes both halves: renderTrend fed it session-file values, and a <style> in a trend count
+   hid the warning banner and the status bar for the rest of the session */
+function card(n,l,warn){return `<div class="card${warn?" warn":""}"><div class="num">${esc(n)}</div><div class="lbl">${esc(l)}</div></div>`;}
 
 function renderPPSM(){
  const showEx=$("ppsmShowExcluded").checked;
@@ -5106,7 +5457,7 @@ function renderColumnManager(){
 }
 function setColumnActive(i,v){
  const c=S.config.catalog[i]; if(!c) return;
- c.active=v;
+ c.active=v; c.autoActive=false;   // the operator's choice, saved in profiles
  renderSTIG(); renderColumnManager(); renderReadiness();
  status(`${v?"Added":"Removed"} column: ${c.name}.`);
 }
@@ -5193,10 +5544,10 @@ function renderSoftware(){
    if(rep.ambiguous.length){
      h+=`<p style="margin-top:10px"><b style="color:var(--warn)">${rep.ambiguous.length} row(s) could not be folded automatically.</b> The product exists at more than one version in the enclave and these rows carry no version, so there is no safe way to attribute them. They are marked <code>[version not reported by scan]</code> &mdash; resolve by hand or exclude.</p>`;
      h+=`<div style="max-height:160px;overflow:auto;font-size:12px;color:var(--dim)">`+
-        rep.ambiguous.slice(0,40).map(a=>`<div class="mono">${esc(a.name)} &mdash; versions seen: ${esc(a.options)} (${a.hosts} host(s))</div>`).join("")+`</div>`;
+        rep.ambiguous.slice(0,40).map(a=>`<div class="mono">${esc(a.name)} &mdash; versions seen: ${esc(a.options)} (${esc(a.hosts)} host(s))</div>`).join("")+`</div>`;
    }
    $("consolBody").innerHTML=h;
- } else cp.style.display="none";
+ } else { cp.style.display="none"; $("consolBody").innerHTML=""; }   // hidden is not gone: clear it
  let html=`<tr><th>Inc</th><th>#</th><th style="min-width:120px">Approval</th><th style="min-width:110px">Approved By</th><th style="min-width:105px">Appr. Date</th><th style="min-width:115px">Appr. Ref</th><th style="min-width:60px" title="pin approval to this exact version">Pin</th><th style="min-width:90px">Support</th>${SW_COLS.map(c=>`<th style="min-width:${c[2]}px">${esc(c[1])}</th>`).join("")}<th title="scan = detected by the scanner; listing = from a HW/SW listing; both = corroborated">Src</th><th>Hosts</th></tr>`;
  let n=0, shown=0;
  for(const k of keys){
@@ -5308,6 +5659,8 @@ function renderDelta(){
  h+=sec("Software added",d.swAdded,x=>pill(x.name+(x.version?" "+x.version:"")+" ×"+x.hosts),"var(--warn)");
  h+=sec("Software removed",d.swRemoved,x=>pill(x.name+(x.version?" "+x.version:"")));
  h+=sec("Software host-count changed",d.swHostChange,x=>pill(`${x.name} ${x.version}: ${x.from}→${x.to}`));
+ h+=sec("Software gone from a host",d.swHostLost||[],x=>pill(`${x.host}: ${x.name}${x.version?" "+x.version:""}`));
+ h+=sec("Host identity changed",d.hostIdentity||[],x=>pill(`${x.host}: ${x.field} ${x.from} → ${x.to}`),"var(--bad)");
  h+=sec("Hosts added",d.hostsAdded,pill,"var(--warn)");
  h+=sec("Hosts no longer seen",d.hostsRemoved,pill,"var(--warn)");
  h+=sec("Ports newly observed",d.portsAdded,pill,"var(--warn)");
@@ -5405,6 +5758,8 @@ function exportDelta(){
  d.swAdded.forEach(x=>rows.push(["Software added",x.name+(x.version?" "+x.version:""),x.hosts+" host(s)"]));
  d.swRemoved.forEach(x=>rows.push(["Software removed",x.name+(x.version?" "+x.version:""),""]));
  d.swHostChange.forEach(x=>rows.push(["Software host count",x.name+" "+x.version,x.from+" -> "+x.to]));
+ (d.swHostLost||[]).forEach(x=>rows.push(["Software gone from host",x.name+(x.version?" "+x.version:""),x.host]));
+ (d.hostIdentity||[]).forEach(x=>rows.push(["Host identity changed",x.host,x.field+": "+x.from+" -> "+x.to]));
  d.hostsAdded.forEach(x=>rows.push(["Host added",x,""]));
  d.hostsRemoved.forEach(x=>rows.push(["Host no longer seen",x,""]));
  d.portsAdded.forEach(x=>rows.push(["Port newly observed",x,""]));
@@ -5481,18 +5836,25 @@ async function importApprovals(f){
          iB=ix("approved by"), iD=ix("approval date"), iR=ix("approval ref");
    if(iN<0||iS<0) throw new Error("sheet needs at least 'Software Name' and 'Approval Status' columns");
    // index current rows by name|version and by name
-   const byNV={}, byN={};
+   const byNV=dataMap(), byN=dataMap();
    for(const k of Object.keys(S.software)){
      const r=S.software[k];
      byNV[(r.name+"|"+r.version).toLowerCase()]=k;
      (byN[r.name.toLowerCase()]=byN[r.name.toLowerCase()]||[]).push(k);
    }
-   let applied=0, unmatched=[];
+   let applied=0, unmatched=[], badStatus=[];
    for(let i=hdr+1;i<rows.length;i++){
      const row=rows[i]; if(!row||!row[iN]||!row[iN].trim()) continue;
-     const nm=row[iN].trim(), vr=(iV>=0?row[iV]||"":"").trim();
+     /* the review sheet is written through csvq, so a name beginning = @ + - arrives back with
+        the visible neutralising apostrophe (and Excel keeps it on re-save): strip it to match */
+     const unq=v=>String(v||"").trim().replace(/^'(?=[=@+\-\t\r])/,"");
+     const nm=unq(row[iN]), vr=unq(iV>=0?row[iV]:"");
      const st=(row[iS]||"").trim();
      if(!st) continue;
+     const canon=APPROVAL_STATES.find(x=>x.toLowerCase()===st.toLowerCase());
+     /* only the four states the tool knows: "Authorized" used to be stored verbatim, shown as
+        "Not Reviewed" in the table, counted as decided by readiness, and exported as-is */
+     if(!canon){badStatus.push(nm+" ('"+oneLine(st,30)+"')");continue;}
      let keys=[];
      const exact=byNV[(nm+"|"+vr).toLowerCase()];
      if(exact) keys=[exact];
@@ -5500,8 +5862,7 @@ async function importApprovals(f){
      if(!keys.length){unmatched.push(nm+(vr?" "+vr:""));continue;}
      for(const k of keys){
        const r=S.software[k];
-       const canon=APPROVAL_STATES.find(x=>x.toLowerCase()===st.toLowerCase());
-       r.approval=canon||st;
+       r.approval=canon;
        if(iB>=0&&row[iB]) r.approvedBy=row[iB].trim();
        if(iD>=0&&row[iD]) r.approvalDate=row[iD].trim();
        if(iR>=0&&row[iR]) r.approvalRef=row[iR].trim();
@@ -5509,7 +5870,8 @@ async function importApprovals(f){
      }
    }
    renderSoftware(); renderDelta(); renderReadiness();
-   status(`Applied ${applied} approval decision(s).`+(unmatched.length?` ${unmatched.length} row(s) matched nothing: ${unmatched.slice(0,5).join(", ")}${unmatched.length>5?"…":""}`:""));
+   status(`Applied ${applied} approval decision(s).`+(unmatched.length?` ${unmatched.length} row(s) matched nothing: ${unmatched.slice(0,5).join(", ")}${unmatched.length>5?"…":""}`:"")
+     +(badStatus.length?` ${badStatus.length} row(s) NOT applied — status must be one of ${APPROVAL_STATES.join(" / ")}: ${badStatus.slice(0,5).join(", ")}${badStatus.length>5?"…":""}`:""));
  }catch(e){alert("Approval import failed: "+e.message);}
  $("apprIn").value="";
 }
@@ -5581,7 +5943,11 @@ function exportAll(){
  step.push(()=>{exportEmassSoftware();n++;});
  step.push(()=>{exportEmassHardware();n++;});
  step.push(()=>{saveSession();n++;});
- step.forEach((f,i)=>setTimeout(()=>{f();if(i===step.length-1)status(`Exported ${n} file(s), all stamped ${today()}.`);},i*350));
+ /* each step guarded: one throwing export used to vanish from the set while the status line
+    still reported success */
+ const failed=[];
+ step.forEach((f,i)=>setTimeout(()=>{try{f();}catch(e){failed.push(e.message);}
+   if(i===step.length-1) status(`Exported ${n} file(s), all stamped ${today()}.`+(failed.length?` ${failed.length} export(s) FAILED: ${failed.slice(0,3).join("; ")}`:""));},i*350));
 }
 
 function renderEol(){
@@ -5626,12 +5992,16 @@ const AUTH_FAIL_PATTERNS=[
  /not performed with admin privileges/i, /credentials? (?:provided )?(?:were |was )?(?:not|un)?\s*(?:valid|successful)/i,
  /ssh commands require privilege escalation/i, /insufficient privilege/i];
 function acctAuthFailure(pname){return AUTH_FAIL_PATTERNS.some(re=>re.test(pname||""))?pname:null;}
-function scanInfoIngest(h,text){
- const info=h.scan=h.scan||{};
+function parseScanInfo(text){
+ const info={};
  for(const raw of String(text).split("\n")){
-   const m=raw.match(/^\s*([A-Za-z][A-Za-z0-9 ()\/'-]{2,40})\s*:\s*(.+?)\s*$/);
+   /* line-length bound, and a greedy value capture trimmed afterwards: the lazy (.+?) against
+      \s*$ was quadratic on a long whitespace run (a 200 KB line hung ingest) */
+   if(raw.length>LIMITS.TEXT_LINE_CHARS) continue;
+   const m=raw.match(/^\s*([A-Za-z][A-Za-z0-9 ()\/'-]{2,40})\s*:(.*)$/);
    if(!m) continue;
    const k=m[1].trim().toLowerCase(), v=m[2].trim();
+   if(!v) continue;
    if(/^credentialed checks$/.test(k)) info.credChecks=v;
    else if(/^scan policy used$/.test(k)) info.policy=v;
    else if(/^plugin feed version$/.test(k)) info.feed=v;
@@ -5643,7 +6013,22 @@ function scanInfoIngest(h,text){
    else if(/^port range$/.test(k)) info.portRange=v;
    else if(/^thorough tests$/.test(k)) info.thorough=v;
  }
+ return info;
 }
+/* One host can arrive in several files. The credential verdict shown, exported and gated on is
+   the NEWEST scan's (by the scan's own start date), not whichever file was dropped last: a
+   newer scan whose credentials failed used to be overridden by an older one that succeeded. */
+function mergeScanRecord(h,rec){
+ const t=s=>{const d=s&&s.start?Date.parse(String(s.start).replace(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/,"$1-$2-$3")):NaN;
+   return isNaN(d)?(s&&s.start?Date.parse(s.start):NaN):d;};
+ const old=h.scan;
+ if(!old||!Object.keys(old).length){h.scan=rec;return;}
+ const tn=t(rec), to=t(old);
+ if(!isNaN(tn)&&!isNaN(to)&&tn<to) return;                 // older than what we hold: keep ours
+ if(rec.credChecks) h.scan=rec;                            // a complete record replaces the old one
+ else Object.assign(old,rec);                              // a bare auth-failure note joins it
+}
+function scanInfoIngest(h,text){ mergeScanRecord(h,parseScanInfo(text)); }
 function scanCredOk(h){
  const c=(h.scan&&h.scan.credChecks)||"";
  return /^yes/i.test(c);
@@ -5672,7 +6057,12 @@ function elsByLocal(root,name){
  }
  return out;
 }
-function firstByLocal(root,name){const a=elsByLocal(root,name);return a.length?a[0]:null;}
+function firstByLocal(root,name){
+ const want=name.toLowerCase(), all=root.getElementsByTagName("*");
+ for(let i=0;i<all.length;i++){const n=all[i];
+   if((n.localName||n.nodeName||"").replace(/^.*:/,"").toLowerCase()===want) return n;}
+ return null;
+}
 function txtLocal(root,name){const e=firstByLocal(root,name);return e?e.textContent.trim():"";}
 
 const STIG_RESULT_STATES=["Open","NotAFinding","Not_Applicable","Not_Reviewed"];
@@ -5704,93 +6094,134 @@ function normSeverity(sv){
  if(/^(low|cat iii|catiii|iii)$/.test(v)) return "low";
  return "medium";
 }
-function vidFrom(str){const m=String(str||"").match(/\bV-\d{4,7}\b/i);return m?m[0].toUpperCase():"";}
+/* "_" is a word character, so \b never matched the V-/SV- numbers inside DISA ids such as
+   xccdf_mil.disa.stig_group_V-220697 or ..._rule_SV-220697r1_rule */
+function vidFrom(str){const m=String(str||"").match(/(?<![A-Za-z0-9])V-\d{4,7}(?![A-Za-z0-9])/i);return m?m[0].toUpperCase():"";}
 function stigKeyOf(title,version,release){
  return (String(title||"unknown STIG").trim()+"|"+(version||"")+(release?"r"+release:"")).slice(0,180);
 }
 function ensureStigResult(hostKey,key,meta){
- S.stigResults=S.stigResults||{};
- const perHost=S.stigResults[hostKey]||(S.stigResults[hostKey]={});
- if(!perHost[key]) perHost[key]=Object.assign({title:"",version:"",release:"",source:"",when:"",
+ S.stigResults=S.stigResults||dataMap();
+ const perHost=ownKey(S.stigResults,hostKey)?S.stigResults[hostKey]:(S.stigResults[hostKey]=dataMap());
+ if(!ownKey(perHost,key)) perHost[key]=Object.assign({title:"",version:"",release:"",source:"",when:"",
    benchmarkId:"",rules:[]},meta||{});
  else Object.keys(meta||{}).forEach(k=>{if(meta[k]&&!perHost[key][k])perHost[key][k]=meta[k];});
  return perHost[key];
 }
 
+/* One rule, one identity, whichever tool reported it. XCCDF reports
+   "xccdf_mil.disa.stig_rule_SV-220697r991589_rule", a checklist "SV-220697r991589_rule" with
+   V-220697: v2.8 deduped them on different strings, so SCC output plus the checklist built from
+   it counted every automated rule twice and a closed finding stayed open in the POA&M. */
+function ruleKeyOf(r){
+ const stem=String(r.ruleId||"").replace(/^.*?_rule_(?=SV-)/i,"");
+ return /^SV-\d/i.test(stem)?stem.toUpperCase():(String(r.vid||"").toUpperCase()+"|"+String(r.ruleId||""));
+}
+/* Re-ingesting a rule: a checklist result (the human decision) is not overridden by SCC;
+   otherwise the newer result wins (by the result's own date; undated means "as loaded").
+   v2.8 kept the first result ever seen, so a re-run showing a regression changed nothing. */
+function mergeRule(rec,r){
+ const k=ruleKeyOf(r), i=rec.rules.findIndex(x=>ruleKeyOf(x)===k);
+ if(i<0){rec.rules.push(r); return "added";}
+ const old=rec.rules[i];
+ if(old.src==="ckl"&&r.src==="scc") return "kept";
+ if(old.when&&r.when&&r.when<old.when&&old.src===r.src) return "kept";
+ rec.rules[i]=r; return old.status===r.status?"kept":"updated";
+}
 /* ---- SCC / XCCDF results ---- */
 function looksLikeXccdf(text){
  return /<[\w:]*TestResult\b/i.test(text)||(/<[\w:]*Benchmark\b/i.test(text)&&/<[\w:]*rule-result\b/i.test(text));
 }
-function parseXccdfResults(text,fileName){
+function parseXccdfResults(text,fileName,warns){
  const doc=parseXmlStrict(text,"XCCDF results");
  // rule metadata from the embedded Benchmark, when present
- const ruleMeta={};
+ const ruleMeta=dataMap();
  elsByLocal(doc,"Rule").forEach(r=>{
    const id=r.getAttribute("id")||"";
    if(!id) return;
    const ccis=elsByLocal(r,"ident").filter(i=>/cci/i.test(i.getAttribute("system")||"")||/^CCI-/i.test(i.textContent))
      .map(i=>i.textContent.trim()).filter(Boolean);
-   const vidIdent=elsByLocal(r,"ident").map(i=>vidFrom(i.textContent)).find(Boolean);
+   /* the current V-ID lives on the enclosing Group; idents from the cyber.mil/legacy system
+      carry the pre-2020 number, and v2.8 exported that instead (splitting one POA&M weakness in two) */
+   const grp=r.parentNode&&/^group$/i.test(String(r.parentNode.localName||"").replace(/^.*:/,""))?r.parentNode:null;
+   const vidIdent=elsByLocal(r,"ident").filter(i=>!/legacy/i.test(i.getAttribute("system")||"")).map(i=>vidFrom(i.textContent)).find(Boolean);
+   const sv=String(id).match(/(?<![A-Za-z0-9])SV-(\d{4,7})/i);
    ruleMeta[id]={title:txtLocal(r,"title"),
      stigId:txtLocal(r,"version"),
      severity:normSeverity(r.getAttribute("severity")),
-     ccis, vid:vidIdent||vidFrom(id)};
+     ccis, vid:(grp&&vidFrom(grp.getAttribute("id")))||vidIdent||vidFrom(id)||(sv?"V-"+sv[1]:"")};
  });
  const results=elsByLocal(doc,"TestResult");
  if(!results.length) throw new Error("no XCCDF TestResult element found");
  let added=0;
- results.forEach(tr=>{
-   const bmEl=tr.parentNode&&/benchmark/i.test((tr.parentNode.localName||tr.parentNode.nodeName||"") .replace(/^.*:/,""))?tr.parentNode:doc;
-   const benchTitle=txtLocal(bmEl,"title")||txtLocal(tr,"title")||"Unknown STIG";
-   const benchId=(bmEl.getAttribute&&bmEl.getAttribute("id"))||"";
-   let version=txtLocal(bmEl,"version")||"";
-   let release="";
+ /* Benchmark title/version/release computed once per Benchmark, not once per TestResult:
+    K TestResults x 3 full traversals hung the tab on a 0.5 MB crafted file. */
+ const benchMeta=new Map();
+ const metaOf=bmEl=>{ if(benchMeta.has(bmEl)) return benchMeta.get(bmEl);
+   let version=txtLocal(bmEl,"version")||"", release="";
    elsByLocal(bmEl,"plain-text").forEach(p=>{
      const m=p.textContent.match(/Release:\s*([\d.]+)/i); if(m) release=m[1];
      const v=p.textContent.match(/Version\s*([\d.]+)/i); if(v&&!version) version=v[1];
    });
+   const o={title:txtLocal(bmEl,"title"),version,release,id:(bmEl.getAttribute&&bmEl.getAttribute("id"))||""};
+   benchMeta.set(bmEl,o); return o; };
+ results.forEach(tr=>{
+   const bmEl=tr.parentNode&&/benchmark/i.test((tr.parentNode.localName||tr.parentNode.nodeName||"") .replace(/^.*:/,""))?tr.parentNode:doc;
+   const bm=metaOf(bmEl);
+   const benchTitle=bm.title||txtLocal(tr,"title")||"Unknown STIG";
+   const benchId=bm.id, version=bm.version, release=bm.release;
    const host=txtLocal(tr,"target")||"";
    const ip=(elsByLocal(tr,"target-address").map(e=>e.textContent.trim())
      .find(a=>/^\d{1,3}(\.\d{1,3}){3}$/.test(a)&&a!=="127.0.0.1"))||"";
-   const hostKey=hostKeyFrom(host,ip);
+   const hostKey=resultHostKey(host,ip,fileName,warns);
    const h=getHost(hostKey);
-   if(ip&&!h.ip) h.ip=ip;
+   if(ip&&!h.ip){h.ip=ip; h.ipFrom="checklist";}
    if(!h.name||h.name===h.key) h.name=hostKey;
    const key=stigKeyOf(benchTitle,version,release);
+   const when=(tr.getAttribute("end-time")||tr.getAttribute("start-time")||"").slice(0,19);
    const rec=ensureStigResult(hostKey,key,{title:benchTitle,version,release,benchmarkId:benchId,
-     source:"SCC / XCCDF"+(fileName?" ("+fileName+")":""),when:(tr.getAttribute("end-time")||tr.getAttribute("start-time")||"").slice(0,10)});
-   const seen=new Set(rec.rules.map(r=>r.ruleId));
+     source:"SCC / XCCDF"+(fileName?" ("+fileName+")":""),when:when.slice(0,10)});
+   if(when.slice(0,10)>(rec.when||"")) rec.when=when.slice(0,10);
    elsByLocal(tr,"rule-result").forEach(rr=>{
      const idref=rr.getAttribute("idref")||"";
-     if(seen.has(idref)) return;
-     const meta=ruleMeta[idref]||{};
+     const meta=ownKey(ruleMeta,idref)?ruleMeta[idref]:{};
      const ccis=(meta.ccis&&meta.ccis.length)?meta.ccis
        :elsByLocal(rr,"ident").filter(i=>/^CCI-/i.test(i.textContent)).map(i=>i.textContent.trim());
-     rec.rules.push({ruleId:idref, vid:meta.vid||vidFrom(idref),
+     const sv=idref.match(/(?<![A-Za-z0-9])SV-(\d{4,7})/i);
+     const r={ruleId:idref, vid:meta.vid||vidFrom(idref)||(sv?"V-"+sv[1]:""),
        stigId:meta.stigId||"", title:meta.title||"",
        severity:normSeverity(rr.getAttribute("severity")||meta.severity),
-       status:normXccdfResult(txtLocal(rr,"result")), ccis:ccis||[], details:"", comments:""});
-     added++;
+       status:normXccdfResult(txtLocal(rr,"result")), ccis:ccis||[], details:"", comments:"", src:"scc", when};
+     if(mergeRule(rec,r)!=="kept") added++;
    });
  });
  return added;
 }
+/* A result file with no host name and no IP used to key to the shared "UNKNOWN" host, where the
+   second file's rules were dropped as duplicates of the first (an Open CAT I disappeared,
+   depending on drop order). Each such file now gets its own placeholder, and a warning. */
+function resultHostKey(name,ip,fileName,warns){
+ if(String(name||"").trim()||String(ip||"").trim()) return hostKeyFrom(name,ip);
+ const k="UNIDENTIFIED-"+String(fileName||"RESULT").toUpperCase().replace(/[^A-Z0-9_-]+/g,"_").slice(0,48);
+ if(warns) warns.push((fileName||"result file")+": no host name or IP in the file — results kept under "+k+"; set the asset identity in STIG Viewer and re-load");
+ return k;
+}
 
 /* ---- STIG Viewer checklist (.ckl, XML) ---- */
 function looksLikeCkl(text){return /<CHECKLIST\b/i.test(text)&&/<VULN\b/i.test(text);}
-function parseCkl(text,fileName){
+function parseCkl(text,fileName,warns){
  const doc=parseXmlStrict(text,"checklist");
  const asset=firstByLocal(doc,"ASSET");
  const hostName=asset?txtLocal(asset,"HOST_NAME"):"";
  const hostIp=asset?txtLocal(asset,"HOST_IP"):"";
- const hostKey=hostKeyFrom(hostName,hostIp);
+ const hostKey=resultHostKey(hostName,hostIp,fileName,warns);
  const h=getHost(hostKey);
- if(hostIp&&!h.ip) h.ip=hostIp;
+ if(hostIp&&!h.ip){h.ip=hostIp; h.ipFrom="checklist";}
  if(asset){const mac=txtLocal(asset,"HOST_MAC"); if(mac&&!h.mac)h.mac=mac;}
  if(!h.name||h.name===h.key) h.name=hostKey;
  let added=0;
  elsByLocal(doc,"iSTIG").forEach(ist=>{
-   const si={};
+   const si=dataMap();
    elsByLocal(ist,"SI_DATA").forEach(d=>{
      const k=txtLocal(d,"SID_NAME").toLowerCase(), v=txtLocal(d,"SID_DATA");
      if(k) si[k]=v;
@@ -5802,9 +6233,8 @@ function parseCkl(text,fileName){
    const rec=ensureStigResult(hostKey,key,{title,version,release,
      source:"STIG Viewer checklist"+(fileName?" ("+fileName+")":""),
      when:((si["releaseinfo"]||"").match(/\d{1,2}\s+\w+\s+\d{4}/)||[""])[0]});
-   const seen=new Set(rec.rules.map(r=>r.vid+"|"+r.ruleId));
    elsByLocal(ist,"VULN").forEach(v=>{
-     const d={};
+     const d=dataMap();
      elsByLocal(v,"STIG_DATA").forEach(sd=>{
        const k=txtLocal(sd,"VULN_ATTRIBUTE").toLowerCase(); const val=txtLocal(sd,"ATTRIBUTE_DATA");
        if(!k) return;
@@ -5812,14 +6242,12 @@ function parseCkl(text,fileName){
      });
      const vid=(d["vuln_num"]||"").toUpperCase();
      const ruleId=d["rule_id"]||"";
-     const kk=vid+"|"+ruleId;
-     if(seen.has(kk)) return; seen.add(kk);
-     rec.rules.push({ruleId, vid, stigId:d["rule_ver"]||"", title:d["rule_title"]||"",
+     const r={ruleId, vid, stigId:d["rule_ver"]||"", title:d["rule_title"]||"",
        severity:normSeverity(d["severity"]),
        status:normCklStatus(txtLocal(v,"STATUS")),
        ccis:d.ccis||[], details:txtLocal(v,"FINDING_DETAILS").slice(0,600),
-       comments:txtLocal(v,"COMMENTS").slice(0,600)});
-     added++;
+       comments:txtLocal(v,"COMMENTS").slice(0,600), src:"ckl", when:""};
+     if(mergeRule(rec,r)!=="kept") added++;
    });
  });
  return added;
@@ -5829,44 +6257,47 @@ function parseCkl(text,fileName){
 function looksLikeCklb(text){
  try{const o=safeParse(text);return !!(o&&Array.isArray(o.stigs));}catch(e){return false;}
 }
-function parseCklb(text,fileName){
+function parseCklb(text,fileName,warns){
  const o=safeParse(text);
- const ta=o.target_data||{};
- const hostKey=hostKeyFrom(ta.host_name||o.title||"",ta.ip_address||"");
+ const ta=(o.target_data&&typeof o.target_data==="object")?o.target_data:{};
+ const hostKey=resultHostKey(String(ta.host_name||o.title||""),String(ta.ip_address||""),fileName,warns);
  const h=getHost(hostKey);
- if(ta.ip_address&&!h.ip) h.ip=ta.ip_address;
+ if(ta.ip_address&&!h.ip){h.ip=String(ta.ip_address); h.ipFrom="checklist";}
  if(ta.mac_address&&!h.mac) h.mac=ta.mac_address;
  if(!h.name||h.name===h.key) h.name=hostKey;
  let added=0;
- (o.stigs||[]).forEach(st=>{
+ /* malformed entries are skipped and counted rather than throwing mid-file (which left the
+    rules parsed so far in the dataset under a "parse error" that said nothing was loaded) */
+ let bad=0;
+ (Array.isArray(o.stigs)?o.stigs:[]).forEach(st=>{
+   if(!st||typeof st!=="object"){bad++;return;}
    let release=""; const rm=String(st.release_info||"").match(/Release:\s*([\d.]+)/i); if(rm) release=rm[1];
    const key=stigKeyOf(st.display_name||st.stig_name||"Unknown STIG",st.version||"",release);
    const rec=ensureStigResult(hostKey,key,{title:st.display_name||st.stig_name||"Unknown STIG",
      version:String(st.version||""),release,
      source:"STIG Viewer checklist (cklb)"+(fileName?" ("+fileName+")":"")});
-   const seen=new Set(rec.rules.map(r=>r.vid+"|"+r.ruleId));
-   (st.rules||[]).forEach(r=>{
+   (Array.isArray(st.rules)?st.rules:[]).forEach(r=>{
+     if(!r||typeof r!=="object"){bad++;return;}
      const vid=String(r.group_id||r.group_id_src||"").toUpperCase();
-     const kk=vid+"|"+(r.rule_id||"");
-     if(seen.has(kk)) return; seen.add(kk);
-     rec.rules.push({ruleId:r.rule_id||"", vid:vidFrom(vid)||vid, stigId:r.rule_version||"",
-       title:r.rule_title||"", severity:normSeverity(r.severity),
+     const nr={ruleId:String(r.rule_id||""), vid:vidFrom(vid)||vid, stigId:String(r.rule_version||""),
+       title:String(r.rule_title||""), severity:normSeverity(r.severity),
        status:normCklStatus(r.status),
-       ccis:Array.isArray(r.ccis)?r.ccis:[],
+       ccis:Array.isArray(r.ccis)?r.ccis.map(String):[],
        details:String(r.finding_details||"").slice(0,600),
-       comments:String(r.comments||"").slice(0,600)});
-     added++;
+       comments:String(r.comments||"").slice(0,600), src:"ckl", when:""};
+     if(mergeRule(rec,nr)!=="kept") added++;
    });
  });
+ if(bad&&warns) warns.push((fileName||"cklb")+": "+bad+" malformed STIG or rule entr"+(bad===1?"y was":"ies were")+" skipped");
  return added;
 }
 
 /* ---- format dispatch ---- */
 function ingestStigResultText(text,fileName,warns){
  if(text==null) return 0;
- if(looksLikeXccdf(text)) return parseXccdfResults(text,fileName);
- if(looksLikeCkl(text))   return parseCkl(text,fileName);
- if(looksLikeCklb(text))  return parseCklb(text,fileName);
+ if(looksLikeXccdf(text)) return parseXccdfResults(text,fileName,warns);
+ if(looksLikeCkl(text))   return parseCkl(text,fileName,warns);
+ if(looksLikeCklb(text))  return parseCklb(text,fileName,warns);
  if(warns) warns.push((fileName||"file")+": not a recognized XCCDF result, .ckl, or .cklb");
  return 0;
 }
@@ -5905,9 +6336,21 @@ function normStigName(n){
    .replace(/\b(microsoft|ms)\b/g," ")
    .replace(/[^a-z0-9]+/g," ").trim();
 }
+/* Token containment, never raw substrings: a result titled "Benchmark" or "Microsoft STIG"
+   normalises to "", and "".includes was true for every column -- one bogus 1-rule file per
+   host marked every applicable STIG assessed and turned the coverage check green. A result
+   covers a column when it names every token of the column (or, for a shorter result title,
+   at least two of the column's tokens and nothing else). */
+function stigTitleCovers(have,want){
+ const H=have.split(" ").filter(Boolean), W=want.split(" ").filter(Boolean);
+ if(!H.length||!W.length) return false;
+ const hs=new Set(H), ws=new Set(W);
+ if(W.every(t=>hs.has(t))) return true;
+ return H.length>=2&&H.every(t=>ws.has(t));
+}
 function stigCoverage(){
  const rows=stigResultRows();
- const assessedByHost={};
+ const assessedByHost=dataMap();
  rows.forEach(r=>{(assessedByHost[r.hk]=assessedByHost[r.hk]||[]).push(r);});
  const gaps=[], covered=[], extra=[];
  const cols=activeCols();
@@ -5916,14 +6359,13 @@ function stigCoverage(){
    const got=assessedByHost[hk]||[];
    applicable.forEach(c=>{
      const want=normStigName(c.name);
-     const hit=got.find(g=>{const have=normStigName(g.rec.title);
-       return have.includes(want)||want.includes(have);});
+     const hit=got.find(g=>stigTitleCovers(normStigName(g.rec.title),want));
      if(hit) covered.push({hk,host:S.hosts[hk].name,stig:c.name,result:hit});
      else gaps.push({hk,host:S.hosts[hk].name,stig:c.name});
    });
    got.forEach(g=>{
      const have=normStigName(g.rec.title);
-     if(!applicable.some(c=>{const want=normStigName(c.name);return have.includes(want)||want.includes(have);}))
+     if(!applicable.some(c=>stigTitleCovers(have,normStigName(c.name))))
        extra.push({hk,host:S.hosts[hk].name,title:g.rec.title,result:g});
    });
  }
@@ -5933,7 +6375,8 @@ function stigCoverage(){
 let scView="summary";   // summary | rules | coverage
 function setScView(v){scView=v;renderStigCompliance();}
 function catPill(sv){return `<span class="pill" style="color:${CAT_COLOR[sv]};border-color:${CAT_COLOR[sv]};font-weight:700">${CAT_LABEL[sv]}</span>`;}
-function statusPill(st){return `<span class="pill" style="color:${STIG_RESULT_COLOR[st]};border-color:${STIG_RESULT_COLOR[st]}">${STIG_RESULT_LABEL[st]||st}</span>`;}
+function statusPill(st){const c=ownKey(STIG_RESULT_COLOR,st)?STIG_RESULT_COLOR[st]:"var(--dim)";
+ return `<span class="pill" style="color:${c};border-color:${c}">${esc(ownKey(STIG_RESULT_LABEL,st)?STIG_RESULT_LABEL[st]:st)}</span>`;}
 function renderStigCompliance(){
  if(!$("scBody")) return;
  $("scCtrl").textContent=ctrlHeader("stigcompliance");
@@ -6052,7 +6495,7 @@ function exportStigOpenFindings(){
 /* Open findings grouped by rule across hosts -- the POA&M shape, since a POA&M line item
    is a weakness, not one row per host. */
 function exportStigPoam(){
- const g={};
+ const g=dataMap();
  stigOpenFindings().forEach(o=>{
    const k=o.rule.vid||o.rule.ruleId||o.rule.title;
    const t=g[k]||(g[k]={vid:o.rule.vid,stigId:o.rule.stigId,title:o.rule.title,
@@ -6111,7 +6554,7 @@ function hostDossier(hk){
  const sw=Object.keys(S.software).filter(k=>S.software[k].hosts.includes(h.name)).map(k=>S.software[k]);
  const eol=sw.map(r=>({r,e:eolFor(r.name,r.version)})).filter(x=>x.e&&x.e.state==="expired");
  const ports=Object.keys(h.ports||{}).map(k=>h.ports[k])
-   .sort((a,b)=>a.proto.localeCompare(b.proto)||a.port-b.port);
+   .sort((a,b)=>String(a.proto).localeCompare(String(b.proto))||a.port-b.port);
  const applicable=activeCols().filter(col=>stigMark(hk,col.name).on).map(col=>col.name);
  return {h,hk,inst,c,stig,accts,asset,sw,eol,ports,applicable};
 }
@@ -6195,12 +6638,14 @@ function openHostDetail(hk){
  b+=`<div class="help-h">Listening ports (${d.ports.length})</div>`;
  b+=d.ports.length
    ?`<div style="font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.9">`
-     +d.ports.map(p=>`<span class="pill" style="margin:2px">${p.proto.toUpperCase()}/${p.port}${p.svc?" "+esc(p.svc):""}</span>`).join("")+`</div>`
+     /* was the third, unescaped consumer of the host-reported protocol attribute: one click on
+        a host name inserted markup and a page-wide <style> (or a <meta refresh>) into the app */
+     +d.ports.map(p=>`<span class="pill" style="margin:2px">${esc(String(p.proto).toUpperCase())}/${esc(p.port)}${p.svc?" "+esc(p.svc):""}</span>`).join("")+`</div>`
    :`<p style="color:var(--dim);font-size:12.5px;margin:4px 0">None observed.</p>`;
  $("hostDrawerBody").innerHTML=b;
  $("hostDrawer").classList.add("open"); $("hostBackdrop").classList.add("show");
 }
-function closeHostDetail(){$("hostDrawer").classList.remove("open");$("hostBackdrop").classList.remove("show");}
+function closeHostDetail(){$("hostDrawer").classList.remove("open");$("hostBackdrop").classList.remove("show");$("hostDrawerBody").innerHTML="";}
 function exportHostReport(hk){
  const d=hostDossier(hk); if(!d){alert("No data for that asset.");return;}
  const h=d.h, sc=h.scan||{};
@@ -6257,7 +6702,7 @@ function osFamily(os){
  return "other";
 }
 function ingestAudit(){
- const conflicts=[], byIp={};
+ const conflicts=[], byIp=dataMap();
  let totalEntries=0;
  for(const hk of Object.keys(S.hosts)){
    const h=S.hosts[hk], src=h.src||[];
@@ -6273,6 +6718,14 @@ function ingestAudit(){
        detail:"Sources report different operating-system families ("+fams.join(" / ")+") under one host key — evidence from two machines is interleaved on this asset.",
        srcs:src});
    const ips=[...new Set(src.map(x=>x.ip).filter(Boolean))];
+   /* The panel text has always said IP is compared; v2.8 only checked MAC and OS family, so a
+      hostile host claiming a victim's NetBIOS name (and copying its MAC and OS banner) merged
+      into the victim's record -- its IP, ports, findings and account flags -- with "identities
+      consistent". Two addresses under one key is DHCP churn or two machines: a human call. */
+   if(ips.length>1)
+     conflicts.push({hk,host:h.name,kind:"IP mismatch",
+       detail:"Sources report different IP addresses ("+ips.join(" / ")+") under one host key — DHCP churn, or two machines sharing the short name merged into one asset. Confirm before trusting its evidence.",
+       srcs:src});
    ips.forEach(ip=>{(byIp[ip]=byIp[ip]||new Set()).add(hk);});
    if(h.ip)(byIp[h.ip]=byIp[h.ip]||new Set()).add(hk);
  }
@@ -6299,7 +6752,7 @@ function renderScanHealth(){
    card(hks.length-credOk.length,"not credentialed",hks.length-credOk.length>0)+
    card(authIssues.length,"auth failures reported",authIssues.length>0)+
    card(policies.length,"scan policies",policies.length>1)+
-   (oldestFeed!==null?card(oldestFeed+"d","oldest plugin feed",oldestFeed>30):"");
+   (oldestFeed!==undefined&&oldestFeed!==null?card(oldestFeed+"d","oldest plugin feed",oldestFeed>30):"");
  let h="";
  const au=ingestAudit();
  h+='<div class="panel"><h2 style="color:'+((au.conflicts.length||au.ipShared.length)?"var(--bad)":"var(--accent2)")+'">Ingest integrity</h2>'
@@ -6379,7 +6832,7 @@ function emptyCounts(){return {4:0,3:0,2:0,1:0,total:0,overdue:0,expl:0};}
 function tallyInto(c,i){c[i.sev]++;c.total++;if(i.overdue)c.overdue++;if(i.expl)c.expl++;}
 /* Per-host rollup -- SecurityCenter's IP Summary. */
 function vulnByHost(){
- const m={};
+ const m=dataMap();
  vulnInstances().forEach(i=>{
    const t=m[i.hk]||(m[i.hk]={host:i.host,hk:i.hk,ip:i.ip,os:i.os,c:emptyCounts()});
    tallyInto(t.c,i);
@@ -6391,7 +6844,7 @@ function vulnByHost(){
  return Object.values(m).sort((a,b)=>b.c[4]-a.c[4]||b.c[3]-a.c[3]||b.c.total-a.c.total||a.host.localeCompare(b.host));
 }
 function vulnByKey(keyFn){
- const m={};
+ const m=dataMap();
  vulnInstances().forEach(i=>{
    keyFn(i).forEach(k=>{
      const t=m[k]||(m[k]={key:k,c:emptyCounts(),hosts:new Set()});
@@ -6403,7 +6856,9 @@ function vulnByKey(keyFn){
 }
 function vulnByPort(){return vulnByKey(i=>i.ports);}
 function vulnByFamily(){return vulnByKey(i=>[i.family]);}
-function vulnBySubnet(){return vulnByKey(i=>[i.ip?i.ip.split(".").slice(0,3).join(".")+".0/24":"no IP"]);}
+/* only a dotted quad has a /24; an IPv6 address or a hostname in the IP column used to be
+   labelled "2001:db8::10.0/24" */
+function vulnBySubnet(){return vulnByKey(i=>[!i.ip?"no IP":/^\d{1,3}(\.\d{1,3}){3}$/.test(i.ip)?i.ip.split(".").slice(0,3).join(".")+".0/24":/:/.test(i.ip)?"IPv6":"not an IPv4 address"]);}
 /* =========================================================================
    Remediation grouping -- from "50 findings" to "one upgrade".
    A scan reports every Chrome CVE bundle as its own row, so a browser three
@@ -6470,7 +6925,8 @@ function advisoryIn(s){
    advisory/date parentheticals, arch suffixes, and the stock phrases every
    scanner appends ("Multiple Vulnerabilities", "- security update"). */
 function cleanProductName(s){
- let t=String(s||"").replace(/\s+/g," ").trim();
+ // bounded first: the trailing-class strips below are quadratic on a 150 KB plugin name
+ let t=String(s||"").slice(0,LIMITS.TEXT_LINE_CHARS).replace(/\s+/g," ").trim();
  t=t.replace(/\s*\([^()]*\)\s*$/,"");
  t=t.replace(/\s*[-\u2013\u2014:]\s*(?:security|bugfix|enhancement)\s+update.*$/i,"");
  t=t.replace(/\b(?:multiple\s+)?vulnerabilit(?:y|ies)\b.*$/i,"");
@@ -6485,14 +6941,23 @@ function cleanProductName(s){
    segment is not a plain integer ("8u411", "115.12esr"). Used ONLY to pick the
    highest fix target to recommend within one product -- never to decide whether
    a given host is vulnerable, which stays the scanner's call. */
+/* Segments split further into digit runs and letter runs, digit runs compared as numbers.
+   Comparing "8u411"/"8u45" or "9.10p1"/"9.8p1" as whole strings ordered them lexically, so a
+   merged "Upgrade X to T or later" named a target LOWER than one of the findings it closes. */
 function cmpVersion(a,b){
- const pa=String(a||"").split(/[^0-9A-Za-z]+/).filter(Boolean);
- const pb=String(b||"").split(/[^0-9A-Za-z]+/).filter(Boolean);
+ const tok=s=>String(s||"").split(/[^0-9A-Za-z]+/).filter(Boolean).flatMap(seg=>seg.match(/\d+|[A-Za-z]+/g)||[]);
+ const pa=tok(a), pb=tok(b);
+ const num=x=>/^\d/.test(x);
  for(let i=0;i<Math.max(pa.length,pb.length);i++){
-   const x=pa[i]||"", y=pb[i]||"";
-   const nx=parseInt(x,10), ny=parseInt(y,10);
-   if(String(nx)===x&&String(ny)===y){ if(nx!==ny) return nx<ny?-1:1; }
-   else if(x!==y) return x<y?-1:1;
+   const x=pa[i], y=pb[i];
+   if(x===undefined) return -1;
+   if(y===undefined) return 1;
+   if(num(x)&&num(y)){
+     const X=x.replace(/^0+(?=\d)/,""), Y=y.replace(/^0+(?=\d)/,"");
+     if(X.length!==Y.length) return X.length<Y.length?-1:1;
+     if(X!==Y) return X<Y?-1:1;
+   } else if(num(x)!==num(y)) return num(x)?1:-1;          // 1.1 > 1.a
+   else if(x!==y) return x.toLowerCase()<y.toLowerCase()?-1:x.toLowerCase()>y.toLowerCase()?1:(x<y?-1:1);
  }
  return 0;
 }
@@ -6515,7 +6980,7 @@ function canonProduct(name){
 const _remedyCache=new Map();
 function remedyOf(f){
  let name="",sol="";
- try{ name=String((f&&f.name)||""); sol=String((f&&f.solution)||"").slice(0,400); }
+ try{ name=String((f&&f.name)||"").slice(0,LIMITS.TEXT_LINE_CHARS); sol=String((f&&f.solution)||"").slice(0,400); }
  catch(e){ return UNPARSEABLE; }
  const ck=name+"\u0000"+sol;
  const hit=_remedyCache.get(ck);
@@ -6531,8 +6996,8 @@ const UNPARSEABLE={product:"Unidentified finding",productRaw:"",fixKey:"plugin:"
 function parseRemedy(rawName,rawSolution,rawFamily){
  let name="";
  try{
-   name=String(rawName||"").replace(/\s+/g," ").trim();
-   const sol=String(rawSolution||"").replace(/\s+/g," ").trim();
+   name=String(rawName||"").slice(0,LIMITS.TEXT_LINE_CHARS).replace(/\s+/g," ").trim();
+   const sol=String(rawSolution||"").slice(0,400).replace(/\s+/g," ").trim();
    const fam=String(rawFamily||"");
    if(!name&&!sol) return UNPARSEABLE;
    const mk=(product,fixKey,fixLabel,kind,extra)=>Object.assign({
@@ -6552,15 +7017,20 @@ function parseRemedy(rawName,rawSolution,rawFamily){
             `Update package ${pkg}${more} on ${seg[0]}`,"package",{confidence:"medium"});
    }
 
-   let kb=(name.match(KB_RE)||[])[0];
+   let kb=(name.match(KB_RE)||[])[0], kbFromSolution=false;
    if(!kb){
      const all=[...new Set((sol.match(KB_ALL_RE)||[]).map(s=>s.toUpperCase().replace(/\s+/g,"")))];
-     if(all.length===1) kb=all[0];
+     if(all.length===1){kb=all[0]; kbFromSolution=true;}
    }
    if(kb){
      kb=kb.toUpperCase().replace(/\s+/g,"");
      const rest=cleanProductName(name.replace(KB_RE,"").replace(/^\s*[:\-\u2013\u2014]\s*/,""))||"Microsoft product";
-     return mk(rest,"kb:"+kb,`Install ${kb} — ${rest}`,"kb",{advisory:kb});
+     /* A KB named only in the solution text is often a reference ("see KBnnn for the registry
+        keys"), not the patch: keyed with the product so two unrelated findings cannot collapse
+        into one "Install KB" action (that hid a Critical RCE under a Medium config check). */
+     return kbFromSolution
+       ? mk(rest,"kb:"+kb+"|"+rest.toLowerCase(),`Install ${kb} — ${rest}`,"kb",{advisory:kb,confidence:"medium"})
+       : mk(rest,"kb:"+kb,`Install ${kb} — ${rest}`,"kb",{advisory:kb});
    }
 
    const vt=name.match(VER_THRESHOLD_RE);
@@ -6693,7 +7163,7 @@ function sevCells(c){
   +`<td class="mono" style="text-align:center;font-weight:700">${c.total||"·"}</td>`;
 }
 function vulnGroups(){
- const g={};
+ const g=dataMap();
  for(const hk in S.hosts){const h=S.hosts[hk];
    for(const pid in (h.findings||{})){const f=h.findings[pid];
      if(!(f.sev>0)) continue;
@@ -6872,7 +7342,7 @@ function renderVulns(){
    html+='</table></div>';
 
  } else {  // plugin summary (default)
-   const g={};
+   const g=dataMap();
    inst.forEach(i=>{
      const t=g[i.name]||(g[i.name]={name:i.name,sev:i.sev,cvss:0,expl:false,family:i.family,
        cves:new Set(),hosts:new Set(),overdue:0,age:null,solution:i.solution});
@@ -7014,7 +7484,7 @@ const ACCT_FLAG_LABELS=[["admin","ADMIN","var(--bad)"],["builtin500","BUILT-IN 5
 let accView="accounts";   // accounts | users
 function setAccView(v){accView=v;renderAccountAudit();}
 function accountUsers(){
- const m={};
+ const m=dataMap();
  acctRows().forEach(r=>{
    const k=r.a.name.toUpperCase();
    const t=m[k]||(m[k]={name:r.a.name,hosts:[],privileged:false,lastLogon:"",lastHost:"",
@@ -7171,6 +7641,7 @@ function renderSettings(){
 
 function renderConfig(){$("cfgBox").value=JSON.stringify(S.config,null,2);}
 function migrateConfig(cfg){
+ if(!cfg||typeof cfg!=="object"||Array.isArray(cfg)) return cfg;
  if(cfg&&!cfg.slaDays)cfg.slaDays=JSON.parse(JSON.stringify(DEFAULT_CONFIG.slaDays));
  if(cfg&&cfg.columns&&!cfg.catalog){cfg.catalog=cfg.columns.map(c=>Object.assign({active:true},c));delete cfg.columns;}
  if(cfg&&!cfg.noisePatterns)cfg.noisePatterns=[...DEFAULT_CONFIG.noisePatterns];
@@ -7181,21 +7652,36 @@ function migrateConfig(cfg){
  if(cfg&&!cfg.remedyWeights)cfg.remedyWeights=JSON.parse(JSON.stringify(DEFAULT_CONFIG.remedyWeights));
  if(cfg&&!cfg.productAliases)cfg.productAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.productAliases));
  if(cfg&&!cfg.listingAliases)cfg.listingAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.listingAliases));
+ /* deviceRules was the one section never backfilled, though runDetection dereferences it for
+    every new host: a profile without it was "applied", then every later ingest failed silently. */
+ if(!Array.isArray(cfg.deviceRules))cfg.deviceRules=JSON.parse(JSON.stringify(DEFAULT_CONFIG.deviceRules));
+ for(const g of ["deviceRules","vendorRules","typeRules"])
+   if(Array.isArray(cfg[g])) cfg[g]=cfg[g].filter(r=>r&&typeof r==="object"&&typeof r.pattern==="string"&&r.pattern);
+ if(Array.isArray(cfg.catalog)) cfg.catalog=cfg.catalog
+   .filter(c=>c&&typeof c==="object"&&typeof c.name==="string"&&c.name.trim())
+   .map(c=>{ if(!Array.isArray(c.patterns)) c.patterns=[]; if(c.osPatterns!==undefined&&!Array.isArray(c.osPatterns)) c.osPatterns=[]; return c; });
+ if(!Array.isArray(cfg.noisePatterns)) cfg.noisePatterns=[...DEFAULT_CONFIG.noisePatterns];
+ if(!Array.isArray(cfg.productAliases)) cfg.productAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.productAliases));
  return cfg;
 }
+/* Transactional: v2.8 replaced S.config inside the try and ran detection outside it, so a
+   config that detection then choked on was applied with no message and broke the next ingest. */
 function applyConfig(){
- let bad=[];
+ let bad=[]; const prevCfg=S.config;
  try{
    const cfg=migrateConfig(safeParse($("cfgBox").value));
-   if(!Array.isArray(cfg.catalog)) throw new Error("config needs a 'catalog' array");
+   if(!cfg||typeof cfg!=="object"||!Array.isArray(cfg.catalog)) throw new Error("config needs a 'catalog' array");
    bad=rejectedPatterns(cfg);
    S.config=cfg;
- }catch(e){alert("Config JSON error: "+e.message);return;}
- invalidateFusion(); // intel weights / aliases may have changed
- runDetection(); renderSTIG(); renderIntel(); renderConfig();
+   invalidateFusion(); _remedyCache.clear(); // intel weights / aliases may have changed
+   runDetection();
+ }catch(e){
+   S.config=prevCfg; invalidateFusion(); _remedyCache.clear(); try{runDetection();}catch(_){}
+   alert("Config JSON error: "+e.message+" - previous detection rules kept.");return;}
+ renderSTIG(); renderIntel(); renderConfig();
  status("Detection config applied."+rejectNote(bad));
 }
-function resetConfig(){S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));invalidateFusion();renderConfig();runDetection();renderSTIG();renderIntel();}
+function resetConfig(){S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));invalidateFusion();_remedyCache.clear();renderConfig();runDetection();renderSTIG();renderIntel();}
 
 /* ---------------- exports ---------------- */
 /* Spreadsheet-formula neutralisation, applied at the only two cells-to-text choke points
@@ -7217,17 +7703,22 @@ function exportPPSM(){
  for(const k of keys){
    const r=S.ppsm[k]; if(!r.include) continue;
    lines.push([s.isName,s.version,s.description,s.netEnv,s.ipAddress,s.perimeterIp,s.macLevel,
-     s.conf,s.integ,s.avail,s.atd,s.ditpr,r.app,r.proto.toUpperCase(),r.svc,r.port,r.port,
-     ...r.boundaries.map(b=>b||""),r.srcIp,r.dstIp].map(tsvSafe).join("\t"));
+     s.conf,s.integ,s.avail,s.atd,s.ditpr,r.app,String(r.proto).toUpperCase(),r.svc,r.port,r.port,
+     /* exactly as many boundary cells as the header has: a 15- or 1-entry boundaryDefaults
+        from a shared profile slid SOURCE/DESTINATION IP under the wrong registry columns */
+     ...BOUNDARY_LABELS.map((_,i)=>((r.boundaries||[])[i]||"")),r.srcIp,r.dstIp].map(tsvSafe).join("\t"));
  }
- dl(`PPSM_Registry_${today()}.txt`, S.settings.banner+"\n"+lines.join("\n")+"\n"+S.settings.banner,"text/plain");
+ dl(`PPSM_Registry_${today()}.txt`, tsvSafe(S.settings.banner)+"\n"+lines.join("\n")+"\n"+tsvSafe(S.settings.banner),"text/plain");
  status(`Exported ${lines.length-1} PPSM row(s) — tab-delimited, DoD IS Registration Form v8.0 column order.`);
 }
-function csvq(v){v=csvNeutral(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+/* a bare CR is a record terminator to Excel, LibreOffice and Python's csv module: unquoted, one
+   hostile hostname split its row in two -- displacing the real row's STIG marks and starting a
+   fabricated row whose first cell csvNeutral never saw. Quote CR like LF. */
+function csvq(v){v=csvNeutral(v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportPPSMcsv(){
  const rows=[["Include","Protocol","Port","Service","Application","Hosts","Source IP","Destination IP","Boundaries set","Notes"]];
  for(const k of Object.keys(S.ppsm).sort()){const r=S.ppsm[k];
-   rows.push([r.include?"Y":"N",r.proto.toUpperCase(),r.port,r.svc,r.app,r.hosts.join("; "),
+   rows.push([r.include?"Y":"N",String(r.proto).toUpperCase(),r.port,r.svc,r.app,r.hosts.join("; "),
      r.srcIp,r.dstIp,r.boundaries.filter(x=>x&&x.trim()).length,r.notes]);}
  dl(`PPSM_WorkingCopy_${today()}.csv`, rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
 }
@@ -7242,47 +7733,181 @@ function exportSTIG(){
      ...cols.map(c=>stigMark(hk,c.name).on?"x":""),
      (S.stig.comments[hk]||"")+(h.cred?"":" [no credentialed software data]")]);
  }
+ /* the banner and control line go through csvq like every other cell (they were written raw,
+    so a profile-supplied banner could plant a live formula in cell A1) */
  dl(`STIG_Applicability_${today()}.csv`,
-    S.settings.banner+"\n"+ctrlHeader("stig")+"\n"+rows.map(r=>r.map(csvq).join(",")).join("\n")+"\n"+S.settings.banner,"text/csv");
+    csvq(S.settings.banner)+"\n"+csvq(ctrlHeader("stig"))+"\n"+rows.map(r=>r.map(csvq).join(",")).join("\n")+"\n"+csvq(S.settings.banner),"text/csv");
  status(`Exported STIG matrix — ${Object.keys(S.hosts).length} host(s) × ${cols.length} STIG column(s).`);
 }
 
 /* ---------------- session ---------------- */
 function saveSession(){
- S.meta.saved=new Date().toISOString();
+ /* the file states what produced it: meta is re-stamped, never inherited from whatever file was
+    loaded last (a re-saved session used to carry a foreign tool name and version) */
+ S.meta=Object.assign(newState().meta,{saved:new Date().toISOString()});
  dl(`Palisade_Session_${today()}.json`, JSON.stringify(S,null,1),"application/json");
  status("Session saved (JSON sidecar). Load it later to resume with all edits intact.");
 }
+const SESSION_TOOL_RE=/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/;
+/* Every value a session, baseline or trend file restores is attacker-chosen text until it has
+   been through here: v2.8 escaped the KEYS a session carries but restored its VALUES verbatim,
+   so a trend count, a port number, a rule status or a listing counter reached innerHTML -- and
+   a [] where a map was expected silently lost every edit on the next save. Shapes are coerced,
+   maps become prototype-free, numbers become numbers, statuses become the four known states. */
+function normalizeSettings(s){
+ const d=newState().settings, isObj=x=>x&&typeof x==="object"&&!Array.isArray(x);
+ s=isObj(s)?s:{};
+ for(const k of Object.keys(d)){
+   if(k==="boundaryDefaults") s[k]=BOUNDARY_LABELS.map((_,i)=>String((Array.isArray(s[k])?s[k]:[])[i]??""));
+   else if(k==="reportPresets") s[k]=dataMap(isObj(s[k])?s[k]:{});
+   else if(typeof d[k]==="boolean") s[k]=s[k]===undefined?d[k]:!!s[k];
+   else if(typeof d[k]==="number"){const n=parseInt(s[k],10); s[k]=Number.isFinite(n)&&n>=0?n:d[k];}
+   else s[k]=String(s[k]??d[k]);
+ }
+ s.banner=oneLine(s.banner,120)||"UNCLASSIFIED";
+ if(!(s.ppsmEphemeralFloor>=1024&&s.ppsmEphemeralFloor<=65535)) s.ppsmEphemeralFloor=d.ppsmEphemeralFloor;
+ return s;
+}
+function normalizeSessionState(st){
+ const isObj=x=>x&&typeof x==="object"&&!Array.isArray(x);
+ const str=(v,max)=>{const s=(v===null||v===undefined)?"":String(v);return max?s.slice(0,max):s;};
+ const keys=o=>isObj(o)?Object.keys(o):[];
+ const arr=v=>Array.isArray(v)?v:[];
+ const strs=(v,max)=>arr(v).map(x=>str(x,max));
+ const matched=v=>arr(v).filter(Array.isArray).map(p=>[str(p[0]),str(p[1])]);
+ const flat=o=>{const r={}; for(const k of keys(o)) r[k]=str(o[k],LIMITS.TEXT_LINE_CHARS); return r;};
+ const proto=p=>String(p||"tcp").toLowerCase().replace(/[^a-z0-9._-]/g,"").slice(0,16)||"tcp";
+
+ st.config=migrateConfig(isObj(st.config)?st.config:JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+ if(!Array.isArray(st.config.catalog)) st.config.catalog=JSON.parse(JSON.stringify(DEFAULT_CONFIG.catalog));
+ st.meta=isObj(st.meta)?st.meta:{};
+ st.settings=normalizeSettings(Object.assign(newState().settings,isObj(st.settings)?st.settings:{}));
+
+ const hosts=dataMap();
+ for(const k of keys(st.hosts)){const h=st.hosts[k]; if(!isObj(h)) continue;
+   h.key=k; h.name=str(h.name||k); h.blob=str(h.blob);
+   for(const t of ["ip","os","mac","fqdn","netbios","sysType","lastSeen","ipFrom"]) h[t]=str(h[t]);
+   h.cred=!!h.cred;
+   h.sw=arr(h.sw).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x).filter(isObj)
+     .map(x=>Object.assign(x,{n:str(x.n,LIMITS.TEXT_LINE_CHARS),v:str(x.v,128)})).filter(x=>x.n);
+   const ports=dataMap();
+   for(const pk of keys(h.ports)){const p=h.ports[pk]; if(!isObj(p)) continue;
+     const pr=proto(p.proto), pt=parseInt(p.port,10); if(!(pt>0&&pt<=65535)) continue;
+     ports[pr+"/"+pt]={proto:pr,port:pt,svc:str(p.svc,64),evidence:strs(p.evidence,LIMITS.TEXT_LINE_CHARS).slice(0,6)};}
+   h.ports=ports;
+   const fnd=dataMap();
+   for(const pid of keys(h.findings)){const f=h.findings[pid]; if(!isObj(f)) continue;
+     fnd[pid]={id:str(f.id||pid),name:str(f.name||("plugin "+pid),LIMITS.TEXT_LINE_CHARS),
+       sev:Math.max(0,Math.min(4,parseInt(f.sev,10)||0)),cvss:Math.max(0,Math.min(10,numOr(f.cvss,0))),
+       cves:strs(f.cves).filter(c=>/^CVE-\d{4}-\d{4,7}$/i.test(c)).map(c=>c.toUpperCase()),
+       expl:!!f.expl,family:str(f.family,120),ports:strs(f.ports,32),patchPub:str(f.patchPub,40),
+       pluginPub:str(f.pluginPub,40),solution:str(f.solution,400),synopsis:str(f.synopsis,300)};}
+   h.findings=fnd;
+   const acc=dataMap();
+   for(const ak of keys(h.accounts)){const a=h.accounts[ak]; if(!isObj(a)) continue;
+     const fl={}; for(const fk of keys(a.flags)) fl[fk]=!!a.flags[fk];
+     acc[ak]={name:str(a.name||ak,64),src:str(a.src,16),rid:str(a.rid,16),flags:fl,groups:strs(a.groups,128),
+       lastLogon:/^\d{4}-\d{2}-\d{2}$/.test(a.lastLogon)?a.lastLogon:""};}
+   h.accounts=acc;
+   const sc={}; for(const sk of keys(h.scan)) sc[sk]=str(h.scan[sk],LIMITS.TEXT_LINE_CHARS); h.scan=sc;
+   h.src=arr(h.src).filter(isObj).slice(0,40).map(flat);
+   hosts[k]=h;}
+ st.hosts=hosts;
+
+ const ppsm=dataMap();
+ for(const k of keys(st.ppsm)){const r=st.ppsm[k]; if(!isObj(r)) continue;
+   r.proto=proto(r.proto); r.port=parseInt(r.port,10)||0;
+   for(const t of ["svc","app","srcIp","dstIp","notes"]) r[t]=str(r[t]);
+   r.hosts=strs(r.hosts); r.include=!!r.include; r.ephemeral=!!r.ephemeral;
+   r.boundaries=BOUNDARY_LABELS.map((_,i)=>str(arr(r.boundaries)[i]));
+   ppsm[k]=r;}
+ st.ppsm=ppsm;
+
+ const sw=dataMap(), canon=v=>APPROVAL_STATES.find(x=>x.toLowerCase()===String(v??"").trim().toLowerCase());
+ for(const k of keys(st.software)){const r=st.software[k]; if(!isObj(r)) continue;
+   r.name=str(r.name); r.version=str(r.version); r.hosts=strs(r.hosts);
+   if(r.listHosts!==undefined) r.listHosts=strs(r.listHosts);
+   for(const c of SW_COLS) if(r[c[0]]!==undefined) r[c[0]]=str(r[c[0]]);
+   for(const t of ["approvedBy","approvalDate","approvalRef","approvedVersion","deps","listNote","listVendor"]) if(r[t]!==undefined) r[t]=str(r[t]);
+   const ap=canon(r.approval);
+   /* an unrecognized status is not guessed at, and not dropped silently either */
+   if(!ap&&r.approval) r.approvalRef=(r.approvalRef?r.approvalRef+" ":"")+"[unrecognized approval status \""+oneLine(r.approval,40)+"\" in session — re-record]";
+   r.approval=ap||"Not Reviewed";
+   r.include=!!r.include; r.rpm=!!r.rpm; r.pinVersion=!!r.pinVersion;
+   sw[k]=r;}
+ st.software=sw;
+
+ const assets=dataMap();
+ for(const k of keys(st.assets)){const a=st.assets[k]; if(!isObj(a)) continue;
+   for(const c of ASSET_COLS) if(a[c[0]]!==undefined) a[c[0]]=str(a[c[0]]);
+   a.name=str(a.name||k); if(a.listFields!==undefined) a.listFields=flat(a.listFields);
+   assets[k]=a;}
+ st.assets=assets;
+
+ const sg=isObj(st.stig)?st.stig:{};
+ st.stig={overrides:dataMap(),comments:dataMap(),device:dataMap()};
+ for(const hk of keys(sg.overrides)){const o=sg.overrides[hk]; if(!isObj(o)) continue;
+   const m=dataMap(); for(const c of Object.keys(o)) m[c]=!!o[c]; st.stig.overrides[hk]=m;}
+ for(const f of ["comments","device"]) for(const hk of keys(sg[f])) st.stig[f][hk]=str(sg[f][hk]);
+ st.auto=dataMap();
+
+ const sr=dataMap();
+ for(const hk of keys(st.stigResults)){const per=st.stigResults[hk]; if(!isObj(per)) continue;
+   const m=dataMap();
+   for(const sk of Object.keys(per)){const rec=per[sk]; if(!isObj(rec)) continue;
+     for(const t of ["title","version","release","source","when","benchmarkId"]) rec[t]=str(rec[t]);
+     rec.rules=arr(rec.rules).filter(isObj).map(r=>({ruleId:str(r.ruleId),vid:str(r.vid,16),stigId:str(r.stigId,64),
+       title:str(r.title,LIMITS.TEXT_LINE_CHARS),severity:normSeverity(r.severity),status:normCklStatus(r.status),
+       ccis:strs(r.ccis,32),details:str(r.details,600),comments:str(r.comments,600),
+       src:str(r.src,8),when:str(r.when,32)}));
+     m[sk]=rec;}
+   sr[hk]=m;}
+ st.stigResults=sr;
+
+ const it=isObj(st.intel)?st.intel:{};
+ st.intel=emptyIntel();
+ for(const c of keys(it.rows)){const t=it.rows[c]; if(!isObj(t)||!/^CVE-\d{4}-\d{4,7}$/.test(c)) continue;
+   const x={cve:c};
+   for(const a of ["vendors","products","actors","countries","iavm","srcs"]) x[a]=strs(t[a],LIMITS.TEXT_LINE_CHARS);
+   for(const s of ["desc","published","rfSev","vector","perms","cto"]) x[s]=str(t[s],600);
+   for(const n of ["cvss","rfScore","reports","total","relate"]) x[n]=numOr(t[n],0);
+   x.weap=!!t.weap; x.expDb=!!t.expDb; x.extra=dataMap(); for(const ek of keys(t.extra)) x.extra[ek]=str(t.extra[ek],240);
+   st.intel.rows[c]=x;}
+ st.intel.files=arr(it.files).filter(isObj).map(f=>({name:str(f.name),rows:numOr(f.rows,0),cveRows:numOr(f.cveRows,0),
+   noCve:numOr(f.noCve,0),matched:matched(f.matched),ignored:strs(f.ignored)}));
+ st.intel.scoreSource=str(it.scoreSource||"blended",200);
+
+ const L=isObj(st.listings)?st.listings:{};
+ st.listings={hw:arr(L.hw).filter(isObj).map(flat),sw:arr(L.sw).filter(isObj).map(flat),
+   files:arr(L.files).filter(isObj).map(f=>({name:str(f.name),rows:numOr(f.rows,0),hw:numOr(f.hw,0),sw:numOr(f.sw,0),
+     skipped:numOr(f.skipped,0),kindSource:str(f.kindSource),matched:matched(f.matched),ignored:strs(f.ignored)})),
+   conflicts:[]};
+
+ st.trend=arr(st.trend).filter(isObj).map(p=>{const stats={};
+   for(const k of keys(p.stats)){const v=p.stats[k]; stats[k]=(v===null||v===undefined)?null:(Number.isFinite(Number(v))?Number(v):null);}
+   return {taken:str(p.taken,32),label:str(p.label,80),stats};});
+ st.inventory=arr(st.inventory).filter(isObj).map(i=>({name:str(i.name),type:str(i.type),note:str(i.note)}));
+ st.filesLoaded=arr(st.filesLoaded).filter(isObj).map(f=>({name:str(f.name),type:str(f.type,16),hosts:numOr(f.hosts,0)}));
+ st.baseline=validSnapshot(st.baseline)?st.baseline:null;
+ st.delta=null; st.swConsolidation=null; st.unmapped=[];
+ return st;
+}
 async function loadSession(f){
  if(!f) return;
- /* Transactional: a malformed session that throws part-way through renderAll() used to leave
-    S replaced and the DOM half-drawn -- the operator's working dataset simply gone. Roll the
-    reference back and redraw. (Writes a hostile file already made into shared objects are not
-    undone by this; the sink fixes and the key guards are what cover that.) */
+ /* Transactional: the previous state object comes back on any throw, and so does every cache
+    computed from the rejected one (the fusion cache used to survive and keep serving the
+    rejected file's intel against the restored dataset). */
  const prev=S;
  try{
    checkFileSize(f,true);
    const obj=safeParse(await f.text());
-   if(!obj.meta||!/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(obj.meta.tool)) throw new Error("not a compiler session file");
-   obj.config=migrateConfig(obj.config);
-   S=Object.assign(newState(),obj);
-   for(const k in S.hosts){S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);
-     S.hosts[k].findings=S.hosts[k].findings||{};
-     S.hosts[k].accounts=S.hosts[k].accounts||{};
-     S.hosts[k].scan=S.hosts[k].scan||{};
-     S.hosts[k].src=S.hosts[k].src||[];
-     for(const p in S.hosts[k].findings){const ff=S.hosts[k].findings[p];ff.ports=ff.ports||[];ff.family=ff.family||"";}}
-   S.software=S.software||{};
-   S.assets=S.assets||{};
-   S.stigResults=S.stigResults||{};
-   S.listings=S.listings&&S.listings.files?S.listings:emptyListings();
-   S.trend=Array.isArray(S.trend)?S.trend:[];
-   S.intel=S.intel&&S.intel.rows?S.intel:emptyIntel();
-   S.intel.scoreSource=S.intel.scoreSource||"blended";
-   invalidateFusion();
+   if(!obj||typeof obj!=="object"||!obj.meta||!SESSION_TOOL_RE.test(String(obj.meta.tool))) throw new Error("not a compiler session file");
+   S=normalizeSessionState(Object.assign(newState(),obj));
+   invalidateFusion(); _remedyCache.clear();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
-   status(`Session restored (saved ${obj.meta.saved||"unknown"}).`);
- }catch(e){ S=prev; try{renderAll();}catch(_){}
+   if($("invBox")) $("invBox").value=S.inventory.map(i=>[i.name,i.type,i.note].join(", ").replace(/(, )+$/,"")).join("\n");
+   status(`Session restored (saved ${oneLine(obj.meta.saved||"unknown",40)}).`+rejectNote(rejectedPatterns(S.config)));
+ }catch(e){ S=prev; invalidateFusion(); _remedyCache.clear(); try{renderAll();}catch(_){}
    alert("Session load failed: "+e.message+" - previous dataset restored."); }
  $("sessIn").value="";
 }
@@ -7595,8 +8220,12 @@ function gotoTab(t){
 
 /* ---------------- environment profile (settings + config, no scan data) --- */
 function saveProfile(){
+ /* "never scan data": a column switched on by scan evidence (autoActive) is saved as inactive,
+    so a shared profile no longer enumerates which products the scans found */
+ const config=JSON.parse(JSON.stringify(S.config));
+ (config.catalog||[]).forEach(c=>{ if(c.autoActive) c.active=false; delete c.autoActive; });
  const prof={meta:{kind:"Compliance-Compiler-Profile",ver:"2.0",saved:new Date().toISOString()},
-   settings:S.settings, config:S.config};
+   settings:S.settings, config};
  dl(`Compliance_Profile_${today()}.json`, JSON.stringify(prof,null,1),"application/json");
  status("Environment profile saved (settings + detection config, no scan data). Share it so your team starts from the same baseline.");
 }
@@ -7608,17 +8237,22 @@ async function loadProfile(f){
  try{
    checkFileSize(f,true);
    const o=safeParse(await f.text());
+   if(!o||typeof o!=="object") throw new Error("not an environment profile (or session) file");
    const isProfile=o.meta&&o.meta.kind==="Compliance-Compiler-Profile";
    const looksLikeSession=o.settings&&o.config;
    if(!isProfile&&!looksLikeSession) throw new Error("not an environment profile (or session) file");
    /* Merge into a NEW object rather than mutating S.settings in place: in-place mutation
-      survives the rollback below and would make it a lie. */
-   if(o.settings) S.settings=Object.assign({},S.settings,o.settings);
-   if(o.config){ S.config=migrateConfig(o.config); bad=rejectedPatterns(S.config); }
-   invalidateFusion();
+      survives the rollback below and would make it a lie. Then normalise: a boundaryDefaults of
+      the wrong length shifted SOURCE/DESTINATION IP under the wrong PPSM registry headers. */
+   if(o.settings&&typeof o.settings==="object") S.settings=normalizeSettings(Object.assign({},S.settings,o.settings));
+   if(o.config){ const cfg=migrateConfig(o.config);
+     if(!cfg||typeof cfg!=="object"||!Array.isArray(cfg.catalog)) throw new Error("the profile's config has no 'catalog' array");
+     S.config=cfg; bad=rejectedPatterns(S.config); }
+   invalidateFusion(); _remedyCache.clear();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
-   status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+o.meta.saved.slice(0,10)+")":""}. Settings and detection rules updated; scan data untouched.`+rejectNote(bad));
- }catch(e){ S=prev; S.settings=prevSettings; S.config=prevConfig; try{renderAll();}catch(_){}
+   status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+oneLine(String(o.meta.saved).slice(0,10))+")":""}. Settings and detection rules updated; scan data untouched.`+rejectNote(bad));
+ }catch(e){ S=prev; S.settings=prevSettings; S.config=prevConfig; invalidateFusion(); _remedyCache.clear();
+   try{runDetection();renderAll();}catch(_){}
    alert("Profile load failed: "+e.message+" - previous settings and detection rules restored."); }
  $("profIn").value="";
 }
@@ -7752,7 +8386,13 @@ function loadDemoData(){
 }
 function clearAll(){
  if(!confirm("Clear everything — all loaded scans, edits, and settings — and start fresh?")) return;
- S=newState(); invalidateFusion(); renderAll();
+ S=newState(); invalidateFusion(); _remedyCache.clear();
+ /* the pasted inventory, the e-mail summary (host names) and the filters belonged to the last
+    enclave; left in place, one click applied enclave A's inventory to enclave B */
+ ["invBox","emailSummaryBox","swFilter","assetFilter","intelFilter","vulnFilter","accFilter","scFilter","glossSearch"]
+   .forEach(id=>{const el=$(id); if(el) el.value="";});
+ if($("emailSummaryPanel")) $("emailSummaryPanel").style.display="none";
+ renderAll();
  status("Cleared. Load scan exports or demo data to begin again.");
 }
 
@@ -7946,6 +8586,13 @@ function auditUIActions(){
  if(bad.size) console.warn("Unmapped UI action(s) in markup:",[...bad].join(", "));
  return [...bad];
 }
+
+/* The three CUI opt-ins and the report row cap live in the static body, which the script hash
+   does not cover: a copy edited to pre-tick "include resume session file" shipped the complete
+   raw dataset in every evidence package with every check green. The sealed script sets the
+   safe defaults itself, so only the operator's own click can change them. */
+["pkgInclSession","aiInclHosts","rptHosts"].forEach(id=>{const el=$(id); if(el) el.checked=false;});
+if($("rptCap")) $("rptCap").value="40";
 
 /* first run: greet a new user when there's nothing loaded yet */
 try{ if(!Object.keys(S.hosts).length) setTimeout(openWizard,90); }catch(e){}

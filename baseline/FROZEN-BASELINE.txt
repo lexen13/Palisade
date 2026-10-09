@@ -2,6 +2,9 @@ PALISADE BASELINE  2026-09-11T19:11:45.325Z
 url:      file://<repo>/palisade.html   (absolute path redacted; this file is published)
 captured against: palisade.html v2.8, 521771 bytes,
                   sha256 fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97
+re-confirmed:     2026-10-09 against palisade.html v2.9, 572143 bytes,
+                  sha256 84ea3d3299d58bf4f0413d54c97b82772f80d19d460cad146d9815c524a32994,
+                  Chrome/141.0.7390.37 -- every gated number below is unchanged
 chromium: Chrome/150.0.7871.181
 extraFlags: (none)
 
@@ -9,7 +12,8 @@ NOT GATED by baseline/check-frozen.mjs, and therefore free to drift: the
 timestamp, the url, the browser version string, the report iframe srcdoc
 length and its build-time note, and the demoTrigger / generatedHandler
 wording. check-frozen.mjs compares only the evidence numbers the tool
-produces from its demo dataset, plus the four error counters, plus the
+produces from its demo dataset, plus five error counters (v2.9 added the
+browser's own error log), plus the
 harness verdict. Regenerate this file with:
   node baseline/harness.mjs "file://$PWD/palisade.html" ./out && \
     cp ./out/summary.txt baseline/FROZEN-BASELINE.txt   # then redact the url

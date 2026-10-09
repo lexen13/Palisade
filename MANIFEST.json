@@ -1,16 +1,21 @@
 {
   "file": "palisade.html",
-  "bytes": 521771,
-  "sha256": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97",
-  "sha384": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f",
-  "sha512": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6",
-  "version": "2.8",
+  "bytes": 572143,
+  "sha256": "84ea3d3299d58bf4f0413d54c97b82772f80d19d460cad146d9815c524a32994",
+  "sha384": "4bc5c68aeb3ed9ba59558f86a3964c78fe13b38b2ff991ee6921c2206f3089b4c82ed67c54c87180b1a4d2d2e1d39b4b",
+  "sha512": "451b0b3381b9692e4532ddb2a71154bebdfa61adccb317791e3d99234bc3c9484eb54e340ae806d7dd9dddcbeedab1420ecd6e1eb65faff8492ebcd5fdd97fe0",
+  "version": "2.9",
   "inlineScriptBlocks": [
     {
-      "bytes": 438777,
-      "sha256": "M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q="
+      "bytes": 489099,
+      "sha256": "rXLlUraYkQK0AWyOdItde6nM7Vp4Okl31uF8o7Q6XsQ="
     }
   ],
+  "outsideScript": {
+    "bytes": 83044,
+    "sha256": "cd470cb95c551ed1070efd6f81b8dafa63ea4aa3a04046bff97c9865d77882dc",
+    "note": "markup outside the script block: not covered by the CSP hash, only by the whole-file digest"
+  },
   "lineEndings": "LF",
   "bom": false,
   "inlineHandlers": {

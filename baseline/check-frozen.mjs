@@ -58,6 +58,9 @@ const zeros = {
   cdpExceptions: r.cdpExceptions.length,
   pageErrors:    r.pageErrors.length,
   cspViolations: r.cspViolations.length,
+  /* the browser's own log: a refused script, a CSP report or a failed decode lands here
+     even when no page error or console call is raised */
+  logErrors:     (r.logEntries || []).filter(e => e.level === 'error').length,
 }
 
 let bad = 0
