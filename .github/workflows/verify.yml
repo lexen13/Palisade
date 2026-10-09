@@ -11,8 +11,10 @@
 #   whose script-src hash matches the bytes of its own inline script; the CSP
 #   attack surface has not regressed past its locked baseline; the page loads in
 #   a real browser from a real file:// URL with zero errors and zero CSP
-#   violations; and the numbers it produces from its own demo dataset are
-#   unchanged. On a release tag it additionally attests that THIS EXACT FILE WAS
+#   violations; the numbers it produces from its own demo dataset are
+#   unchanged; and the security regression gate (hostile inputs from the v2.9
+#   audit: prototype keys, markup, CSV formulas, ReDoS, archives, sessions)
+#   passes with the policy demonstrably enforced. On a release tag it additionally attests that THIS EXACT FILE WAS
 #   PUBLISHED BY THIS WORKFLOW FROM THIS COMMIT.
 #
 #   It does NOT establish a reproducible build, a hermetic build, or any SLSA
@@ -51,7 +53,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'   # harness.mjs uses the global WebSocket and fetch, no packages
+          node-version: '24'   # the gates need the global WebSocket (Node 22+); no packages
 
       - name: Confirm there is nothing to install
         run: |
@@ -122,6 +124,15 @@ jobs:
       - name: Frozen-number regression check
         run: node baseline/check-frozen.mjs "${RUNNER_TEMP}/gate/result.json" baseline/FROZEN-BASELINE.txt
 
+      # Every confirmed finding from the v2.9 audit has a check here; a fix that
+      # regresses fails the job. The first checks prove the policy is in <head> and
+      # enforced (a string timer is refused), so a pass cannot come from a page that
+      # silently lost its CSP.
+      - name: baseline/security-gate.mjs (hostile-input regression gate)
+        env:
+          CHROMIUM: ${{ steps.browser.outputs.bin }}
+        run: node baseline/security-gate.mjs "file://${GITHUB_WORKSPACE}/palisade.html" "${RUNNER_TEMP}/gate"
+
       # ------------------------------------------------------------- checksums --
       - name: Verify SHA256SUMS / SHA384SUMS
         run: |
@@ -155,6 +166,7 @@ jobs:
             echo "| \`csp-lint.sh\` | the CSP attack surface has not regressed past its baseline |"
             echo "| \`harness.mjs\` | the page loads from a real \`file://\` URL with 0 errors, 0 CSP violations, all 18 views clean |"
             echo "| \`check-frozen.mjs\` | the demo dataset still yields the same evidence numbers |"
+            echo "| \`security-gate.mjs\` | hostile inputs from the v2.9 audit are still handled safely, with the CSP enforced |"
             echo "| \`sha256sum -c\` | the published digests match the published files |"
             echo
             echo "This is a verification workflow, not a build. \`palisade.html\` is committed"
@@ -220,9 +232,11 @@ jobs:
           done
           printf '%s\n' "${files[@]}" > /tmp/release-files.txt
           echo "release set:"; cat /tmp/release-files.txt
-          # palisade.html and the two SBOMs are what gets an attestation
+          # Everything a reviewer is told to run or compare gets an attestation:
+          # the file, its SBOMs, the digest lists and manifest, and the tools that
+          # check them (an unattested seal.mjs could be swapped for one that always passes).
           subjects=""
-          for f in palisade.html palisade.cdx.json palisade.spdx.json; do
+          for f in palisade.html palisade.cdx.json palisade.spdx.json MANIFEST.json SHA256SUMS SHA384SUMS tools/seal.mjs tools/csp-lint.sh; do
             [ -f "$f" ] && subjects="${subjects}${f}"$'\n'
           done
           {
@@ -255,8 +269,9 @@ jobs:
           Chromium from a real `file://` URL with zero errors, zero CSP violations
           and unchanged evidence numbers across all 18 views.
 
-          `palisade.html`, `palisade.cdx.json` and `palisade.spdx.json` carry a build
-          provenance attestation. Check it with:
+          `palisade.html`, both SBOMs, `MANIFEST.json`, `SHA256SUMS`, `SHA384SUMS`,
+          `tools/seal.mjs` and `tools/csp-lint.sh` carry a build provenance
+          attestation. Check it with:
 
               gh attestation verify palisade.html --repo lexen13/Palisade
 
@@ -274,9 +289,11 @@ jobs:
               sha384sum -c SHA384SUMS
               node tools/seal.mjs palisade.html --verify
           NOTES
+          # A published release is never overwritten: --clobber would let a re-run
+          # replace assets under a tag whose digests reviewers already recorded.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" $(tr '\n' ' ' < /tmp/release-files.txt) --clobber
-          else
-            gh release create "$TAG" $(tr '\n' ' ' < /tmp/release-files.txt) \
-              --title "Palisade $TAG" --notes-file /tmp/notes.md
+            echo "::error::Release $TAG already exists; refusing to replace its assets. Cut a new tag."
+            exit 1
           fi
+          gh release create "$TAG" $(tr '\n' ' ' < /tmp/release-files.txt) \
+            --title "Palisade $TAG" --notes-file /tmp/notes.md

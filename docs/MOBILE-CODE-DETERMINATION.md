@@ -1,5 +1,13 @@
 # Mobile Code Determination — Palisade v2.8
 
+> **v2.9 note (2026-10-09).** This document describes v2.8 as shipped. The v2.9 audit,
+> [`docs/SECURITY-AUDIT-2.9.md`](SECURITY-AUDIT-2.9.md), found defects this document does not
+> record and statements in it that were wrong. Where the two conflict, the audit governs; its §9
+> lists every erratum. Sentences corrected in place are marked *[corrected in v2.9]*. Paths under
+> `evidence/` or `notes/`, `HARDENING-LEDGER.md`, `tools/sbom-check.py` and `baseline/` probes
+> other than `harness.mjs`, `check-frozen.mjs` and `security-gate.mjs` belong to the review bundle
+> and are not in this repository.
+
 **Prepared for:** the ISSM / ISSO reviewing Palisade for use on a NIPRNet or air-gapped
 assessment workstation.
 **Prepared by:** Jacob Keith (co-author), 11 September 2026.
@@ -23,8 +31,12 @@ against the shipped file in under a minute:
 3. In this deployment the file is **not transmitted from a server and auto-executed** — it is
    a local copy the operator already holds and opens deliberately from `file://`. The residual
    control is therefore *integrity of the local copy*, and that control is provided twice:
-   by a SHA-256 manifest, and — more strongly, because it requires no cooperation from the
-   person opening the file — by a **CSP script-hash seal** that makes a tampered copy inert.
+   by a SHA-256 manifest, and by a **CSP script-hash seal** that makes a copy with an edited
+   script inert. *[corrected in v2.9]* v2.8 called the seal the stronger of the two. It is the
+   weaker: it needs no cooperation from the person opening the file, but it only catches edits
+   that leave the policy intact. Anyone who can write the file can re-seal it or neutralise the
+   policy. The SHA-256 digest, compared with a value taken from the repository, is the control
+   against an adversary.
 
 Nothing below is asserted from reading source. Every number is the output of a command
 printed next to it, run against the shipped bytes — with one exception, a behavioural

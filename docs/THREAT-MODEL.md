@@ -1,5 +1,13 @@
 # Palisade — Threat Model
 
+> **v2.9 note (2026-10-09).** This document describes v2.8 as shipped. The v2.9 audit,
+> [`docs/SECURITY-AUDIT-2.9.md`](SECURITY-AUDIT-2.9.md), found defects this document does not
+> record and statements in it that were wrong. Where the two conflict, the audit governs; its §9
+> lists every erratum. Sentences corrected in place are marked *[corrected in v2.9]*. Paths under
+> `evidence/` or `notes/`, `HARDENING-LEDGER.md`, `tools/sbom-check.py` and `baseline/` probes
+> other than `harness.mjs`, `check-frozen.mjs` and `security-gate.mjs` belong to the review bundle
+> and are not in this repository.
+
 **Artifact this document describes**
 
 | | |
@@ -521,6 +529,14 @@ or at rest.
 — one byte, including whitespace — invalidates it, and the browser refuses to run the script at
 all.
 
+*[corrected in v2.9]* That holds only for an edit that leaves the policy intact. Someone who can
+write the file can re-seal it. They can also neutralise the policy, by commenting it out or moving
+it, and leave the script byte-identical, or change the markup outside the script, which the hash
+does not cover. The seal therefore catches accidental corruption and careless edits, not an
+adversary. **The control against an adversary is the whole-file digest, compared with a value
+taken from the repository rather than from the copy.** v2.9's `seal.mjs --verify` now refuses a
+neutralised or widened policy. That helps a reviewer who runs it, not an operator who doesn't.
+
 **Verified by.** `evidence/gate-C/05-tamper-evidence.txt`: one byte changed inside a *comment*
 in the script block (offset 83048, `a`→`X`, behaviour unchanged). Sealed copy: script ran,
 demo load gave hosts=6, ppsm=19. Tampered copy: `appDefined:false`, `dispatchWired:false`, 0
@@ -528,18 +544,19 @@ table rows, `S is not defined`, and the browser's own message naming both the ex
 actual hash. The page still rendered its markup and stylesheet (782 DOM nodes, correct
 background) — visibly Palisade, visibly not working. That is a useful failure mode: it does not
 depend on anyone choosing to run a checksum, and the expected hash in the console can be
-compared against `SHA256SUMS` with no Palisade-specific tooling.
+compared against `MANIFEST.json` → `inlineScriptBlocks[0].sha256` (the same base64, without the
+`sha256-` prefix) with no Palisade-specific tooling. *[corrected in v2.9: v2.8 said `SHA256SUMS`,
+which holds only whole-file hex digests.]*
 
 ---
 
 ## 7. Residual risk — what these controls do not reach
 
-**7.1 `style-src 'unsafe-inline'` remains.** The file sets 483 `style=` attributes, about a
+**7.1 `style-src 'unsafe-inline'` remains.** The file sets 481 `style="` attributes, about a
 hundred of which carry a runtime value (measured 2026-09-11 on the shipped build: 49
-template-literal interpolations, 53 built by string concatenation). Note that the file's own
-CSP comment (line 15) still reads "481 style= attributes" — a figure carried over from an
-earlier build and frozen in place by the seal. 483 is the measured value; the comment is
-stale and cannot be corrected without re-sealing. CSS cannot execute, and every channel that
+template-literal interpolations, 53 built by string concatenation). *[corrected in v2.9: v2.8
+said 483 and called the in-file "481" stale. 481 is correct. A raw `grep -o 'style='` returns 483
+because it also matches the CSP comment that states the figure, and one escaped-quote string.]* CSS cannot execute, and every channel that
 could send anything anywhere — `img-src`, `font-src`, `connect-src`, external stylesheets — is `'none'`, so the
 practical exposure is narrow. It is still the loosest directive in the policy, and hashing the
 stylesheet elements is a deferred step, not a completed one.
@@ -563,7 +580,9 @@ produces the tamper evidence in §6.9.
 `<a href>` — so escaping every cell by default would render those tags as visible text. All 20
 report section builders were traced and every scan-derived value reaching them is escaped
 today, and after the policy lock the report is contained by CSP in both the preview and the
-export — so this is a hardening opportunity, not a live defect. It is named here so it is not
+export — so this is a hardening opportunity, not a live defect. *[corrected in v2.9]* Two cells,
+the PPSM port and the trend values, carried session-derived values raw. That was a live defect,
+fixed in v2.9 (audit A3). It is named here so it is not
 discovered later and mistaken for one.
 
 **7.6 Everything downstream of the handover.** Once the `.zip` leaves, Palisade's controls end.

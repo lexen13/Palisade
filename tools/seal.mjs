@@ -13,6 +13,12 @@
  *   3. re-asserts the offline invariants by static inspection;
  *   4. emits the SHA-256 / SHA-384 integrity manifest.
  *
+ * What the seal does NOT prove: it checks that the policy text is the canonical
+ * one and that the browser will see it (one <meta>, first thing in <head>, not
+ * inside a comment). It cannot stop someone who can write the file from writing
+ * a different file; the whole-file digest in SHA256SUMS / the release attestation
+ * is the control for that. Anyone verifying a copy checks the digest first.
+ *
  * The digest is taken over the EXACT bytes between <script> and </script>.
  * No trimming, no normalisation, no re-indentation: a single whitespace change
  * invalidates the hash and the browser will refuse to run the script. That is
@@ -49,21 +55,52 @@ const problems = [], notes = []
  * hand the operator a seal that is wrong by construction. */
 const crCount = raw.reduce((n, b) => n + (b === 0x0d ? 1 : 0), 0)
 const hasBOM = raw.length >= 3 && raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf
+/* NUL bytes and invalid UTF-8: grep treats a file holding a NUL as binary and prints
+ * nothing, which blinded csp-lint's counts in v2.8; the browser decodes invalid UTF-8
+ * as U+FFFD, so the bytes hashed here would not be the ones it hashes. Refused. */
+const nulCount = raw.reduce((n, b) => n + (b === 0 ? 1 : 0), 0)
+let utf8ok = true
+try { new TextDecoder('utf-8', { fatal: true }).decode(raw) } catch { utf8ok = false }
+if (nulCount) problems.push(`${nulCount} NUL byte(s) present — refused (text tools treat the file as binary and lint nothing)`)
+if (!utf8ok) problems.push('the file is not valid UTF-8 — refused (the browser would hash replacement characters, not these bytes)')
 if (crCount) problems.push(`${crCount} CR byte(s) (0x0D) present — the file must be LF-only. The browser normalises CRLF to LF before computing the script hash, so a CRLF file on disk hashes differently from what the browser computes and the page loads inert. Fix: sed -i 's/\\r$//' the file (and set core.autocrlf=false / add *.html -text).`)
 if (hasBOM) problems.push('UTF-8 BOM (EF BB BF) at offset 0 — the file must have no BOM. It precedes <!DOCTYPE html> and it changes the whole-file digest an operator verifies against SHA256SUMS.')
 if (!crCount && !hasBOM) notes.push('byte hygiene: LF-only, no BOM (script hash will match what the browser computes)')
-const bytesAreSealable = !crCount && !hasBOM
+const bytesAreSealable = !crCount && !hasBOM && !nulCount && utf8ok
 
 /* ---- 1. inline script digests ------------------------------------------ */
+/* Structure is read from a copy with every HTML comment blanked to equal-length
+ * spaces, because that is what the parser does with them: a <meta> or a <script>
+ * inside <!-- --> does not exist for the browser. v2.8 matched the raw text, so a
+ * policy wrapped in a comment still verified PASS while the page ran with no CSP.
+ * Offsets are preserved, so the script bytes are still cut from the original. */
+const unterminated = /<!--(?![\s\S]*?-->)/.test(text)
+if (unterminated) problems.push('an HTML comment is opened and never closed — everything after it is invisible to the browser')
+const blanked = text.replace(/<!--[\s\S]*?-->/g, c => ' '.repeat(c.length))
 const blocks = []
-const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g
+const re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi
 let m
-while ((m = re.exec(text)) !== null) {
-  const start = Buffer.byteLength(text.slice(0, m.index + m[0].indexOf('>') + 1), 'utf8')
-  const bytes = Buffer.from(m[1], 'utf8')
-  blocks.push({ bytes, len: bytes.length, sha256: createHash('sha256').update(bytes).digest('base64'), start })
+while ((m = re.exec(blanked)) !== null) {
+  const open = m[0].indexOf('>') + 1
+  const body = text.slice(m.index + open, m.index + open + m[2].length)
+  const start = Buffer.byteLength(text.slice(0, m.index + open), 'utf8')
+  const bytes = Buffer.from(body, 'utf8')
+  blocks.push({ at: m.index + open, attrs: m[1].trim(), body, bytes, len: bytes.length, sha256: createHash('sha256').update(bytes).digest('base64'), start })
 }
+const scriptOpens = (blanked.match(/<script\b/gi) || []).length
+/* markup = what the parser reads as markup: comments and script bodies blanked (the script
+ * legitimately carries CSP strings for the standalone reports it writes) */
+let markup = blanked
+for (const b of blocks) markup = markup.slice(0, b.at) + ' '.repeat(b.body.length) + markup.slice(b.at + b.body.length)
 if (!blocks.length) problems.push('no inline <script> block found')
+if (blocks.length !== 1 || scriptOpens !== 1)
+  problems.push(`expected exactly one <script> element, found ${scriptOpens} opening tag(s) and ${blocks.length} complete block(s)`)
+for (const b of blocks) {
+  if (b.attrs) problems.push(`the <script> tag carries attributes (${b.attrs.slice(0, 60)}) — the release form is a bare <script>`)
+  /* "<!--" and "<script" inside script data switch the tokenizer into the escaped
+   * states, where the block's end is no longer the first </script>. */
+  if (/<!--|<script|<\/script/i.test(b.body)) problems.push('the script body contains "<!--", "<script" or "</script" — the parser would not end the block where this tool does')
+}
 const wanted = blocks.map(b => `'sha256-${b.sha256}'`).join(' ')
 
 /* ---- 2. CSP meta tag ---------------------------------------------------- */
@@ -71,11 +108,26 @@ const wanted = blocks.map(b => `'sha256-${b.sha256}'`).join(' ')
  * of either kind: every real policy contains keyword sources written in single quotes
  * ('none', 'unsafe-inline', 'sha256-...'), so a [^"']* body can never match one. */
 const cspRe = /<meta\s+http-equiv=["']Content-Security-Policy["']\s+content=(["'])([\s\S]*?)\1\s*>/i
-const csp = text.match(cspRe)
+const csp = markup.match(cspRe)
+/* Placement. A <meta> policy is honoured only if the parser puts it in <head>, and only
+ * for what comes after it. So: exactly one policy element in the file (outside comments),
+ * and nothing ahead of it but the doctype, <html>, <head> and other <meta> tags -- which
+ * rules out <noscript>, <template>, <title>, <style>, <textarea> or any body content
+ * swallowing it or ending the head early. */
+const policyMetas = (markup.match(/<meta\b[^>]*http-equiv\s*=\s*["']?\s*content-security-policy/gi) || []).length
+if (policyMetas > 1) problems.push(`${policyMetas} Content-Security-Policy <meta> elements outside comments — the release has exactly one`)
+if (/content-security-policy-report-only/i.test(markup)) problems.push('a report-only policy is present — it enforces nothing')
+if (csp) {
+  const before = markup.slice(0, csp.index)
+  const PREAMBLE = /^\s*<!DOCTYPE html>\s*<html\b[^>]*>\s*<head>\s*(?:<meta\b(?![^>]*http-equiv)[^>]*>\s*)*$/i
+  if (!PREAMBLE.test(before))
+    problems.push('the policy <meta> is not the first thing in <head> — only <!DOCTYPE html>, <html>, <head> and plain <meta> tags may precede it, otherwise the parser can drop it or apply it too late')
+  else notes.push('policy <meta> is in <head>, outside any comment, ahead of every script')
+}
 if (!csp) {
   /* (d) always surface the digest the operator needs, even when there is no
    * tag to compare it against yet — this is the number that goes into C2. */
-  problems.push(`no <meta http-equiv="Content-Security-Policy"> present\n      expected script-src: ${wanted}`)
+  problems.push(`no <meta http-equiv="Content-Security-Policy"> the browser would see (none present, or only inside a comment)\n      expected script-src: ${wanted}`)
 } else {
   const cur = (csp[2].match(/script-src\s+([^;]*)/i) || [, ''])[1].trim()
   if (cur !== wanted) {
@@ -83,7 +135,7 @@ if (!csp) {
       problems.push(`refusing to --seal: byte hygiene failed above, so this digest is not what the browser would compute\n      expected script-src (after the file is fixed): ${wanted}`)
     } else if (mode === 'seal') {
       const patched = csp[2].replace(/script-src\s+[^;]*/i, `script-src ${wanted}`)
-      raw = Buffer.from(text.replace(csp[0], csp[0].replace(csp[2], patched)), 'utf8')
+      raw = Buffer.from(text.slice(0, csp.index) + csp[0].replace(csp[2], patched) + text.slice(csp.index + csp[0].length), 'utf8')
       writeFileSync(file, raw)
       notes.push(`script-src resealed -> ${wanted}`)
     } else {
@@ -91,8 +143,21 @@ if (!csp) {
     }
   } else notes.push('script-src digests match the script bytes')
 
-  for (const d of ["default-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "connect-src 'none'"])
-    if (!csp[2].includes(d)) problems.push(`CSP is missing ${d}`)
+  /* The whole policy is compared to the canonical one, not a substring list: v2.8
+   * checked five directives were present, so an added script-src-elem/-attr (which
+   * override script-src), a second weaker default, or a widened style/img source
+   * all verified PASS. Only the script-src digest list varies between releases. */
+  const CANONICAL = ["default-src 'none'", 'script-src <digests>', "style-src 'unsafe-inline'",
+    "img-src 'none'", "font-src 'none'", "connect-src 'none'", "frame-src 'none'", "worker-src 'none'",
+    "object-src 'none'", "media-src 'none'", "manifest-src 'none'", "base-uri 'none'", "form-action 'none'"]
+  const got = csp[2].split(';').map(d => d.trim().replace(/\s+/g, ' ')).filter(Boolean)
+    .map(d => /^script-src /i.test(d) ? 'script-src <digests>' : d)
+  const missing = CANONICAL.filter(d => !got.includes(d))
+  const extra = got.filter(d => !CANONICAL.includes(d))
+  const dupes = got.length !== new Set(got.map(d => d.split(' ')[0].toLowerCase())).size
+  if (missing.length || extra.length || dupes)
+    problems.push(`CSP differs from the canonical policy${missing.length ? `\n      missing: ${missing.join('; ')}` : ''}${extra.length ? `\n      not allowed: ${extra.join('; ')}` : ''}${dupes ? '\n      a directive is repeated (the first one wins)' : ''}`)
+  else notes.push(`CSP is exactly the canonical ${CANONICAL.length}-directive policy (only the script-src digest varies)`)
 }
 
 /* ---- 3. version consistency (CONTRIBUTING.md "Releasing") --------------- */
@@ -132,6 +197,8 @@ const banned = [
   [/\beval\s*\(/g, 'eval('], [/new\s+Function\s*\(/g, 'new Function('],
   [/document\.write\s*\(/g, 'document.write('],
   [/\bnavigator\.sendBeacon\b/g, 'sendBeacon'],
+  /* SECURITY.md and the assessment claim zero of these too; v2.8 checked neither */
+  [/\bEventSource\b/g, 'EventSource'], [/new\s+Image\b/g, 'new Image'],
   [/https?:\/\/(?!www\.w3\.org|schemas\.|purl\.org|cyclonedx\.org|spdx\.org)/g, 'absolute http(s) URL'],
   [/<(script|link|img|iframe)[^>]+\b(src|href)=["']?(https?:)?\/\//gi, 'external resource reference'],
 ]
@@ -181,12 +248,23 @@ if (tagged) notes.push(`${tagged} inline event-handler attribute(s) exempt via $
 
 /* ---- 5. integrity manifest ---------------------------------------------- */
 const final = readFileSync(file)
+/* The CSP hash covers the script only. The markup around it (the policy itself, every
+ * control, label and default) is covered by the whole-file digest and nothing else, so
+ * it gets its own digest here: a reviewer comparing two builds can tell a script change
+ * from a markup change without diffing 500 KB. */
+const finalText = final.toString('utf8')
+const sm = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/i.exec(finalText.replace(/<!--[\s\S]*?-->/g, c => ' '.repeat(c.length)))
+const outside = sm ? Buffer.concat([
+  Buffer.from(finalText.slice(0, sm.index + sm[0].indexOf('>') + 1), 'utf8'),
+  Buffer.from(finalText.slice(sm.index + sm[0].indexOf('>') + 1 + sm[1].length), 'utf8')]) : final
 const manifest = {
   file: basename(file), bytes: final.length,
   sha256: createHash('sha256').update(final).digest('hex'),
   sha384: createHash('sha384').update(final).digest('hex'),
   sha512: createHash('sha512').update(final).digest('hex'),
   version: vTitle, inlineScriptBlocks: blocks.map(b => ({ bytes: b.len, sha256: b.sha256 })),
+  outsideScript: { bytes: outside.length, sha256: createHash('sha256').update(outside).digest('hex'),
+    note: 'markup outside the script block: not covered by the CSP hash, only by the whole-file digest' },
   lineEndings: crCount ? 'MIXED/CRLF' : 'LF', bom: hasBOM,
   inlineHandlers: { staticBody: bodyHandlers, live, exportOnlyExempt: tagged },
 }

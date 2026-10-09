@@ -64,8 +64,8 @@ think is right. You do not owe silence to a project that did not answer you.
 
 | Version | Supported |
 |---|---|
-| 2.8 (current) | Yes |
-| 2.7 and earlier | No |
+| 2.9 (current) | Yes |
+| 2.8 and earlier | No |
 
 Only the current release is supported. There is no long-term-support branch and no backporting,
 because there is nothing to backport *to* — a release is one file, so upgrading is replacing it.
@@ -75,6 +75,13 @@ reachable from a crafted scan export, an uncapped decompression path, and a prot
 path that silently inverts the scan-detected versus inventory-only distinction in the compiled
 evidence.** They are fixed in 2.8 and described in `CHANGELOG.md`. If you are running 2.7 or
 earlier, replace the file.
+
+**2.8 is also superseded.** The v2.9 audit (`docs/SECURITY-AUDIT-2.9.md`) found 19 high-severity
+issues in 2.8. None of them executes script, but several produce wrong evidence from a hostile
+scan or a crafted session: an "Unapproved" listing recorded as Approved, an Open CAT I dropped,
+security tooling removed from a host reported as no change, a `__proto__` plugin ID that wedges
+every later ingest. Others inject markup that can hide evidence or navigate the tab away. If you
+are running 2.8, replace the file.
 
 ## Scope
 
@@ -101,10 +108,11 @@ generates:
 
 - Browser and operating-system vulnerabilities. Report those to the vendor.
 - Attacks that require the attacker to already be able to write to the file on disk. At that point
-  they can replace the tool entirely, and the seal's job is to make that *visible* — a modified
-  script block makes the page load inert with the expected hash in the console — not to prevent it.
+  they can replace the tool entirely. The seal does not make that visible either: someone who can
+  edit the file can re-seal it, or neutralise the policy and leave the script untouched. The
+  control for that attacker is the digest check below, against a value taken from the repository.
 - `style-src 'unsafe-inline'`, absent a demonstrated impact. It is a known, documented residual:
-  the file sets `style=` 483 times, CSS cannot execute, and every directive that could send
+  the file sets 481 `style=` attributes, CSS cannot execute, and every directive that could send
   anything anywhere is `'none'`. A working exploit changes this answer; a scanner flagging the
   directive does not.
 - Downloads, the clipboard and printing not being governed by CSP. They are not, by design of the
@@ -138,11 +146,11 @@ not a breach of this policy — you keep the safe harbour.
 
 ## Verifying the file you have
 
-Two independent checks, and one of them needs no tooling at all.
+One check that ties the copy to this project, and one that catches accidental damage.
 
 ```bash
 sha256sum palisade.html
-# fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97   (v2.8, 521,771 bytes)
+# 84ea3d3299d58bf4f0413d54c97b82772f80d19d460cad146d9815c524a32994   (v2.9, 572,143 bytes)
 ```
 
 `MANIFEST.json` carries the same digest plus sha384, sha512 and the script-block hash;
@@ -150,13 +158,16 @@ sha256sum palisade.html
 `docs/SBOM.md` explains how to check all of it in about a minute.
 
 The check that needs no tooling: the file's `script-src` is the SHA-256 of the file's own script
-block, so **if a byte of that script has changed, the browser refuses to run it** — the page loads
-styled and complete but entirely inert, with the expected hash named in the console. If you open
-Palisade and the interface is there but nothing works, that is not a bug to report. That is the
-seal, and you should get a clean copy.
+block, so **if a byte of that script has changed and the policy has not, the browser refuses to
+run it**. The page loads styled and complete but entirely inert, with the expected hash named in
+the console. If you open Palisade and the interface is there but nothing works, that is not a bug
+to report. That is the seal, and you should get a clean copy.
 
-Note what the seal does and does not tell you. It proves the bytes have not changed since they
-were sealed. It does not prove who produced them: there is no code signature, and an `.html` file
+Note what the seal does and does not tell you. It catches accidental damage and careless edits.
+It does not catch someone who means it: they can re-seal an edited script, or neutralise the
+policy, and the markup outside the script (every control and default) is not covered by the hash
+at all. `node tools/seal.mjs palisade.html --verify` catches a neutralised or widened policy, but
+only for whoever runs it. The seal also does not prove who produced the file: there is no code signature, and an `.html` file
 cannot carry one a browser verifies. **Anyone can seal a file they wrote.** The digest above is
 what ties a copy to this project, so get it from the repository rather than from the same place
 you got the file.
@@ -174,5 +185,5 @@ or anywhere else — it is not that, and a reviewer who checks will be right to 
 
 ---
 
-*Palisade 2.8 · MIT · Gavin Lee Domingo Johnson, Jacob Keith ·
+*Palisade 2.9 · MIT · Gavin Lee Domingo Johnson, Jacob Keith ·
 <https://github.com/lexen13/Palisade>*

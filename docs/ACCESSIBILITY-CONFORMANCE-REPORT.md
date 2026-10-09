@@ -1,5 +1,10 @@
 # Accessibility Conformance Report — Palisade v2.8
 
+> **v2.9 note (2026-10-09).** This report evaluated v2.8 (the artifact named below) and has not
+> been re-run against v2.9. v2.9 changes no layout or control structure. It changes some status
+> and confirm wording, a report tile that reads "n/a" without threat intel, and start-up
+> defaults for three opt-in checkboxes. See `CHANGELOG.md`.
+
 **VPAT® 2.5-shaped report — International Edition structure, WCAG 2.1 and Revised Section 508**
 
 | | |

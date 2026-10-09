@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-  "serialNumber": "urn:uuid:a7a609c6-0c29-4697-af2b-b2752cd5543f",
+  "serialNumber": "urn:uuid:939c436a-b177-4351-8ca5-cba0fd749126",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-09-11T17:01:12Z",
+    "timestamp": "2026-10-09T20:00:00Z",
     "authors": [
       {
         "name": "Jacob Keith"
@@ -22,25 +22,25 @@
         {
           "type": "application",
           "name": "GNU coreutils sha256sum/sha384sum/sha512sum",
-          "version": "9.10",
+          "version": "9.4",
           "description": "Produced the hashes recorded in metadata.component.hashes."
         },
         {
           "type": "application",
           "name": "CPython hashlib",
-          "version": "3.14.6",
+          "version": "3.13.16",
           "description": "Second, independent computation of the same hashes. Both agree."
         }
       ]
     },
     "component": {
-      "bom-ref": "palisade-2.8",
+      "bom-ref": "palisade-2.9",
       "type": "application",
       "mime-type": "text/html",
       "name": "Palisade",
-      "version": "2.8",
+      "version": "2.9",
       "description": "Single-file, fully offline HTML application that compiles DoD RMF control evidence (STIG applicability, eMASS hardware/software baselines, PPSM registry rows, POA&M drafts, account audits, asset inventories) from Tenable/ACAS scan exports. Opened from file://. No build step, no dependencies, no network calls, no browser storage.",
-      "purl": "pkg:generic/palisade@2.8",
+      "purl": "pkg:generic/palisade@2.9",
       "authors": [
         {
           "name": "Gavin Lee Domingo Johnson"
@@ -68,15 +68,15 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97"
+          "content": "84ea3d3299d58bf4f0413d54c97b82772f80d19d460cad146d9815c524a32994"
         },
         {
           "alg": "SHA-384",
-          "content": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f"
+          "content": "4bc5c68aeb3ed9ba59558f86a3964c78fe13b38b2ff991ee6921c2206f3089b4c82ed67c54c87180b1a4d2d2e1d39b4b"
         },
         {
           "alg": "SHA-512",
-          "content": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6"
+          "content": "451b0b3381b9692e4532ddb2a71154bebdfa61adccb317791e3d99234bc3c9484eb54e340ae806d7dd9dddcbeedab1420ecd6e1eb65faff8492ebcd5fdd97fe0"
         }
       ],
       "externalReferences": [
@@ -115,7 +115,7 @@
       "properties": [
         {
           "name": "palisade:file:bytes",
-          "value": "521771"
+          "value": "572143"
         },
         {
           "name": "palisade:file:lineEndings",
@@ -127,11 +127,11 @@
         },
         {
           "name": "palisade:csp:script-src",
-          "value": "sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q="
+          "value": "sha256-rXLlUraYkQK0AWyOdItde6nM7Vp4Okl31uF8o7Q6XsQ="
         },
         {
           "name": "palisade:csp:scriptBlockBytes",
-          "value": "438777"
+          "value": "489099"
         },
         {
           "name": "palisade:csp:scriptBlockCount",
@@ -185,7 +185,7 @@
   "components": [],
   "dependencies": [
     {
-      "ref": "palisade-2.8",
+      "ref": "palisade-2.9",
       "dependsOn": []
     }
   ],
@@ -193,10 +193,10 @@
     {
       "aggregate": "complete",
       "assemblies": [
-        "palisade-2.8"
+        "palisade-2.9"
       ],
       "dependencies": [
-        "palisade-2.8"
+        "palisade-2.9"
       ]
     }
   ]

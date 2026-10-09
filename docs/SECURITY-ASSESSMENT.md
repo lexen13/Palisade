@@ -1,5 +1,13 @@
 # Security Assessment — Palisade v2.8
 
+> **v2.9 note (2026-10-09).** This document describes v2.8 as shipped. The v2.9 audit,
+> [`docs/SECURITY-AUDIT-2.9.md`](SECURITY-AUDIT-2.9.md), found defects this document does not
+> record and statements in it that were wrong. Where the two conflict, the audit governs; its §9
+> lists every erratum. Sentences corrected in place are marked *[corrected in v2.9]*. Paths under
+> `evidence/` or `notes/`, `HARDENING-LEDGER.md`, `tools/sbom-check.py` and `baseline/` probes
+> other than `harness.mjs`, `check-frozen.mjs` and `security-gate.mjs` belong to the review bundle
+> and are not in this repository.
+
 **For:** the ISSM / ISSO / SCA assessing Palisade for use on a NIPRNet or air-gapped
 assessment workstation.
 **From:** Jacob Keith (co-author), 11 September 2026.
@@ -211,7 +219,9 @@ a feature.
 `connect-src 'none'` converts it into a property the browser enforces at run time. A `fetch()`,
 an `XMLHttpRequest`, a `WebSocket`, an `EventSource`, a `sendBeacon` — any of them, from anywhere
 in the file, added by anyone, on purpose or by accident — is refused by the browser before a
-packet exists. **The claim no longer depends on nobody ever adding a `fetch()`.** Measured live:
+packet exists. *[corrected in v2.9]* That holds for fetch-class requests. Speculative connections
+(`<link rel=dns-prefetch|preconnect>`) and navigation are not governed by CSP; see "What the policy
+does not cover". **The claim no longer depends on nobody ever adding a `fetch()`.** Measured live:
 
 ```
 fetch("https://example.invalid")
@@ -227,7 +237,7 @@ That is one line an assessor reads, in place of auditing 7,957.
 | Directive | Why it is set this way |
 |---|---|
 | `default-src 'none'` | The deny-by-default floor. Any resource type not named below inherits "nothing is permitted", so a future directive nobody thought of still fails closed. |
-| `script-src 'sha256-M+Ke…'` | Exactly one script may run, identified by the digest of its bytes. Because a hash is present, the browser **ignores `'unsafe-inline'`** for script — so every injected `on*=` attribute and every injected `<script>` element is dead by policy, not by escaping discipline. No `'unsafe-eval'`, so `eval`, `new Function`, and the string forms of `setTimeout`/`setInterval` all fail the same check. |
+| `script-src 'sha256-M+Ke…'` | Exactly one script may run, identified by the digest of its bytes. `script-src` names only that hash and carries neither `'unsafe-inline'` nor `'unsafe-hashes'`, so every injected `on*=` attribute and every injected `<script>` element has nothing in the policy that admits it — dead by policy, not by escaping discipline. *[corrected in v2.9: v2.8 credited this to "a hash makes the browser ignore `'unsafe-inline'`", but there is no `'unsafe-inline'` here to ignore.]* No `'unsafe-eval'`, so `eval`, `new Function`, and the string forms of `setTimeout`/`setInterval` all fail the same check. |
 | `style-src 'unsafe-inline'` | **The one concession, stated plainly.** The file sets 481 `style=` attributes, 102 of which carry an interpolated or concatenated runtime value (measured, not estimated). CSS cannot execute; and every channel by which CSS is normally abused to exfiltrate — `img-src`, `font-src`, `connect-src`, and external stylesheets via `default-src` — is `'none'`. Hashing the `<style>` elements (`style-src-elem`) is a known, scoped next step, not a claim made today. |
 | `img-src 'none'` | The image beacon is the cheapest exfiltration channel in a `file://` page and the classic bypass for a policy that only closes `connect-src`. Closed. The file contains 0 `<img>` elements, so nothing legitimate is lost. |
 | `font-src 'none'` | A remote font is a network request. The tool uses system font stacks. |
@@ -247,6 +257,13 @@ Stated here rather than left for a reviewer to discover:
   is by design — it is how evidence leaves the tool.
 - **Clipboard and printing.** `navigator.clipboard.writeText` and `window.print()` are not CSP
   surfaces.
+- **Navigation.** *[added in v2.9]* Chromium has no CSP navigation directive. An injected
+  `<meta http-equiv=refresh>`, or a clicked link, navigates the tab and discards the working set.
+  The control is escaping at every sink. The v2.9 audit found and fixed the sinks that allowed it
+  (audit findings A1–A3).
+- **Speculative connections.** *[added in v2.9]* `<link rel=dns-prefetch>` and `preconnect`
+  resolve and connect regardless of `connect-src`. The control is that no attacker text reaches
+  markup at all.
 - **A browser that ignores policy.** A defect in the browser's CSP implementation, or a build
   configured to disregard it, is outside what one HTML file can control. The deployed browser
   remains the enclave's assurance, as it is for every web application.
@@ -634,17 +651,23 @@ imaginable. Each item below was a live hypothesis that was chased and closed.
 **Sinks and escaping**
 
 - **`esc()`'s five-character alphabet as the defect.** Adequate for the quoted-attribute and text
-  contexts where it is used. No attacker-controlled data reaches a URL, scheme or CSS context.
+  contexts where it is used. *[corrected in v2.9]* In v2.8 attacker text did reach URL and CSS
+contexts: the host-detail drawer wrote the port `protocol` raw, so a scan file could create
+`<style>`, `<meta refresh>` and `<link href>` (audit A1). Fixed in v2.9.
   The defect in §5.1 was `esc()`'s *absence* in a JavaScript-string context — the wrong control
   for the context — not a weakness in its alphabet.
 - **`loadBaseline` and `ingestTrendSessions` as live injection vectors.** Both restore the prior
   state object before any render. Verified by reading both functions end to end. Only
-  `loadSession` renders attacker-supplied keys.
+  `loadSession` renders attacker-supplied keys. *[corrected in v2.9]* `loadBaseline` did not
+  restore the prior state on a throw (audit C1). `loadSession` also rendered attacker-supplied
+  *values* raw at about a dozen sites (audit A2). Both are fixed in v2.9.
 - **Tenable-authored plugin name and remediation text as the formula-injection vector.** Those
   fields come from the scanner, not the scanned host. The lane stands on hostnames, product
   names, account names and group names. They are all neutralised uniformly regardless.
 - **The 20 report section builders and the `rpt*` helpers as live injection.** All twenty were
-  traced; every scan-derived value is escaped before it reaches the report. The unsandboxed
+  traced; every scan-derived value is escaped before it reaches the report. *[corrected in v2.9]*
+  Session-derived values were not: the PPSM port and trend cells were raw (audit A3). Fixed in
+  v2.9. The unsandboxed
   preview and the raw-cell helpers were defence-in-depth gaps — now closed (§5.7) — not live
   injection.
 - **Handlers keyed by in-code constants** (column definition lists, view ids, help topics,
@@ -719,12 +742,12 @@ What an assessor should carry forward, rather than a claim that nothing remains.
    The failure mode is loud (the page goes inert) rather than silent, which is the right way
    round, but it is an operational commitment.
 5. **Report cells still accept markup from a small number of call sites by design** (tags,
-   scope badges, styled spans). All twenty builders are verified escaped today and the report is
-   contained by CSP in both the preview and the export, so this is hardening not yet done rather
-   than a live defect — but it is the next thing a hostile reviewer should look at.
+   scope badges, styled spans). *[corrected in v2.9]* In v2.8, two cells (PPSM port, trend) were
+   not escaped and carried session values into the exported report. v2.9 escapes them, and
+   `baseline/security-gate.mjs` checks the exported report for injected markup.
 6. **Block B measurements were captured against the immediately prior build** (see the provenance
-   note in §5). Re-running `baseline/verify-B.mjs` against the shipped bytes would close that gap
-   entirely and costs one command.
+   note in §5). `baseline/verify-B.mjs` belongs to the review bundle and is not in this repository
+   *[corrected in v2.9]*. `baseline/security-gate.mjs` is the shipped, re-runnable check.
 
 ---
 
@@ -860,8 +883,10 @@ The app's status bar should name each refusal as it happens.
 
 ### 11.7 Run the gate
 
-These three commands run from the repository root. They are the checks CI runs, and they are
-the checks an accreditor can re-run on an air-gapped box against the file in this tree.
+These commands run from the repository root. They are the checks the CI workflow is written to
+run, and the checks an accreditor can re-run on an air-gapped box against the file in this tree.
+*[corrected in v2.9]* As of 2026-10-09 the workflow has never run: there are no workflow runs, tags
+or releases, so no attestation exists.
 
 ```bash
 cd /path/to/Palisade          # the repository root; palisade.html is here
@@ -869,6 +894,7 @@ node tools/seal.mjs palisade.html --verify                 # PASS, exit 0
 bash  tools/csp-lint.sh palisade.html                      # PASS, exit 0
 node  baseline/harness.mjs "file://$PWD/palisade.html" ./gate
 node  baseline/check-frozen.mjs ./gate/result.json baseline/FROZEN-BASELINE.txt
+node  baseline/security-gate.mjs "file://$PWD/palisade.html" ./gate   # v2.9: hostile-input gate
 ```
 
 The hostile-fixture probe and the six negative-test primitives used during review are **not**
