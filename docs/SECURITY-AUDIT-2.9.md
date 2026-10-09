@@ -155,6 +155,10 @@ Anthropic Claude models in organised swarms:
 - **Scale.** Roughly three swarms in each phase, each run as several waves with critique rounds
   between them. Findings were challenged and re-examined by later waves before they were fixed.
 
+The work was done by **Keith Systems** (Jacob Keith, @Cratioo), a participant in Anthropic's
+**Cyber Verification Program** (Defense Access tier), which provides access to Claude Mythos,
+Claude Opus 5.5 and Claude Sonnet 5.5 for defensive security use.
+
 This section records who did the work. It does not change the evidence limits stated above: the
 independent three-verifier pass completed for 18 findings only, and §7 lists what remains
 residual. The model attribution is as reported by the project owner and is not something this
