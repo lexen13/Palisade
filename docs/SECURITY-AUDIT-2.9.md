@@ -144,6 +144,24 @@ below, and not an independent panel's.
 
 ---
 
+### Provenance: how the work was run
+
+This audit and remediation were directed by **Jacob Keith (@Cratioo)** and carried out with
+Anthropic Claude models in organised swarms:
+
+- **Finding.** Claude **Mythos** swarms did the vulnerability hunting. These are the "lanes,"
+  "finders" and "verifiers" described above.
+- **Fixing.** Claude **Opus 5.5** swarms made the v2.9 changes and wrote the regression checks.
+- **Scale.** Roughly three swarms in each phase, each run as several waves with critique rounds
+  between them. Findings were challenged and re-examined by later waves before they were fixed.
+
+This section records who did the work. It does not change the evidence limits stated above: the
+independent three-verifier pass completed for 18 findings only, and §7 lists what remains
+residual. The model attribution is as reported by the project owner and is not something this
+repository can verify from its own contents.
+
+---
+
 ## 3. What v2.8 got right (verified, not assumed)
 
 - **No script execution from any input.** Injected `<script>`, `on*=` attributes,
