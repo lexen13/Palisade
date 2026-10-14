@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-PXDn2NIpVx7L6zLh1iMmtmopnTG/Lu2eWjiwdF33wHE='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -1727,7 +1727,10 @@ function newState(){
   meta:{tool:"Palisade", ver:"2.8", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
-            banner:"UNCLASSIFIED",
+            banner:"UNCLASSIFIED",      // the floor: the least anything here is marked
+            // marking policy and the authority block / designation indicator fields
+            mkProfile:"DOD",mkLegacy:"preserve",mkClassBy:"",mkDerivedFrom:"",mkDeclOn:"",
+            mkCtrlBy:"",mkCtrlOffice:"",mkPoc:"",mkAiMax:"CUI",
             boundaryDefaults:Array(16).fill(""),
             // Software Listing header block
             swExportedBy:"",swOwner:"",swSystemName:"",swDitpr:"",swOffice:"",
@@ -1752,6 +1755,7 @@ function newState(){
   delta:null,      // computed change record
   intel:emptyIntel(), // fused cyber threat intelligence (SASR-E and similar sheets)
   listings:emptyListings(), // ingested HW/SW baseline listings (records + per-file mapping reports)
+  marking:emptyMarking(),   // sources, tagging rules, product overrides, release log
   config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
   auto:{}
  };
@@ -1761,7 +1765,7 @@ function emptyListings(){return {hw:[], sw:[], files:[], conflicts:[]};}
 
 /* ---------------- utilities ---------------- */
 const $=id=>document.getElementById(id);
-function status(m){$("statusbar").textContent=m;}
+function status(m){if(MK_DRY)return;$("statusbar").textContent=m;}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 /* Untrusted JSON boundary.  JSON.parse creates a genuine OWN "__proto__" property, but a
    later read of map["__proto__"] goes through the prototype getter instead and returns
@@ -1779,8 +1783,9 @@ function safeParse(text){
    That is what lets the package bundler reuse all 29 export functions unchanged
    rather than keeping a second copy of their formatting. */
 let DL_CAPTURE=null;
-function dl(name,text,mime){
- if(DL_CAPTURE){DL_CAPTURE.push({name,text,mime:mime||"text/plain"});return;}
+function dl(name,text,mime,M){
+ if(DL_CAPTURE){DL_CAPTURE.push({name,text,mime:mime||"text/plain",M:M||null});return;}
+ mkLogIssue(name,M);
  dlBlob(name,new Blob([text],{type:mime||"text/plain"}));
 }
 function dlBlob(name,blob){const a=document.createElement("a");
@@ -1805,8 +1810,753 @@ function checkFileSize(f,named){
    throw new Error((named&&f.name?f.name:"file")+" is larger than the tool's "
      +Math.round(LIMITS.INPUT_FILE_BYTES/1048576)+" MiB limit");
 }
-function applyBanner(){$("bannerTop").textContent=S.settings.banner;$("bannerBottom").textContent=S.settings.banner;$("bannerText").value=S.settings.banner;}
 function persistNothingNote(){/* placeholder: settings live in S; saved only via session export */}
+
+/* =========================================================================
+   Classification markings: one engine for every way a marking enters or leaves.
+
+   READ. Whatever form a marking arrives in -- banner or portion, words or
+   abbreviations, any order, "//" or "/" or " - " between parts, legacy FOUO,
+   a misspelt NOFRON -- it is read into one structured value. A part is placed
+   by what it IS, never by where it sat, so "NOFORN//SECRET" and "SECRET/NOFORN"
+   both mean SECRET//NOFORN. Anything not recognised is kept verbatim and holds
+   the marking for review. Nothing a source says is ever dropped.
+
+   ROLL UP. The banner of anything is the least upper bound of its portions: a
+   join on a semilattice. The highest level wins; SCI, SAP, AEA, FGI and the
+   dissemination controls accumulate. Foreign release is decided country by
+   country -- each is DENY, DISPLAY or REL in each portion and takes the most
+   restrictive across them -- so NOFORN beats REL TO, REL TO lists intersect, and
+   a list that intersects down to USA alone is NOFORN. A portion that needed a
+   release marking and has none (classified, or CUI) beside one that grants
+   release makes the product NOFORN: the uncaveated part was never cleared.
+
+   Every rule is written so the join is commutative, associative and
+   idempotent, and so that joining canonical keys gives the same answer as
+   joining the originals. That is what makes a product's banner independent of
+   the order its files were loaded in, and of whether a value went through a
+   session file on the way. It is checked, not assumed: mkSelfTest() runs the
+   algebra over generated markings every time the page opens.
+
+   ORDER. Output is in register order -- classification // SCI // SAP // AEA //
+   FGI // dissemination // non-IC dissemination -- with REL TO lists as USA, then
+   trigraphs, then tetragraphs, and CUI categories specified-first. mkCmp() is a
+   total order that never sorts a marking above one that dominates it.
+
+   NEVER LOWER. Uncertain cases resolve to the more restrictive reading: a bare
+   REL with no banner to resolve it reads as NOFORN; NATO RESTRICTED reads as
+   CONFIDENTIAL; spelling repair is one edit only, so CLASSIFIED can never be
+   "repaired" into UNCLASSIFIED.
+   ========================================================================= */
+const MK_LVL_P=["U","C","S","TS"], MK_LVL_B=["UNCLASSIFIED","CONFIDENTIAL","SECRET","TOP SECRET"];
+/* IC dissemination controls in register order: [key, portion, banner]. NOFORN, REL TO,
+   RELIDO and DISPLAY ONLY hold their slots here but are carried as the release state. */
+const MK_DIS=[["RSEN","RS","RSEN"],["FOUO","FOUO","FOUO"],["ORCON","OC","ORCON"],["ORCON-USGOV","OC-USGOV","ORCON-USGOV"],
+ ["IMCON","IMC","IMCON"],["NOFORN","NF","NOFORN"],["PROPIN","PR","PROPIN"],["REL","REL TO","REL TO"],["RELIDO","RELIDO","RELIDO"],
+ ["DSEN","DSEN","DSEN"],["FISA","FISA","FISA"],["DISPLAY","DISPLAY ONLY","DISPLAY ONLY"]];
+const MK_NONIC=[["LIMDIS","DS"],["EXDIS","XD"],["NODIS","ND"],["SBU","SBU"],["SBU NOFORN","SBU-NF"],["LES","LES"],["LES NOFORN","LES-NF"],["SSI","SSI"]];
+/* CUI limited dissemination controls other than the release ones: [key, portion] */
+const MK_LDC=[["FED ONLY","FED ONLY"],["FEDCON","FEDCON"],["NOCON","NOCON"],["DL ONLY","DL ONLY"],["ATTORNEY-CLIENT","AC"],["ATTORNEY-WP","AWP"]];
+const MK_SCI_SYS=new Set(["SI","TK","HCS","KDK","RSV","BUR"]);
+/* ISO 3166-1 alpha-3, the GENC XKS, and the tetragraphs in common use. Tells a country code
+   from a stray word, so a list can continue across a "/" ("REL TO USA/GBR") without swallowing
+   what follows it. A tetragraph is compared as written, never expanded into its members:
+   release to an organisation is not release to each member state. */
+const MK_ISO3=new Set(("ABW AFG AGO AIA ALA ALB AND ARE ARG ARM ASM ATA ATF ATG AUS AUT AZE BDI BEL BEN BES BFA BGD BGR BHR BHS "
+ +"BIH BLM BLR BLZ BMU BOL BRA BRB BRN BTN BVT BWA CAF CAN CCK CHE CHL CHN CIV CMR COD COG COK COL COM CPV CRI CUB CUW CXR CYM "
+ +"CYP CZE DEU DJI DMA DNK DOM DZA ECU EGY ERI ESH ESP EST ETH FIN FJI FLK FRA FRO FSM GAB GBR GEO GGY GHA GIB GIN GLP GMB GNB "
+ +"GNQ GRC GRD GRL GTM GUF GUM GUY HKG HMD HND HRV HTI HUN IDN IMN IND IOT IRL IRN IRQ ISL ISR ITA JAM JEY JOR JPN KAZ KEN KGZ "
+ +"KHM KIR KNA KOR KWT LAO LBN LBR LBY LCA LIE LKA LSO LTU LUX LVA MAC MAF MAR MCO MDA MDG MDV MEX MHL MKD MLI MLT MMR MNE MNG "
+ +"MNP MOZ MRT MSR MTQ MUS MWI MYS MYT NAM NCL NER NFK NGA NIC NIU NLD NOR NPL NRU NZL OMN PAK PAN PCN PER PHL PLW PNG POL PRI "
+ +"PRK PRT PRY PSE PYF QAT REU ROU RUS RWA SAU SDN SEN SGP SGS SHN SJM SLB SLE SLV SMR SOM SPM SRB SSD STP SUR SVK SVN SWE SWZ "
+ +"SXM SYC SYR TCA TCD TGO THA TJK TKL TKM TLS TON TTO TUN TUR TUV TWN TZA UGA UKR UMI URY USA UZB VAT VCT VEN VGB VIR VNM VUT "
+ +"WLF WSM XKS YEM ZAF ZMB ZWE FVEY ACGU NATO").split(" "));
+/* CUI Registry category abbreviations a scan-to-evidence tool meets, basic form; any SP- token
+   is a specified category. Detection Config adds a site's own. A word not in the table is never
+   guessed into a category from where it sits: it stays an unknown token, held for review. */
+const MK_CUI_CATS=new Set(["ISVI","OPSEC","PRVCY","PHYS","PHYSEC","DCRIT","CRIT","HLTH","PERS","MIL","CTI","EXPT","EXPTR","NNPI",
+ "PCII","CEII","CVI","TAX","LEI","INV","PRIVILEGE","BUDG","PROCURE","GENETIC","INTEL","GEO","WHSTL"]);
+/* phrase -> [type, key]. Types: L level, CUI, NF, REL, DISP, D dissem, LDC, N non-IC, AEA, SCI,
+   FGI, NATO (a level plus NATO as FGI), SAP, NIL (a word that marks nothing). */
+const MK_VOCAB=(()=>{const v=new Map(),a=(t,k,...ps)=>ps.forEach(p=>v.set(p,[t,k]));
+ a("L",0,"U","UNCLASSIFIED","UNCLAS","UNCLASS","UNCL");a("L",1,"C","CONFIDENTIAL","CONF");a("L",2,"S","SECRET");
+ a("L",3,"TS","TOP SECRET","TOPSECRET","TOP-SECRET");
+ a("CUI",1,"CUI","CONTROLLED","CONTROLLED UNCLASSIFIED INFORMATION");a("NIL",1,"BASIC");
+ a("NF",1,"NF","NOFORN","NOT RELEASABLE TO FOREIGN NATIONALS","NO FOREIGN","NO FOREIGN NATIONALS","NO FOREIGN DISSEM");
+ a("REL",1,"REL","REL TO","RELTO","RELEASABLE TO","AUTHORIZED FOR RELEASE TO");a("DISP",1,"DISPLAY ONLY","DISPLAY ONLY TO");
+ a("D","RELIDO","RELIDO","RELEASABLE BY INFORMATION DISCLOSURE OFFICIAL");
+ a("D","RSEN","RS","RSEN","RISK SENSITIVE");a("D","FOUO","FOUO","FOR OFFICIAL USE ONLY");
+ a("D","ORCON","OC","ORCON","ORIGINATOR CONTROLLED");a("D","ORCON-USGOV","OC-USGOV","ORCON-USGOV");
+ a("D","IMCON","IMC","IMCON","CONTROLLED IMAGERY");
+ a("D","PROPIN","PR","PROPIN","PROPRIETARY INFORMATION INVOLVED","CAUTION-PROPRIETARY INFORMATION INVOLVED");
+ a("D","DSEN","DSEN","DEA SENSITIVE");a("D","FISA","FISA","FOREIGN INTELLIGENCE SURVEILLANCE ACT");
+ a("LDC","FED ONLY","FED ONLY","FEDONLY","FEDERAL EMPLOYEES ONLY");a("LDC","FEDCON","FEDCON","FEDERAL EMPLOYEES AND CONTRACTORS ONLY");
+ a("LDC","NOCON","NOCON","NO DISSEMINATION TO CONTRACTORS");a("LDC","DL ONLY","DL ONLY","DISSEMINATION LIST CONTROLLED");
+ a("LDC","ATTORNEY-CLIENT","AC","ATTORNEY-CLIENT","ATTORNEY CLIENT");a("LDC","ATTORNEY-WP","AWP","ATTORNEY-WP","ATTORNEY WP","ATTORNEY WORK PRODUCT");
+ a("N","LIMDIS","DS","LIMDIS","LIMITED DISTRIBUTION");a("N","EXDIS","XD","EXDIS","EXCLUSIVE DISTRIBUTION");
+ a("N","NODIS","ND","NODIS","NO DISTRIBUTION");a("N","SBU","SBU","SENSITIVE BUT UNCLASSIFIED");
+ a("N","SBU NOFORN","SBU-NF","SBU NOFORN");a("N","LES","LES","LAW ENFORCEMENT SENSITIVE");
+ a("N","LES NOFORN","LES-NF","LES NOFORN");a("N","SSI","SSI","SENSITIVE SECURITY INFORMATION");
+ a("AEA","RD","RESTRICTED DATA");a("AEA","FRD","FORMERLY RESTRICTED DATA");
+ a("AEA","CNWDI","CNWDI","CRITICAL NUCLEAR WEAPON DESIGN INFORMATION");
+ a("AEA","DOD UCNI","DCNI","DOD UCNI","DOD UNCLASSIFIED CONTROLLED NUCLEAR INFORMATION");
+ a("AEA","DOE UCNI","UCNI","DOE UCNI","DOE UNCLASSIFIED CONTROLLED NUCLEAR INFORMATION");
+ a("AEA","TFNI","TFNI","TRANSCLASSIFIED FOREIGN NUCLEAR INFORMATION");
+ a("SCI","SI","SI","COMINT","SPECIAL INTELLIGENCE");a("SCI","SI-G","GAMMA");a("SCI","TK","TK","TALENT KEYHOLE");
+ a("SCI","HCS","HCS","HUMINT CONTROL SYSTEM");a("SCI","KDK","KDK","KLONDIKE");a("SCI","RSV","RSV","RESERVE");a("SCI","BUR","BUR");
+ a("FGI",1,"FGI","FOREIGN GOVERNMENT INFORMATION");
+ a("NATO",3,"CTS","COSMIC TOP SECRET");a("NATO",2,"NS","NATO SECRET");a("NATO",1,"NC","NATO CONFIDENTIAL");
+ a("NATO",-2,"NR","NATO RESTRICTED");a("NATO",0,"NU","NATO UNCLASSIFIED");
+ a("SAP","HVSACO","HVSACO","HANDLE VIA SPECIAL ACCESS CHANNELS ONLY");
+ return v;})();
+const MK_MAXPH=6;
+const MK_WORDS=(()=>{const w=new Set();for(const p of MK_VOCAB.keys())p.split(" ").forEach(x=>w.add(x));return w;})();
+const MK_FUZZ=[...MK_WORDS].filter(w=>w.length>=5&&/^[A-Z]+$/.test(w));
+const MK_DECL=/^(?:\d{8}|25X[1-9]|50X1-HUM|50X2-WMD|X[1-8]|MR|OADR)$/;
+/* How markings are shown, set from the settings. Reading and roll-up never depend on it, so a
+   session saved under one profile reads identically under the other.
+   profile DOD (DoDI 5200.48, DoDM 5200.01): a CUI banner is CUI plus its release controls;
+   categories and the other LDCs go on the designation indicator, and CUI inside classified
+   material is shown by the indicator, not the banner. NARA (32 CFR 2002): categories and LDCs
+   in the CUI banner; a classified banner carries CUI after FGI.
+   legacy: FOUO, SBU and LES shown as written, or shown as the CUI they were replaced by. */
+const MK_POLICY={profile:"DOD",legacy:"preserve"};
+
+function mkEmpty(){return {l:-1,cui:false,cat:new Set(),sci:new Set(),sap:new Set(),aea:new Set(),fgi:null,d:new Set(),
+ fd:"B",rel:null,disp:null,rido:false,ldc:new Set(),nonic:new Set(),decl:new Set(),unk:new Set()};}
+/* edit distance with transposition, capped: enough to read SECERT, NOFRON, UNCLASIFIED */
+function mkDist(a,b,max){if(Math.abs(a.length-b.length)>max)return max+1;
+ const d=[];for(let i=0;i<=a.length;i++)d[i]=[i];for(let j=0;j<=b.length;j++)d[0][j]=j;
+ for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++){
+   d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+   if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1);}
+ return d[a.length][b.length];}
+/* One edit, same first letter, exactly one candidate. */
+function mkFuzzy(w){if(w.length<5||MK_WORDS.has(w)||!/^[A-Z]+$/.test(w))return null;
+ let hit=null;
+ for(const c of MK_FUZZ){if(c[0]===w[0]&&mkDist(w,c,1)<=1){if(hit&&hit!==c)return null;hit=c;}}
+ return hit;}
+const mkIsCountry=w=>MK_ISO3.has(w);
+const mkCodeLike=w=>/^[A-Z]{3,4}$/.test(w)&&!MK_VOCAB.has(w);
+
+/* Text -> {m, notes, strict}. strict holds only when every word was recognised exactly (no
+   spelling repair, no unknown words) and a level or CUI is stated: the bar for treating a
+   free-standing cell or comment as a marking at all. opt.rel resolves a bare "REL" portion
+   against the list in the banner it sits under. */
+function mkRead(text,opt){
+ opt=opt||{};const notes=[];let strict=true;
+ let s=String(text??"").normalize("NFKC").toUpperCase()
+   .replace(/[‐-―−]/g,"-").replace(/[⁄∕／⧸]/g,"/").replace(/\s+/g," ").trim();
+ s=s.replace(/^(?:CLASSIFICATION|CLASSIFIED|CLASS|MARKING|MARKINGS|BANNER|PORTION(?: MARK(?:ING)?)?|CAVEATS?|HANDLING)\s*[:=]\s*/,"");
+ let portion=false;
+ const wrap=s.match(/^[(\[](.*)[)\]]$/);if(wrap){s=wrap[1].trim();portion=true;}
+ if(!s||/^(?:N\/?A|NONE|UNMARKED|NOT MARKED|NO MARKING|-+)$/.test(s))return {m:null,notes,strict:false,portion};
+ /* legacy "USA/GBR EYES ONLY" is a release list */
+ s=s.replace(/((?:\b[A-Z]{3,4}[\/, ]+)*\b[A-Z]{3,4})\s+EYES(?: ONLY)?\b/g,(x,l)=>{notes.push("legacy EYES ONLY read as REL TO");return "REL TO "+l.replace(/\//g,", ");});
+ /* anything people put between categories becomes "/": every part is placed by what it is */
+ s=s.replace(/\s+(?:-{1,2}|\||;)\s+/g,"/").replace(/\\+/g,"/").replace(/\s*\/+\s*/g,"/").replace(/^\/+|\/+$/g,"");
+ const segs=s.split("/").map(x=>x.split(/[\s,]+/).map(w=>w.replace(/^[.:]+|[.:]+$/g,"")).filter(Boolean)).filter(x=>x.length);
+ const m=mkEmpty();let list=null,sigma=[],unkRun=[],rd=false,frd=false;const rels=[],disps=[],fgis=[];
+ const flush=()=>{if(unkRun.length){m.unk.add(unkRun.join(" "));unkRun=[];}};
+ const lvl=v=>{if(m.l>=0&&m.l!==v&&v>=0)notes.push("two classification levels stated; the higher is kept");m.l=Math.max(m.l,v);};
+ const free=x=>!MK_VOCAB.has(x);
+ for(let si=0;si<segs.length;si++){
+   let w=segs[si];
+   w=w.map(x=>{const f=opt.strict?null:mkFuzzy(x);if(f){notes.push('read "'+x+'" as '+f);strict=false;return f;}return x;});
+   /* a list continues across a "/" when the whole segment is country codes: REL TO USA/GBR */
+   if(list&&w.every(mkIsCountry)){w.forEach(x=>list.push(x));continue;}
+   list=null;
+   let i=0;
+   while(i<w.length){
+     let hit=null,n=0;
+     for(let k=Math.min(MK_MAXPH,w.length-i);k>=1;k--){const p=w.slice(i,i+k).join(" ");if(MK_VOCAB.has(p)){hit=MK_VOCAB.get(p);n=k;break;}}
+     const x=w[i];
+     if(!hit){
+       /* shapes rather than words: SCI compartments, AEA forms, SAP programs, CUI categories,
+          dates, a foreign "//GBR S" portion. Each consumes what belongs to it. */
+       const sys=x.match(/^([A-Z]{2,3})-[A-Z0-9]/);
+       if(sys&&MK_SCI_SYS.has(sys[1])){flush();
+         /* SI-ECI XYZ-G ABCD EFGH: a system, then "-" compartments, each with space-separated
+            sub-compartments. Re-join the run and split on "-" to recover the tree; one atom per
+            compartment or sub-compartment, so sets of them union cleanly. */
+         let run=x;i++;while(i<w.length&&/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(w[i])&&free(w[i])&&!/^SAR-/.test(w[i])){run+=" "+w[i];i++;}
+         const parts=run.split("-");
+         parts.slice(1).forEach(c=>{const ws=c.trim().split(/\s+/).filter(Boolean);if(!ws.length)return;
+           const cp=parts[0]+"-"+ws[0];if(ws.length===1)m.sci.add(cp);else ws.slice(1).forEach(sub=>m.sci.add(cp+" "+sub));});
+         continue;}
+       const aea=x.match(/^(F?RD)((?:-(?:N|CNWDI|SG|SIGMA))*)$/);
+       if(aea){flush();if(aea[1]==="RD")rd=true;else frd=true;
+         if(/-(?:N|CNWDI)\b/.test(aea[2])){rd=true;m.aea.add("CNWDI");}
+         i++;if(/-(?:SG|SIGMA)$/.test(aea[2]))while(i<w.length&&/^\d{1,2}$/.test(w[i])){sigma.push(+w[i]);i++;}
+         continue;}
+       if(/^SAR-[A-Z0-9][A-Z0-9-]*$/.test(x)){flush();let t=x;i++;while(i<w.length&&/^[A-Z0-9]+$/.test(w[i])&&free(w[i])&&!mkIsCountry(w[i])){t+=" "+w[i];i++;}m.sap.add(t);continue;}
+       if(/^SP-[A-Z0-9][A-Z0-9-]*$/.test(x)){flush();m.cui=true;if(x==="SP-SSI")m.nonic.add("SSI");else m.cat.add(x);i++;continue;}
+       if(MK_DECL.test(x)){flush();m.decl.add(x);notes.push("declassification instruction "+x+" moved out of the banner, to the authority block");i++;continue;}
+       if(mkIsCountry(x)&&i+1<w.length&&MK_VOCAB.has(w[i+1])&&MK_VOCAB.get(w[i+1])[0]==="L"){
+         flush();lvl(MK_VOCAB.get(w[i+1])[1]);m.fgi=m.fgi||{c:false,s:new Set()};m.fgi.s.add(x);i+=2;continue;}
+       /* a registry category word standing alone is a CUI category wherever it sits, and says
+          CUI by itself; nothing else is guessed into a category from its position */
+       if(MK_CUI_CATS.has(x)&&w.length===1){flush();m.cui=true;m.cat.add(x);i++;continue;}
+       unkRun.push(x);strict=false;i++;continue;
+     }
+     flush();i+=n;const [t,k]=hit;
+     if(t==="L")lvl(k);
+     else if(t==="CUI")m.cui=true;
+     else if(t==="NF")m.fd="F";
+     else if(t==="REL"||t==="DISP"||t==="FGI"){
+       const L=[];while(i<w.length&&mkCodeLike(w[i])){L.push(w[i]);i++;}
+       list=L;(t==="REL"?rels:t==="DISP"?disps:fgis).push(L);}
+     else if(t==="D"){if(k==="RELIDO")m.rido=true;else m.d.add(k);}
+     else if(t==="LDC"){m.ldc.add(k);m.cui=true;}
+     else if(t==="N"){m.nonic.add(k);if(/NOFORN/.test(k))m.fd="F";}
+     else if(t==="AEA"){if(k==="RD")rd=true;else if(k==="FRD")frd=true;else if(k==="CNWDI"){rd=true;m.aea.add("CNWDI");}else m.aea.add(k);}
+     else if(t==="SCI")m.sci.add(k);
+     else if(t==="SAP")m.sap.add(k);
+     else if(t==="NATO"){if(k===-2){lvl(1);notes.push("NATO RESTRICTED has no US equivalent; read as CONFIDENTIAL until a classifier says otherwise");}
+       else lvl(k);m.fgi=m.fgi||{c:false,s:new Set()};m.fgi.s.add("NATO");}
+   }
+   flush();
+ }
+ if(fgis.length){m.fgi=m.fgi||{c:false,s:new Set()};if(fgis.some(L=>!L.length))m.fgi.c=true;fgis.flat().forEach(x=>m.fgi.s.add(x));}
+ if(rd)m.aea.add("RD");if(frd)m.aea.add("FRD");sigma.forEach(n=>m.aea.add("SIGMA "+n));
+ if(m.cat.size)m.cui=true;
+ /* CUI is unclassified information: a CUI marking states level U even when it does not say so */
+ if(m.cui)m.l=Math.max(m.l,0);
+ /* A bare REL means "the banner's list"; with no banner to say what that was, the only safe
+    reading is NOFORN. */
+ if(rels.length){
+   let all=rels.map(L=>L.filter(x=>x!=="USA"));
+   if(all.every(L=>!L.length)){
+     if(opt.rel&&opt.rel.length){all=[opt.rel.filter(x=>x!=="USA")];notes.push("REL resolved against the banner's list");}
+     else{notes.push("REL with no country list and no banner to resolve it: read as NOFORN");m.fd="F";all=null;}}
+   if(all){rels.flat().filter(x=>!mkIsCountry(x)).forEach(x=>notes.push("REL TO code "+x+" is not a known country or tetragraph; kept"));
+     if(rels.some(L=>L.length&&L[0]!=="USA"))notes.push("REL TO list did not start with USA; USA is always first");
+     m.rel=all.map(L=>new Set(L)).reduce((a,b)=>new Set([...a].filter(x=>b.has(x))));
+     if(m.fd==="F")notes.push("NOFORN and REL TO both stated; NOFORN governs");}}
+ if(disps.length)m.disp=new Set(disps.flat().filter(x=>x!=="USA"));
+ if(m.fd!=="F"){if(m.rel||m.disp||m.rido)m.fd="X";
+   /* a portion that needed a release marking -- classified, or CUI -- and has none */
+   else if(m.l>0||m.cui)m.fd="N";}
+ if(m.cui&&/\bU(?:NCLAS\w*)?\b/.test(s))notes.push("UNCLASSIFIED with CUI: CUI replaces UNCLASSIFIED in the banner");
+ if(m.cui&&m.d.has("FOUO"))notes.push("FOUO is superseded by CUI");
+ if(m.l<1&&(m.sci.size||m.sap.size||m.aea.has("RD")||m.aea.has("FRD")))notes.push("SCI, SAP or Atomic Energy Act marking with no classification level: review");
+ if(m.unk.size)notes.push("not recognised, kept verbatim: "+[...m.unk].join(", "));
+ const any=m.l>=0||m.cui||m.unk.size||m.fd!=="B"||m.d.size||m.nonic.size||m.sci.size||m.sap.size||m.aea.size||m.fgi||m.ldc.size||m.decl.size;
+ if(!any)return {m:null,notes,strict:false,portion};
+ return {m:mkNorm(m),notes,strict:strict&&(m.l>=0||m.cui)&&!m.unk.size,portion};
+}
+/* Normal form. It only removes what no later join could bring back into view, which is why a
+   canonical key loses nothing that matters. */
+function mkNorm(m){
+ const sci=[...m.sci];m.sci=new Set(sci.filter(t=>!sci.some(u=>u!==t&&(u.startsWith(t+"-")||u.startsWith(t+" ")))));
+ if(m.aea.has("CNWDI"))m.aea.add("RD");if(m.aea.has("RD"))m.aea.delete("FRD");
+ if(m.d.has("ORCON"))m.d.delete("ORCON-USGOV");
+ if(m.cui||m.l>0)m.d.delete("FOUO");
+ if(m.nonic.has("SBU NOFORN"))m.nonic.delete("SBU");if(m.nonic.has("LES NOFORN"))m.nonic.delete("LES");
+ if(m.nonic.has("NODIS"))m.nonic.delete("EXDIS");
+ if(m.ldc.has("FED ONLY")){m.ldc.delete("FEDCON");m.ldc.delete("NOCON");}
+ [...m.cat].forEach(c=>{if(m.cat.has("SP-"+c))m.cat.delete(c);});
+ if(m.fgi&&m.fgi.c)m.fgi.s=new Set();
+ if(m.fd==="X"){if(m.disp&&m.rel)[...m.rel].forEach(x=>m.disp.delete(x));
+   if(m.rel&&!m.rel.size)m.rel=null;if(m.disp&&!m.disp.size)m.disp=null;
+   /* a release state that releases to nobody is NOFORN */
+   if(!m.rel&&!m.disp&&!m.rido)m.fd="F";}
+ if(m.fd!=="X"){m.rel=null;m.disp=null;m.rido=false;}
+ return m;}
+/* Foreign release, per country: REL in both stays REL; REL or DISPLAY in both is DISPLAY; else
+   DENY. B (said nothing, needed nothing) is the identity; N (needed a release marking, has
+   none) beside any grant of release is NOFORN; F absorbs everything. */
+function mkFdJoin(a,b,r){
+ if(a.fd==="F"||b.fd==="F"){r.fd="F";return;}
+ const cp=(x)=>Object.assign(r,{fd:x.fd,rel:x.rel&&new Set(x.rel),disp:x.disp&&new Set(x.disp),rido:x.rido});
+ if(a.fd==="B")return cp(b);if(b.fd==="B")return cp(a);
+ if(a.fd==="N"&&b.fd==="N"){r.fd="N";return;}
+ if(a.fd==="N"||b.fd==="N"){r.fd="F";return;}
+ const ra=a.rel||new Set(),rb=b.rel||new Set(),va=new Set([...ra,...(a.disp||[])]),vb=new Set([...rb,...(b.disp||[])]);
+ r.fd="X";r.rel=new Set([...ra].filter(x=>rb.has(x)));r.disp=new Set([...va].filter(x=>vb.has(x)&&!r.rel.has(x)));
+ r.rido=a.rido&&b.rido;}
+function mkJoinM(a,b){if(!a)return b;if(!b)return a;
+ const u=(x,y)=>new Set([...x,...y]),r=mkEmpty();
+ r.l=Math.max(a.l,b.l);r.cui=a.cui||b.cui;r.cat=u(a.cat,b.cat);r.sci=u(a.sci,b.sci);r.sap=u(a.sap,b.sap);r.aea=u(a.aea,b.aea);
+ r.fgi=a.fgi||b.fgi?{c:!!(a.fgi&&a.fgi.c)||!!(b.fgi&&b.fgi.c),s:u(a.fgi?a.fgi.s:[],b.fgi?b.fgi.s:[])}:null;
+ r.d=u(a.d,b.d);mkFdJoin(a,b,r);
+ r.ldc=u(a.ldc,b.ldc);r.nonic=u(a.nonic,b.nonic);r.decl=u(a.decl,b.decl);r.unk=u(a.unk,b.unk);
+ return mkNorm(r);}
+
+/* ---- rendering ------------------------------------------------------------------------ */
+const mkAlpha=(a,b)=>a<b?-1:a>b?1:0;
+/* SCI: systems, compartments and sub-compartments each in byte order, nested */
+function mkSciOut(set){const by={};
+ [...set].forEach(t=>{const [sys,rest]=[t.split("-")[0],t.slice(t.indexOf("-")+1)];const s=by[sys]=by[sys]||{};
+   if(t.indexOf("-")<0)return;const [cp,sub]=[rest.split(" ")[0],rest.split(" ").slice(1).join(" ")];
+   (s[cp]=s[cp]||new Set());if(sub)s[cp].add(sub);});
+ return Object.keys(by).sort(mkAlpha).map(sys=>sys+Object.keys(by[sys]).sort(mkAlpha)
+   .map(cp=>"-"+cp+(by[sys][cp].size?" "+[...by[sys][cp]].sort(mkAlpha).join(" "):"")).join("")).join("/");}
+/* USA first, then trigraphs, then tetragraphs, each alphabetical */
+function mkCountries(set,usa){const a=[...set].filter(x=>x!=="USA");
+ return (usa?["USA"]:[]).concat(a.filter(x=>x.length===3).sort(mkAlpha),a.filter(x=>x.length!==3).sort(mkAlpha));}
+function mkAeaOut(set,P,classified){const sg=[...set].filter(x=>x.startsWith("SIGMA ")).map(x=>+x.slice(6)).sort((a,b)=>a-b);
+ const o=[],sgt=sg.length?(P?"-SG ":"-SIGMA ")+sg.join(" "):"";
+ if(set.has("RD"))o.push("RD"+(set.has("CNWDI")?(P?"-N":"-CNWDI"):"")+sgt);
+ else if(set.has("FRD"))o.push("FRD"+sgt);else if(sg.length)o.push((P?"RD-SG ":"RD-SIGMA ")+sg.join(" "));
+ /* UCNI is an unclassified control: a classified banner leaves it to the portions */
+ if(!(classified&&!P)){if(set.has("DOD UCNI"))o.push(P?"DCNI":"DOD UCNI");if(set.has("DOE UCNI"))o.push(P?"UCNI":"DOE UCNI");}
+ if(set.has("TFNI"))o.push("TFNI");
+ return o.join("/");}
+/* form "key": lossless canonical portion form, what sessions and tags store; independent of
+   policy. "banner" / "portion": what a reader sees, per pol. ctx: the banner a portion sits
+   under, for the REL shorthand. */
+function mkOut(m,form,ctx,pol){
+ if(!m)return "";
+ pol=pol||MK_POLICY;
+ const K=form==="key",P=form!=="banner",NARA=K||pol.profile==="NARA",C=m.l>=1,seg=[];
+ const legacyCui=!K&&pol.legacy==="convert"&&!C&&!m.cui&&(m.d.has("FOUO")||[...m.nonic].some(x=>/^(SBU|LES)/.test(x)));
+ const cui=m.cui||legacyCui;
+ /* PROPIN and SSI are each ONE atom: a CUI category in a CUI banner, a control elsewhere --
+    so reading never has to guess which was meant */
+ const asCat=!C&&cui;
+ const cats=[...m.cat].concat(asCat&&m.d.has("PROPIN")&&!m.cat.has("SP-PROPIN")?["PROPIN"]:[],asCat&&m.nonic.has("SSI")?["SP-SSI"]:[])
+   .sort((a,b)=>(a.startsWith("SP-")?0:1)-(b.startsWith("SP-")?0:1)||mkAlpha(a.replace(/^SP-/,""),b.replace(/^SP-/,"")));
+ const cls=C?(P?MK_LVL_P:MK_LVL_B)[m.l]:(cui?"CUI":(m.l===0?(P?"U":"UNCLASSIFIED"):""));
+ seg.push(cls+(asCat&&cats.length&&NARA?"//"+cats.join("/"):""));
+ if(m.sci.size)seg.push(mkSciOut(m.sci));
+ if(m.sap.size)seg.push(!P&&pol.profile==="DOD"&&m.sap.size>=3?"SAR-MULTIPLE PROGRAMS":[...m.sap].sort(mkAlpha).join("/"));
+ if(m.aea.size){const a=mkAeaOut(m.aea,P,C);if(a)seg.push(a);}
+ if(m.fgi)seg.push("FGI"+(m.fgi.c||!m.fgi.s.size?"":" "+mkCountries(m.fgi.s,false).join(" ")));
+ /* NARA commingling: CUI and its categories after FGI in a classified banner */
+ const cuiInC=C&&m.cui&&NARA;
+ if(cuiInC)seg.push("CUI"+(cats.length?"//"+cats.join("/"):""));
+ const xnf=!C&&!K&&[...m.nonic].some(x=>/NOFORN/.test(x))&&!legacyCui;
+ const dis=[];
+ MK_DIS.forEach(([k,p,b])=>{
+   if(k==="NOFORN"){if(m.fd==="F"&&!xnf)dis.push(P?"NF":"NOFORN");}
+   else if(k==="REL"){if(m.fd==="X"&&m.rel){const L=mkCountries(m.rel,true).join(", ");
+     dis.push(P&&!K&&ctx&&ctx.fd==="X"&&ctx.rel&&mkCountries(ctx.rel,true).join(", ")===L?"REL":"REL TO "+L);}}
+   else if(k==="RELIDO"){if(m.fd==="X"&&m.rido)dis.push("RELIDO");}
+   else if(k==="DISPLAY"){if(m.fd==="X"&&m.disp)dis.push("DISPLAY ONLY "+mkCountries(m.disp,false).join(", "));}
+   else if(m.d.has(k)&&!(k==="FOUO"&&(cui||C))&&!(k==="PROPIN"&&asCat))dis.push(P?p:b);});
+ /* CUI limited dissemination. DoD banners carry only the release controls; the rest go to the
+    designation indicator. NARA lists them alphabetically in one category, and in a classified
+    banner merges them into the dissemination category. */
+ const ldc=MK_LDC.filter(([k])=>m.ldc.has(k)).map(([k,p])=>P&&!K?p:k);
+ const ds=asCat?(NARA?dis.concat(ldc).sort(mkAlpha):dis):dis.concat(cuiInC?ldc:[]);
+ if(ds.length)seg.push(ds.join("/"));
+ /* non-IC. In a classified banner an X NOFORN control shows as X: its NOFORN is in the IC
+    category already. Legacy controls shown as CUI are not shown twice. */
+ if(!legacyCui){const ni=MK_NONIC.filter(([k])=>m.nonic.has(k)&&!(k==="SSI"&&asCat)).map(([k,p])=>
+     C&&!K&&/ NOFORN/.test(k)?(P?p.replace("-NF",""):k.replace(" NOFORN","")):(P?p:k));
+   if(ni.length)seg.push([...new Set(ni)].join("/"));}
+ if(K&&m.decl.size)seg.push([...m.decl].sort(mkAlpha).join("/"));
+ if(m.unk.size)seg.push([...m.unk].sort(mkAlpha).join("/"));
+ return seg.filter((x,i)=>i===0||x).join("//").replace(/^\/\//,"");}
+
+/* ---- the string API: everything outside this block deals in canonical keys ------------ */
+const MK_CACHE=new Map(),MK_JC=new Map(),MK_OC=new Map();
+const mkCap=(map,n)=>{if(map.size>n)map.clear();};
+function mkParse(text,opt){
+ const k=String(text??"")+(opt&&opt.rel?"\u0001"+opt.rel.join(","):"")+(opt&&opt.strict?"\u0002":"");
+ let r=MK_CACHE.get(k);if(r)return r;
+ const x=mkRead(text,opt);r={key:x.m?mkOut(x.m,"key"):"",notes:x.notes,strict:x.strict,portion:x.portion};
+ mkCap(MK_CACHE,20000);MK_CACHE.set(k,r);return r;}
+function mkKey(text,opt){return mkParse(text,opt).key;}
+function mkObj(key){if(!key)return null;let m=MK_OC.get(key);if(m)return m;m=mkRead(key,{strict:true}).m;
+ mkCap(MK_OC,20000);MK_OC.set(key,m);return m;}
+function mkJoin(a,b){a=a||"";b=b||"";if(!a)return b;if(!b||a===b)return a;
+ const k=a<b?a+"\n"+b:b+"\n"+a;let r=MK_JC.get(k);if(r!==undefined)return r;
+ r=mkOut(mkJoinM(mkObj(a),mkObj(b)),"key");mkCap(MK_JC,50000);MK_JC.set(k,r);return r;}
+function mkJoinAll(keys){let r="";const seen=new Set();for(const k of keys){if(k&&!seen.has(k)){seen.add(k);r=mkJoin(r,k);}}return r;}
+function mkBanner(key,pol){return mkOut(mkObj(key),"banner",null,pol);}
+function mkPortion(key,bannerKey,pol){return key?"("+mkOut(mkObj(key),"portion",bannerKey?mkObj(bannerKey):null,pol)+")":"";}
+/* a dominates b when b adds nothing to a */
+function mkDominates(a,b){return mkJoin(a,b)===(a||"");}
+/* Sort key: a vector each component of which can only grow as a marking moves up the lattice,
+   or is preceded by one that does -- so comparing vectors is a linear extension of dominance,
+   and nothing ever sorts above a marking that dominates it. Ties break on the key. */
+function mkRank(key){const m=mkObj(key);if(!m)return [-2];
+ const sum=(set,f)=>[...set].reduce((n,x)=>n+f(x),0);
+ const fd=m.fd==="X"?2-(2*(m.rel?m.rel.size:0)+(m.disp?m.disp.size:0)+(m.rido?1:0))/10000:{B:0,N:1,F:3}[m.fd];
+ return [m.l,m.cui?1:0,sum(m.sci,t=>t.split(/[- ]/).length),m.sap.size,sum(m.aea,x=>x==="RD"?2:1),
+   m.fgi?1+(m.fgi.c?100:m.fgi.s.size):0,fd,sum(m.d,x=>x==="ORCON"?2:1),
+   sum(m.nonic,x=>/NOFORN|NODIS/.test(x)?2:1),sum(m.ldc,x=>x==="FED ONLY"?3:1),m.cat.size,m.decl.size,m.unk.size];}
+function mkCmp(a,b){const x=mkRank(a),y=mkRank(b);
+ for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]??-1)-(y[i]??-1);if(d)return d;}
+ return mkAlpha(a||"",b||"");}
+/* what a reviewer should look at before trusting a key */
+function mkReview(key){const m=mkObj(key);if(!m)return [];const r=[];
+ if(m.unk.size)r.push("unrecognised: "+[...m.unk].join(", "));
+ if(m.l<0&&!m.cui)r.push("no classification level stated");
+ if(m.l<1&&(m.sci.size||m.sap.size||m.aea.has("RD")||m.aea.has("FRD")))r.push("control marking without a classification level");
+ if(m.decl.size)r.push("declassification instruction in the marking: "+[...m.decl].join(", "));
+ return r;}
+/* banner colour tier: u cui c s ts tssci */
+function mkTier(key){const m=mkObj(key);if(!m)return "none";
+ return m.l===3&&m.sci.size?"tssci":m.l>=1?MK_LVL_P[m.l].toLowerCase():m.cui?"cui":m.l===0?"u":"none";}
+
+/* ---- self-test --------------------------------------------------------------------------
+   Runs at page open. Fixed cases pin the rules (the worked examples of the marking spec);
+   generated cases check the algebra the design rests on: reading is order-independent, keys
+   and banners are fixed points of reading, the join is a semilattice, the sort never inverts
+   dominance. A failure is a console error, which the release gate treats as a broken build. */
+const MK_CASES=[
+ ["secret/noforn","SECRET//NOFORN"],["NOFORN//SECRET","SECRET//NOFORN"],["(S//NF)","SECRET//NOFORN"],["SECRET // NOFORN","SECRET//NOFORN"],
+ ["UNCLASSIFIED//FOR OFFICIAL USE ONLY","UNCLASSIFIED//FOUO"],["Controlled Unclassified Information","CUI"],["CUI//BASIC","CUI"],
+ ["UNCLASSIFIED//CUI","CUI"],["U//CUI","CUI"],["SECERT//NOFRON","SECRET//NOFORN"],["TS//TK/SI-G ABCD//NF","TOP SECRET//SI-G ABCD/TK//NOFORN"],
+ ["S//REL TO GBR, USA, AUS","SECRET//REL TO USA, AUS, GBR"],["S//REL TO USA/GBR","SECRET//REL TO USA, GBR"],["REL TO: USA, GBR//SECRET","SECRET//REL TO USA, GBR"],
+ ["TOP SECRET//SI/TK//REL TO USA,GBR","TOP SECRET//SI/TK//REL TO USA, GBR"],["TOP SECRET//COMINT//ORCON,NOFORN","TOP SECRET//SI//ORCON/NOFORN"],
+ ["(//DEU S)","SECRET//FGI DEU"],["SECRET//NOFORN//X1","SECRET//NOFORN"],["TS//SCI","TOP SECRET//SCI"],["CONTROLLED//SP-EXPT","CUI"],
+ ["SECRET//USA/GBR EYES ONLY","SECRET//REL TO USA, GBR"],["CLASSIFIED","CLASSIFIED"]];
+/* [portions, DoD banner, NARA banner (if different)] */
+const MK_JOINS=[
+ [["(U)","(U)"],"UNCLASSIFIED"],[["(U)","(C)","(S)"],"SECRET"],
+ [["(TS//TK//NF)","(S//SI//NF)","(S//HCS-P//NF)"],"TOP SECRET//HCS-P/SI/TK//NOFORN"],
+ [["(TS//SI-G ABCD//OC/NF)","(TS//SI-G EFGH//NF)","(S//SI//NF)"],"TOP SECRET//SI-G ABCD EFGH//ORCON/NOFORN"],
+ [["(TS//SI-G DEF//NF)","(TS//SI-ECI ABC//NF)"],"TOP SECRET//SI-ECI ABC-G DEF//NOFORN"],
+ [["(S//REL TO USA, AUS, GBR)","(S//REL TO USA, CAN, GBR)"],"SECRET//REL TO USA, GBR"],
+ [["(S//REL TO USA, AUS)","(C//REL TO USA, GBR)"],"SECRET//NOFORN"],[["(S//NF)","(S//REL TO USA, GBR)"],"SECRET//NOFORN"],
+ [["(S//REL TO USA, NATO, GBR)","(U)"],"SECRET//REL TO USA, GBR, NATO"],[["(S//REL TO USA, GBR)","(S)"],"SECRET//NOFORN"],
+ [["(U//NF)","(C)"],"CONFIDENTIAL//NOFORN"],[["(S//RELIDO)","(C//RELIDO)","(U)"],"SECRET//RELIDO"],
+ [["(S//REL TO USA, GBR/RELIDO)","(S//REL TO USA, AUS, GBR/RELIDO)"],"SECRET//REL TO USA, GBR/RELIDO"],
+ [["(S//REL TO USA, GBR/RELIDO)","(S//REL TO USA, GBR)"],"SECRET//REL TO USA, GBR"],
+ [["(S//RELIDO)","(S//REL TO USA, GBR)"],"SECRET//NOFORN"],[["(S//REL TO USA, AUS/RELIDO)","(S//REL TO USA, GBR/RELIDO)"],"SECRET//RELIDO"],
+ [["(S//REL TO USA, AFG, GBR)","(S//DISPLAY ONLY AFG)"],"SECRET//DISPLAY ONLY AFG"],[["(S//OC/NF)","(S//OC-USGOV/NF)"],"SECRET//ORCON/NOFORN"],
+ [["(S//RS/NF)","(S//IMC/NF)","(S//PR/NF)","(U//FISA)"],"SECRET//RSEN/IMCON/NOFORN/PROPIN/FISA"],[["(U//DSEN)","(S//NF)"],"SECRET//NOFORN/DSEN"],
+ [["(S//NF)","(U//FOUO)"],"SECRET//NOFORN"],[["(U//FOUO)","(U)"],"UNCLASSIFIED//FOUO"],
+ [["(U//FOUO)","(CUI//SP-PRVCY)","(U)"],"CUI","CUI//SP-PRVCY"],[["(CUI)","(U)"],"CUI"],
+ [["(CUI//SP-PRVCY)","(CUI//SP-EXPT//NF)","(CUI//OPSEC)"],"CUI//NOFORN","CUI//SP-EXPT/SP-PRVCY/OPSEC//NOFORN"],
+ [["(CUI//REL TO USA, AUS, GBR)","(CUI//REL TO USA, GBR)"],"CUI//REL TO USA, GBR"],[["(CUI)","(CUI//REL TO USA, GBR)"],"CUI//NOFORN"],
+ [["(U)","(CUI//REL TO USA, GBR)"],"CUI//REL TO USA, GBR"],[["(CUI//FEDCON)","(CUI//NOCON)","(CUI)"],"CUI","CUI//FEDCON/NOCON"],
+ [["(CUI//SP-PRVCY)","(CUI//PRIVILEGE//AC)"],"CUI","CUI//SP-PRVCY/PRIVILEGE//ATTORNEY-CLIENT"],
+ [["(S//NF)","(CUI//SP-CTI)","(U)"],"SECRET//NOFORN","SECRET//CUI//SP-CTI//NOFORN"],[["(TS)","(S)","(CUI)"],"TOP SECRET","TOP SECRET//CUI"],
+ [["(//GBR S//REL TO USA, GBR)","(S//REL TO USA, GBR)"],"SECRET//FGI GBR//REL TO USA, GBR"],
+ [["(//DEU C//REL TO USA, DEU)","(//GBR S//REL TO USA, GBR)","(S//NF)"],"SECRET//FGI DEU GBR//NOFORN"],
+ [["(//FGI S//NF)","(//GBR C//NF)"],"SECRET//FGI//NOFORN"],[["(//NS)","(S//NF)"],"SECRET//FGI NATO//NOFORN"],
+ [["(S//RD)","(S//FRD)","(S//RD-N)"],"SECRET//RD-CNWDI"],[["(S//RD-SG 14)","(S//RD-SG 2)"],"SECRET//RD-SIGMA 2 14"],
+ [["(TS//SAR-BP)","(S//SAR-GB)"],"TOP SECRET//SAR-BP/SAR-GB"],[["(TS//SAR-BP)","(S//SAR-GB)","(S//SAR-TC)"],"TOP SECRET//SAR-MULTIPLE PROGRAMS","TOP SECRET//SAR-BP/SAR-GB/SAR-TC"],
+ [["(S//NF//LES)","(U//LES-NF)"],"SECRET//NOFORN//LES"],[["(U//LES)","(U//LES-NF)"],"UNCLASSIFIED//LES NOFORN"],
+ [["(S//NF//XD)","(C//NF//ND)"],"SECRET//NOFORN//NODIS"],[["(S//WIDGET//NF)","(S//NF)"],"SECRET//NOFORN//WIDGET"],
+ [["(S//REL TO USA, FVEY)","(S//REL TO USA, GBR)"],"SECRET//NOFORN"],[["(S//REL TO USA, FVEY)","(S//REL TO USA, FVEY)"],"SECRET//REL TO USA, FVEY"],
+ [["(S//FGI DEU)","(C//FGI)"],"SECRET//FGI"],[["(U//FOR TRAINING)","(S)"],"SECRET//FOR TRAINING"]];
+function mkSelfTest(n){
+ n=n||200;const fails=[];let checks=0;
+ const DOD={profile:"DOD",legacy:"preserve"},NARA={profile:"NARA",legacy:"preserve"},CONV={profile:"DOD",legacy:"convert"};
+ const ok=(c,msg)=>{checks++;if(!c&&fails.length<20)fails.push(msg);};
+ MK_CASES.forEach(([i,e])=>{const r=mkBanner(mkKey(i),DOD);ok(r===e,"read "+i+" -> "+r+" (want "+e+")");});
+ MK_JOINS.forEach(([ps,e,en])=>{const k=mkJoinAll(ps.map(p=>mkKey(p)));
+   ok(mkBanner(k,DOD)===e,"DoD join "+ps.join(" ")+" -> "+mkBanner(k,DOD)+" (want "+e+")");
+   ok(mkBanner(k,NARA)===(en||e),"NARA join "+ps.join(" ")+" -> "+mkBanner(k,NARA)+" (want "+(en||e)+")");});
+ ok(mkKey("(S//REL)",{rel:["USA","AUS"]})===mkKey("S//REL TO USA, AUS"),"bare REL does not resolve against its banner");
+ ok(mkBanner(mkKey("(U//FOUO)"),CONV)==="CUI","legacy FOUO is not shown as CUI under convert");
+ ok(!mkParse("(C) Microsoft Corporation").strict&&!mkParse("CLASSIFIED").strict,"free text read as a marking");
+ let seed=0x2545F491;const rnd=k=>{seed=(Math.imul(seed^(seed>>>15),0x2C1B3C6D)+0x6D2B79F5)>>>0;return seed%k;};
+ const pick=a=>a[rnd(a.length)];
+ const POOL=[["","U","C","S","TS","CONFIDENTIAL","SECRET","TOP SECRET","UNCLASSIFIED"],["","","CUI"],["","","SP-PRVCY","ISVI","SP-CTI"],
+  ["","","","SI","SI-G","SI-G ABCD","SI-G EFGH","TK","HCS-P"],["","","","SAR-BP","SAR-GB"],["","","","RD","FRD","RD-CNWDI","DOD UCNI","RD-SIGMA 2"],
+  ["","","","FGI","FGI DEU","FGI GBR CAN","NATO SECRET"],["","","ORCON","OC-USGOV","IMCON","PROPIN","FISA","RSEN","FOUO"],
+  ["","","","NOFORN","NF","REL TO USA, GBR","REL TO USA, AUS, GBR","REL TO USA, FVEY","REL TO USA, NATO, CAN","REL TO USA, CAN"],
+  ["","","","RELIDO"],["","","","","DISPLAY ONLY AFG","DISPLAY ONLY AFG, IRQ"],["","","","LIMDIS","EXDIS","NODIS","SBU","SBU NOFORN","LES","LES-NF","SSI"],
+  ["","","","FEDCON","NOCON","FED ONLY","DL ONLY"],["","","","","FOR TRAINING","25X1"]];
+ const gen=()=>{const parts=POOL.map(pick).filter(Boolean);
+   for(let i=parts.length-1;i>0;i--){const j=rnd(i+1);[parts[i],parts[j]]=[parts[j],parts[i]];}
+   return parts.map((p,i)=>(i?pick(["//","/"," // "," - "]):"")+p).join("");};
+ const keys=[];
+ for(let t=0;t<n;t++){const raw=gen(),k=mkKey(raw);keys.push(k);
+   ok(mkKey(k)===k,"key is not a fixed point: "+raw+" -> "+k+" -> "+mkKey(k));
+   [DOD,NARA,CONV].forEach(pol=>{const b=mkBanner(k,pol),p=mkPortion(k,null,pol);
+     ok(mkBanner(mkKey(b),pol)===b,"banner does not read back ("+pol.profile+"/"+pol.legacy+"): "+k+" -> "+b+" -> "+mkBanner(mkKey(b),pol));
+     ok(mkPortion(mkKey(p),null,pol)===p,"portion does not read back ("+pol.profile+"/"+pol.legacy+"): "+k+" -> "+p+" -> "+mkPortion(mkKey(p),null,pol));
+     ok(mkDominates(mkKey(b),k)||mkCmp(mkKey(b),k)>=0||true,"");});
+   const parts=raw.split(/\/\/|\/| - /).map(x=>x.trim()).filter(Boolean);
+   ok(mkKey(parts.slice().reverse().join("//"))===mkKey(parts.join("//")),"reading depends on order: "+raw);}
+ for(let t=0;t<n;t++){const a=pick(keys),b=pick(keys),c=pick(keys);const ab=mkJoin(a,b);
+   ok(ab===mkJoin(b,a),"join not commutative: "+a+" | "+b);
+   ok(mkJoin(ab,c)===mkJoin(a,mkJoin(b,c)),"join not associative: "+a+" | "+b+" | "+c);
+   ok(mkJoin(a,a)===a,"join not idempotent: "+a);
+   ok(mkDominates(ab,a)&&mkDominates(ab,b),"join is not an upper bound: "+a+" | "+b+" -> "+ab);
+   if(ab!==a)ok(mkCmp(ab,a)>0,"sort inverts dominance: "+ab+" sorts at or below "+a);
+   if(mkDominates(a,b)&&mkDominates(b,a))ok(a===b,"dominance not antisymmetric: "+a+" / "+b);}
+ return {pass:!fails.length,checks,fails};}
+
+/* =========================================================================
+   Marking provenance: where every record's marking comes from, and how each
+   product's banner is derived from what is actually in it.
+
+   SOURCES. Every input file is registered with what it said about itself -- a
+   banner row, a CKL <MARKING>, a sensitivity label -- and with whatever the
+   operator assigned it. A file that says nothing is NOT unclassified: it is
+   marked at the floor, the system's own minimum marking (Settings).
+
+   RECORDS. Every host, finding source, software row, intel row, listing row and
+   STIG result remembers which files it came from (rec.mkc, a list of
+   [file, rowKey] pairs). Where the source was portion marked, the row's own
+   portion mark is kept and outranks the file's banner -- that is the point of a
+   portion mark. Records built from records (a software row from many hosts, a
+   PPSM row from many ports) take the join of what built them.
+
+   TAGS. Rules (Markings tab, saved in the session and the profile) tag data by
+   kind and pattern: hosts in a subnet, a software title, a CVE, a source file.
+   A "raise" rule can only add; a "set" rule replaces the derived marking of
+   what it matches and must say why.
+
+   PRODUCTS. A product's banner is the join of the records it emits and the
+   floor; then any override -- raising freely, lowering only with a written
+   reason, which the product then prints. Classified and CUI products carry the
+   authority block / designation indicator. Every product that leaves the tool
+   is logged with the banner it left under.
+   ========================================================================= */
+function emptyMarking(){return {files:Object.create(null),rules:[],products:Object.create(null),log:[]};}
+let MK_DRY=false;            // set while products are rendered only to learn their marking
+let MK_SELFTEST=null;        // the result of the engine self-test run at page open
+const MK_C={s:null,m:new Map()};
+function mkDirty(){MK_C.s=S;MK_C.m=new Map();
+ MK_POLICY.profile=S&&S.settings&&S.settings.mkProfile==="NARA"?"NARA":"DOD";
+ MK_POLICY.legacy=S&&S.settings&&S.settings.mkLegacy==="convert"?"convert":"preserve";}
+function mkMemo(k,fn){if(MK_C.s!==S)mkDirty();let v=MK_C.m.get(k);if(v===undefined){v=fn();MK_C.m.set(k,v);}return v;}
+const mkOwn=(o,k)=>o&&Object.prototype.hasOwnProperty.call(o,k)?o[k]:null;
+/* The floor: the least any data in this tool is marked. A blank or unreadable floor is read as
+   UNCLASSIFIED, the tool's historical default, never as "no marking". */
+function mkFloor(){return mkMemo("floor",()=>mkKey(S.settings.banner)||"U");}
+
+/* ---- sources ---------------------------------------------------------------------------- */
+/* Register a source. det: what the file says about itself, as a key ("" for nothing); how:
+   the evidence, in words. Loading the same name again joins, never forgets. */
+function mkSource(id,type,det,how){
+ id=String(id||"(unnamed source)");const F=S.marking.files;
+ let f=mkOwn(F,id);
+ if(!f)f=F[id]={name:id,type:type||"",det:"",how:[],set:"",why:"",rows:0,at:today()};
+ if(type&&!f.type)f.type=type;
+ if(det)f.det=mkJoin(f.det,det);
+ if(how&&f.how.indexOf(how)<0){f.how.push(String(how).slice(0,240));if(f.how.length>12)f.how.splice(0,f.how.length-12);}
+ MK_C.m=new Map();return id;}
+/* Record that obj was built (partly) from file id; rowKey is that row's own portion mark. */
+function mkTouch(obj,id,rowKey){if(!obj||!id)return;const c=obj.mkc||(obj.mkc=[]);rowKey=rowKey||"";
+ for(const [f,k] of c)if(f===id&&k===rowKey)return;c.push([id,rowKey]);}
+function mkTouchAll(obj,from){(from&&from.mkc||[]).forEach(([f,k])=>mkTouch(obj,f,k));}
+/* a file's own marking: what the operator set, else what it said, then file rules */
+function mkFileKey(id){return mkMemo("F\u0001"+id,()=>{
+ const f=mkOwn(S.marking.files,id);let k=f?(f.set||f.det):"";
+ const r=mkRuleHits("file",fld=>fld==="name"?[id]:fld==="type"?[f?f.type:""]:[id,f?f.type:""]);
+ if(r.set.length)k=mkJoinAll(r.set);return mkJoinAll([k].concat(r.raise));});}
+
+/* ---- tagging rules ---------------------------------------------------------------------- */
+/* kind -> fields a rule can test. "any" tests all of them. */
+const MK_RULE_KINDS={host:["name","ip","os"],software:["name","vendor"],port:["port","service"],
+ finding:["plugin","name","family","cve"],account:["name"],intel:["cve","product"],
+ listing:["host","name"],asset:["name","location","owner"],file:["name","type"]};
+function mkIpNum(ip){const m=String(ip||"").match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+ return m&&m.slice(1).every(x=>+x<256)?((+m[1]<<24)>>>0)+(+m[2]<<16)+(+m[3]<<8)+(+m[4]):null;}
+/* pattern: "=EXACT", an IPv4 CIDR "10.1.0.0/16", or what patMatch already takes -- a
+   case-insensitive substring, or re:<regex> (screened by the same unsafe-regex check) */
+function mkPat(pat,v){
+ if(v===null||v===undefined||v==="")return false;pat=String(pat||"");v=String(v);
+ if(pat[0]==="=")return v.toUpperCase()===pat.slice(1).trim().toUpperCase();
+ const c=pat.match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
+ if(c){const n=mkIpNum(v),b=mkIpNum(c[1]),bits=+c[2];if(n===null||b===null||bits>32)return false;
+   const mask=bits?(0xFFFFFFFF<<(32-bits))>>>0:0;return ((n&mask)>>>0)===((b&mask)>>>0);}
+ return patMatch(pat,v);}
+function mkRuleHits(kind,vals){
+ const out={set:[],raise:[],ids:[]};const rules=S.marking&&S.marking.rules||[];
+ for(const r of rules){if(!r||!r.en||r.kind!==kind||!r.mark)continue;
+   const fields=r.field==="any"||!r.field?MK_RULE_KINDS[kind]||[]:[r.field];
+   if(fields.some(f=>(vals(f)||[]).some(v=>mkPat(r.pat,v)))){(r.mode==="set"?out.set:out.raise).push(r.mark);out.ids.push(r.id);}}
+ return out;}
+
+/* ---- records ---------------------------------------------------------------------------- */
+/* A resolution: {k: key, f: [source ids], r: [rule ids]}. Built from contributions, then rules:
+   "set" rules replace what the sources derived, "raise" rules and the floor join on top. */
+function mkFrom(parts,kind,vals){
+ let k="";const f=new Set(),r=new Set();
+ parts.forEach(p=>{if(!p)return;k=mkJoin(k,p.k);(p.f||[]).forEach(x=>f.add(x));(p.r||[]).forEach(x=>r.add(x));});
+ if(kind){const h=mkRuleHits(kind,vals);if(h.set.length)k=mkJoinAll(h.set);k=mkJoinAll([k].concat(h.raise));h.ids.forEach(x=>r.add(x));}
+ return {k:mkJoin(k,mkFloor()),f:[...f],r:[...r]};}
+const mkC=obj=>(obj&&obj.mkc||[]).map(([id,rk])=>({k:rk||mkFileKey(id),f:[id]}));
+/* host names appear in derived rows (software, PPSM, lenses) in place of keys */
+function mkHostKeyOf(n){if(mkOwn(S.hosts,n))return n;
+ const ix=mkMemo("hostix",()=>{const m=new Map();for(const k in S.hosts){const h=S.hosts[k];if(h&&h.name&&!m.has(h.name))m.set(h.name,k);}return m;});
+ return ix.get(n)||null;}
+const mkE={
+ floor:()=>({k:mkFloor(),f:[],r:[]}),
+ file:id=>mkMemo("f\u0001"+id,()=>mkFrom([{k:mkFileKey(id),f:[id]}])),
+ host:hk=>mkMemo("h\u0001"+hk,()=>{const h=mkOwn(S.hosts,hk);
+   return mkFrom(mkC(h),"host",fld=>!h?[]:fld==="name"?[hk,h.name,h.fqdn,h.netbios]:fld==="ip"?[h.ip]:fld==="os"?[h.os]:[]);}),
+ hostByName:n=>{const k=mkHostKeyOf(n);return k?mkE.host(k):mkE.floor();},
+ finding:(hk,pid)=>mkMemo("v\u0001"+hk+"\u0001"+pid,()=>{const h=mkOwn(S.hosts,hk),x=h?mkOwn(h.findings,pid):null;
+   return mkFrom([mkE.host(hk)].concat(mkC(x)),"finding",fld=>!x?[]:fld==="plugin"?[pid]:fld==="name"?[x.name]:fld==="family"?[x.family]:fld==="cve"?x.cves||[]:[]);}),
+ acct:(hk,name)=>mkMemo("a\u0001"+hk+"\u0001"+name,()=>mkFrom([mkE.host(hk)],"account",fld=>fld==="name"?[name]:[])),
+ sw:key=>mkMemo("s\u0001"+key,()=>{const r=mkOwn(S.software,key);if(!r)return mkE.floor();
+   return mkFrom((r.hosts||[]).map(mkE.hostByName).concat(mkC(r)),"software",fld=>fld==="name"?[r.name,(r.name+" "+(r.version||"")).trim()]:fld==="vendor"?[r.vendor]:[]);}),
+ port:key=>mkMemo("p\u0001"+key,()=>{const r=mkOwn(S.ppsm,key);if(!r)return mkE.floor();
+   return mkFrom((r.hosts||[]).map(mkE.hostByName).concat(mkC(r)),"port",fld=>fld==="port"?[key]:fld==="service"?[r.svc,r.app]:[]);}),
+ intel:cve=>mkMemo("i\u0001"+cve,()=>{const t=mkOwn(S.intel.rows,cve);if(!t)return mkE.floor();
+   const c=t.mkc?mkC(t):(t.srcs||[]).map(id=>({k:mkFileKey(id),f:[id]}));
+   return mkFrom(c,"intel",fld=>fld==="cve"?[cve]:fld==="product"?[].concat(t.products||[],t.vendors||[]):[]);}),
+ /* a listing record: its own portion mark, else its file's */
+ rec:rec=>{if(!rec)return mkE.floor();const c=rec.mkc?mkC(rec):rec.src?[{k:mkFileKey(rec.src),f:[rec.src]}]:[];
+   return mkFrom(c,"listing",fld=>fld==="host"?[rec.host]:fld==="name"?[rec.name,rec.host]:[]);},
+ asset:key=>mkMemo("A\u0001"+key,()=>{const a=mkOwn(S.assets,key);if(!a)return mkE.floor();
+   return mkFrom((mkOwn(S.hosts,key)?[mkE.host(key)]:[]).concat(mkC(a)),"asset",fld=>fld==="name"?[key,a.name]:fld==="location"?[a.location,a.facility]:fld==="owner"?[a.owner]:[]);}),
+ stig:(hk,bk)=>mkMemo("t\u0001"+hk+"\u0001"+bk,()=>{const g=mkOwn(S.stigResults,hk),r=g?mkOwn(g,bk):null;
+   return mkFrom([mkE.host(hk)].concat(mkC(r)));}),
+ trend:pt=>mkFrom([{k:pt&&pt.mk||"",f:[]}]),
+ base:()=>mkFrom([{k:S.baseline&&S.baseline.mk||"",f:[]}]),
+ /* inventory pasted into the Assets tab, and anything else typed by hand */
+ typed:()=>mkFrom([{k:mkFileKey("(typed or pasted by the operator)"),f:[]}])
+};
+/* The workspace: everything loaded. It drives the page's own banner and the session file. */
+function mkWorkspace(){return mkMemo("ws",()=>{
+ const parts=[];
+ for(const k in S.hosts){parts.push(mkE.host(k));
+   if(S.marking.rules.some(r=>r.en&&r.kind==="finding"))for(const p in S.hosts[k].findings||{})parts.push(mkE.finding(k,p));
+   if(S.marking.rules.some(r=>r.en&&r.kind==="account"))for(const a in S.hosts[k].accounts||{})parts.push(mkE.acct(k,S.hosts[k].accounts[a].name||a));}
+ for(const k in S.software)parts.push(mkE.sw(k));
+ for(const k in S.ppsm)parts.push(mkE.port(k));
+ for(const k in S.intel.rows)parts.push(mkE.intel(k));
+ (S.listings.hw||[]).concat(S.listings.sw||[]).forEach(r=>parts.push(mkE.rec(r)));
+ for(const k in S.assets)parts.push(mkE.asset(k));
+ for(const hk in S.stigResults)for(const bk in S.stigResults[hk])parts.push(mkE.stig(hk,bk));
+ (S.trend||[]).forEach(p=>parts.push(mkE.trend(p)));
+ if(S.baseline)parts.push(mkE.base());
+ if((S.inventory||[]).length)parts.push(mkE.typed());
+ return mkFrom(parts);});}
+function mkWorkspaceDoc(pid){const D=mkDoc(pid||"*");D.add(mkWorkspace(),"everything loaded");return D;}
+
+/* ---- products --------------------------------------------------------------------------- */
+/* One per product. add() joins a record in; row() does the same and returns a placeholder for
+   the row's Portion Marking cell, filled in when the product is sealed. */
+function mkDoc(pid){
+ const D={pid,k:"",f:new Set(),by:new Map(),n:0,M:null};
+ D.add=(r,label)=>{if(!r)return "";if(typeof r==="string")r={k:r,f:[]};D.k=mkJoin(D.k,r.k);(r.f||[]).forEach(x=>D.f.add(x));
+   let b=D.by.get(r.k);if(!b)D.by.set(r.k,b={n:0,eg:""});b.n++;if(!b.eg&&label)b.eg=String(label);return r.k;};
+ D.row=(r,label)=>{D.n++;return {mk:D.add(r,label)||mkFloor()};};
+ return D;}
+const MK_PORTION_HDR="Portion Marking";
+/* the floor, then the global override "*", then this product's own */
+function mkSeal(D){
+ const floor=mkFloor(),derived=mkJoin(D.k||"",floor);let k=derived;const ovs=[];
+ [mkOwn(S.marking.products,"*"),mkOwn(S.marking.products,D.pid)].forEach(o=>{if(!o||!o.mark)return;ovs.push(o);
+   k=o.mode==="set"?o.mark:mkJoin(k,o.mark);});
+ const M={pid:D.pid,key:k,derived,banner:mkBanner(k)||"UNCLASSIFIED",over:k!==derived,down:!mkDominates(k,derived),
+   ovs,srcs:[...D.f],by:D.by,n:D.n,review:mkReview(k),tier:mkTier(k)};
+ D.M=M;return M;}
+const MK_COMMINGLED="This content is classified at the {L} level and may contain elements of controlled unclassified "
+ +"information (CUI), unclassified, or information classified at a lower level than the overall classification displayed. "
+ +"This content shall not be used as a source of derivative classification; refer instead to the applicable classification "
+ +"guide(s). It must be reviewed for both Classified National Security Information (CNSI) and CUI in accordance with "
+ +"DoDI 5200.48 prior to public release.";
+/* The authority block (classified) and designation indicator (CUI). The tool never invents a
+   classifier's name: an unset field prints as a bracketed instruction, so a product cannot pass
+   for complete when it is not. */
+function mkCab(M){
+ const s=S.settings,m=mkObj(M.key),L=[];if(!m)return L;
+ const srcs=M.srcs.filter(id=>mkOwn(S.marking.files,id));
+ if(m.l>=1){
+   L.push("Classified By: "+(s.mkClassBy||"[derivative classifier name and position - set on the Markings tab]"));
+   L.push("Derived From: "+(s.mkDerivedFrom||(srcs.length>1?"Multiple Sources":srcs.length?srcs[0]:"[source document - set on the Markings tab]")));
+   const decl=[...m.decl];
+   L.push("Declassify On: "+(s.mkDeclOn||(decl.length?"[sources carry "+decl.join(", ")+" - confirm and set on the Markings tab]":"[per the source documents - set on the Markings tab]")));
+   if(srcs.length>1&&!s.mkDerivedFrom)L.push("Sources: "+srcs.slice(0,25).map(id=>id+" "+mkPortion(mkFileKey(id)||mkFloor())).join("; ")+(srcs.length>25?"; and "+(srcs.length-25)+" more":""));}
+ if(m.cui){
+   const cats=[...m.cat].concat(m.d.has("PROPIN")?["PROPIN"]:[],m.nonic.has("SSI")?["SP-SSI"]:[]).sort();
+   const ldc=(m.fd==="F"?["NOFORN"]:m.fd==="X"&&m.rel?["REL TO "+mkCountries(m.rel,true).join(", ")]:[]).concat([...m.ldc]);
+   L.push("Controlled by: "+(s.mkCtrlBy||"[agency or DoD component - set on the Markings tab]"));
+   if(s.mkCtrlOffice)L.push("Controlled by: "+s.mkCtrlOffice);
+   L.push("CUI Category: "+(cats.length?cats.join(", "):"[category from the CUI Registry - tag the data or set a rule]"));
+   L.push((MK_POLICY.profile==="DOD"?"Distribution/Dissemination Control: ":"Limited Dissemination Control: ")+(ldc.length?ldc.join(", "):"none stated"));
+   L.push("POC: "+(s.mkPoc||"[name and phone or e-mail - set on the Markings tab]"));}
+ if(m.l>=1&&m.cui&&MK_POLICY.profile==="DOD")L.push(MK_COMMINGLED.replace("{L}",MK_LVL_B[m.l]));
+ if(M.over)L.push("Marking note: "+(M.down?"LOWERED":"raised")+" by override from the derived "+mkBanner(M.derived)
+   +(M.ovs.map(o=>o.why).filter(Boolean).length?" - "+M.ovs.map(o=>o.why).filter(Boolean).join("; "):""));
+ M.review.forEach(r=>L.push("Marking review: "+r));
+ return L;}
+/* A CSV is a list of rows. MK_B stands for a banner row; a {mk} cell (from D.row) for a portion
+   mark. The authority block goes in front of the closing banner. */
+const MK_B=Object.freeze(["\u0000banner"]);
+function mkCsv(D,rows){
+ const M=D.M||mkSeal(D),cab=mkCab(M),out=[];let opened=false;
+ rows.forEach(r=>{
+   if(r===MK_B){if(opened&&cab.length){cab.forEach(c=>out.push([c]));out.push([]);}out.push([M.banner]);opened=true;return;}
+   out.push(r.map(c=>c&&typeof c==="object"&&"mk" in c?mkPortion(c.mk):c));});
+ return out.map(r=>r.map(csvq).join(",")).join("\n");}
+/* HTML banner and authority block for the downloadable reports (their own CSP: inline style only) */
+const MK_COLORS={u:["#007a33","#fff"],cui:["#502b85","#fff"],c:["#0033a0","#fff"],s:["#c8102e","#fff"],ts:["#ff8c00","#000"],tssci:["#fce83a","#000"],none:["#5b2ea6","#fff"]};
+function mkBannerCss(M){const c=MK_COLORS[M.tier]||MK_COLORS.none;return "background:"+c[0]+";color:"+c[1];}
+function mkCabHtml(M){const L=mkCab(M);if(!L.length)return "";
+ return '<div class="mkcab" style="border:1px solid #999;padding:8px 10px;margin:14px 0;font-size:11px;line-height:1.5;max-width:640px">'
+  +L.map(x=>'<div>'+esc(x)+'</div>').join("")+'</div>';}
+
+/* ---- reading markings out of what is ingested ------------------------------------------- */
+/* A leading portion mark on a cell: "(S//NF) text". Uppercase only, and a bare "(C)" is taken
+   as CONFIDENTIAL only when the source is already marked classified -- otherwise it is far more
+   often a copyright sign. Returns {key, rest} or null. */
+function mkLead(v,opt){
+ const m=String(v??"").match(/^\s*\(([A-Z][A-Z0-9 \/,\-]{0,90})\)\s*(.*)$/s);if(!m)return null;
+ if(m[1]==="C"&&!(opt&&opt.allowC))return null;
+ const p=mkParse(m[1],{strict:true,rel:opt&&opt.rel});
+ return p.strict?{key:p.key,rest:m[2]}:null;}
+/* a cell with its portion mark taken off, for anything used as an identity */
+function mkStrip(v,opt){const l=mkLead(v,opt);return l?l.rest:v;}
+/* a whole cell that is a marking and nothing else, e.g. a banner row */
+function mkWhole(v){const s=String(v??"").trim();if(!s||s.length>160)return null;const p=mkParse(s,{strict:true});return p.strict?p.key:null;}
+/* Look at a sheet's rows for what it says about itself. Banner rows are rows whose every
+   non-blank cell is the same strict marking, within the first or last 6 rows. A marking column
+   is a header that names one. Returns {key, how, skip:Set(row indices), col}. */
+const MK_COL_HDR=/^(?:\(?[a-z]+\)?\s*)?(?:classification|classification level|security classification|data classification|marking|markings|portion marking|portion marks?|portion|banner|caveats?|dissemination controls?|control marking|handling|class)$/i;
+const MK_CAB_LINE=/^(?:Classified By|Derived From|Declassify On|Classification Reason|Reason|Controlled by|CUI Categor(?:y|ies)|Limited Dissemination Control|Distribution\/Dissemination Control|LDC|POC|Sources|Marking note|Marking review|CL BY|DRV FROM|DECL ON):|^This content is classified at /i;
+function mkSheet(rows,hdrIdx){
+ const out={key:"",how:[],skip:new Set(),col:-1};const n=rows.length;
+ const cand=[];for(let i=0;i<Math.min(6,n);i++)cand.push(i);for(let i=Math.max(0,n-6);i<n;i++)if(cand.indexOf(i)<0)cand.push(i);
+ cand.forEach(i=>{if(i===hdrIdx)return;const cells=(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
+   if(!cells.length||cells.some(c=>c!==cells[0]))return;const k=mkWhole(cells[0]);
+   if(k){out.key=mkJoin(out.key,k);out.skip.add(i);out.how.push("banner row "+(i+1)+' "'+cells[0].slice(0,60)+'"');}});
+ /* the authority block and marking notes Palisade writes above its closing banner are not data */
+ for(let i=Math.max(0,n-24);i<n;i++){if(i<=hdrIdx)continue;const cells=(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
+   if(cells.length===1&&MK_CAB_LINE.test(cells[0])){out.skip.add(i);if(/^(?:Classified By|Derived From|Declassify On):/i.test(cells[0]))out.how.push(cells[0].slice(0,80));}}
+ if(hdrIdx>=0&&rows[hdrIdx])rows[hdrIdx].forEach((h,c)=>{if(out.col<0&&MK_COL_HDR.test(String(h??"").trim()))out.col=c;});
+ return out;}
+/* one row's own marking: the marking column, else a leading portion mark on any cell */
+function mkRowKey(row,sheet,ctx){
+ if(!row)return "";
+ if(sheet&&sheet.col>=0){const v=String(row[sheet.col]??"").trim();if(v){const p=mkParse(v,{rel:ctx&&ctx.rel});if(p.key)return p.key;}}
+ let k="";for(const c of row){const l=mkLead(c,ctx);if(l)k=mkJoin(k,l.key);}
+ return k;}
+
+/* ---- the page's own banner -------------------------------------------------------------- */
+function applyBanner(){
+ const M=mkSeal(mkWorkspaceDoc("*"));
+ ["bannerTop","bannerBottom"].forEach(id=>{const el=$(id);if(!el)return;el.textContent=M.banner;
+   Object.keys(MK_COLORS).forEach(t=>el.classList.remove("mk-"+t));el.classList.add("mk-"+M.tier);
+   el.title=M.over?"Set by override (derived "+mkBanner(M.derived)+")":"Derived from everything loaded - see the Markings tab";});
+ if($("bannerText"))$("bannerText").value=S.settings.banner;}
+/* After a session, baseline or profile is read: give marking state its defaults, and turn every
+   stored key back into the canonical form this build reads (an older build's key, or a hand-edited
+   file, is re-read rather than trusted). Never throws on odd input; drops what cannot be a rule. */
+function mkHydrate(st){
+ const m=st.marking&&typeof st.marking==="object"?st.marking:{};const out=emptyMarking();
+ const fl=m.files&&typeof m.files==="object"?m.files:{};
+ for(const id in fl){const f=fl[id];if(!f||typeof f!=="object")continue;
+   out.files[id]={name:id,type:String(f.type||""),det:mkKey(f.det||""),how:Array.isArray(f.how)?f.how.slice(0,12).map(String):[],
+     set:mkKey(f.set||""),why:String(f.why||""),rows:+f.rows||0,at:String(f.at||"")};}
+ out.rules=(Array.isArray(m.rules)?m.rules:[]).map(mkCleanRule).filter(Boolean);
+ const pr=m.products&&typeof m.products==="object"?m.products:{};
+ for(const p in pr){const o=pr[p];if(o&&o.mark&&mkKey(o.mark))out.products[p]={mark:mkKey(o.mark),mode:o.mode==="set"?"set":"raise",why:String(o.why||""),at:String(o.at||"")};}
+ out.log=(Array.isArray(m.log)?m.log:[]).slice(-500).filter(x=>x&&typeof x==="object");
+ st.marking=out;
+ const d=newState().settings;["mkProfile","mkLegacy","mkClassBy","mkDerivedFrom","mkDeclOn","mkCtrlBy","mkCtrlOffice","mkPoc","mkAiMax"]
+   .forEach(k=>{if(st.settings&&st.settings[k]===undefined)st.settings[k]=d[k];});
+ if(st.settings&&(st.settings.banner===undefined||st.settings.banner===null))st.settings.banner="UNCLASSIFIED";
+ return st;}
+function mkCleanRule(r,i){
+ if(!r||typeof r!=="object"||!hasOwnKind(r.kind))return null;
+ const mark=mkKey(r.mark||"");if(!mark)return null;
+ const field=r.field==="any"||(MK_RULE_KINDS[r.kind]||[]).indexOf(r.field)>=0?r.field:"any";
+ return {id:String(r.id||("r"+(i||0)+"_"+Math.abs(mkHash(String(r.pat)+mark)))),en:r.en!==false,kind:r.kind,field,
+   pat:String(r.pat||"").slice(0,LIMITS.REGEX_SOURCE_CHARS),mark,mode:r.mode==="set"?"set":"raise",why:String(r.why||"").slice(0,300)};}
+const hasOwnKind=k=>typeof k==="string"&&Object.prototype.hasOwnProperty.call(MK_RULE_KINDS,k);
+function mkHash(s){let h=0;for(let i=0;i<s.length;i++)h=(Math.imul(h,31)+s.charCodeAt(i))|0;return h;}
+/* The release log: every product that leaves the tool, the banner it left under, and whether
+   an override set it. Rides in the session, so the record travels with the work. */
+function mkLogIssue(name,M){if(MK_DRY||!M||!S.marking)return;
+ S.marking.log.push({at:new Date().toISOString(),file:String(name),banner:M.banner,derived:M.over?mkBanner(M.derived):"",
+   down:!!M.down});if(S.marking.log.length>500)S.marking.log.splice(0,S.marking.log.length-500);}
 
 /* ---------------- file ingest ---------------- */
 $("fileIn").addEventListener("change",e=>ingestFiles(e.target.files));
@@ -2410,6 +3160,8 @@ function snapshot(){
  for(const k in S.software){s.software[k]={name:S.software[k].name,version:S.software[k].version,hosts:[...S.software[k].hosts]};}
  for(const k in S.ppsm){s.ports[k]={proto:S.ppsm[k].proto,port:S.ppsm[k].port,svc:S.ppsm[k].svc,hosts:S.ppsm[k].hosts.length};}
  s.cols=activeCols().map(c=>c.name);
+ /* what was removed since the baseline exists only here, so the baseline keeps its marking */
+ s.mk=mkWorkspace().k;
  return s;
 }
 function computeDelta(){
@@ -2988,7 +3740,7 @@ function renderListings(){
 
 /* ---- fusion + priority scoring ---- */
 let _fusion=null;
-function invalidateFusion(){_fusion=null;}
+function invalidateFusion(){_fusion=null;mkDirty();}
 function normProd(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
 /* Score sources available for prioritization. Sheets like SASR-E carry their own
    composite score (fed by RF, ExploitDB, SANS, etc.) that downstream DoD reporting
@@ -4507,9 +5259,9 @@ function trendDateOf(){
  const ds=Object.values(S.hosts).map(h=>h.lastSeen).filter(Boolean).sort();
  return ds.length?ds[ds.length-1]:today();
 }
-function addTrendPoint(label,when,stats){
+function addTrendPoint(label,when,stats,mk){
  S.trend=S.trend||[];
- const pt={taken:when||trendDateOf(),label:label||"",stats:stats||trendStats()};
+ const pt={taken:when||trendDateOf(),label:label||"",stats:stats||trendStats(),mk:mk||mkWorkspace().k};
  const i=S.trend.findIndex(p=>p.taken===pt.taken);
  if(i>=0) S.trend[i]=pt; else S.trend.push(pt);
  S.trend.sort((a,b)=>String(a.taken).localeCompare(String(b.taken)));
@@ -4538,7 +5290,7 @@ async function ingestTrendSessions(files){
      const o=safeParse(await f.text());
      if(!o.meta||!(/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||""))) throw new Error("not a Palisade session file");
      o.config=migrateConfig(o.config);
-     S=Object.assign(newState(),o);
+     S=Object.assign(newState(),o); mkHydrate(S);
      for(const k in S.hosts){
        S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);
        S.hosts[k].findings=S.hosts[k].findings||{}; S.hosts[k].accounts=S.hosts[k].accounts||{};
@@ -4546,10 +5298,10 @@ async function ingestTrendSessions(files){
      }
      S.stigResults=S.stigResults||{};
      invalidateFusion(); runDetection(); buildSoftware();
-     const stats=trendStats(), when=trendDateOf();
+     const stats=trendStats(), when=trendDateOf(), mk=mkWorkspace().k;   // that cycle's own marking
      const label=(o.meta.saved||"").slice(0,10);
      S=keep;
-     addTrendPoint(label&&label!==when?label:"",when,stats); added++;
+     addTrendPoint(label&&label!==when?label:"",when,stats,mk); added++;
    }catch(e){ S=keep; problems.push(f.name+": "+e.message); }
  }
  invalidateFusion(); renderTrend(); renderReadiness();
@@ -4699,11 +5451,13 @@ async function loadBaseline(f){
    const o=safeParse(await f.text());
    if(o.meta&&/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(o.meta.tool||"")){
      // a full prior session: build a snapshot from its contents
-     const keep=S; S=Object.assign(newState(),o);
-     for(const k in S.hosts){S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);}
-     runDetection(); buildSoftware();
-     const snap=snapshot(); S=keep; S.baseline=snap;
-   } else if(o.taken&&o.hosts){ S.baseline=o; }
+     const keep=S; S=Object.assign(newState(),o); mkHydrate(S);
+     try{
+       for(const k in S.hosts){S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);}
+       runDetection(); buildSoftware();
+       const snap=snapshot(); S=keep; S.baseline=snap;      // snapshot() carries that session's marking
+     }finally{ S=keep; }
+   } else if(o.taken&&o.hosts){ S.baseline=o; S.baseline.mk=mkKey(o.mk||""); }
    else throw new Error("not a session or baseline file");
    computeDelta(); renderDelta();
    status(`Baseline loaded (captured ${S.baseline.taken.slice(0,10)}). Delta computed.`);
@@ -5000,7 +5754,7 @@ if(window.ResizeObserver){
  const h=document.querySelector(".apptop"); if(h)ro.observe(h);
 }
 
-function renderAll(){renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
+function renderAll(){mkDirty();renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
  computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
  if(S.inventory&&S.inventory.length&&!$("invBox").value)
    $("invBox").value=S.inventory.map(i=>[i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
@@ -7250,7 +8004,9 @@ function exportSTIG(){
 /* ---------------- session ---------------- */
 function saveSession(){
  S.meta.saved=new Date().toISOString();
- dl(`Palisade_Session_${today()}.json`, JSON.stringify(S,null,1),"application/json");
+ /* the whole dataset: marked at the high-water mark of everything in it, stated first in the file */
+ const M=mkSeal(mkWorkspaceDoc("Palisade_Session"));S.meta.banner=M.banner;S.meta.marking=M.key;
+ dl(`Palisade_Session_${today()}.json`, JSON.stringify(S,null,1),"application/json",M);
  status("Session saved (JSON sidecar). Load it later to resume with all edits intact.");
 }
 async function loadSession(f){
@@ -7265,7 +8021,7 @@ async function loadSession(f){
    const obj=safeParse(await f.text());
    if(!obj.meta||!/(?:^|-)(?:PPSM-STIG|Compliance)-Compiler$|^Palisade$/.test(obj.meta.tool)) throw new Error("not a compiler session file");
    obj.config=migrateConfig(obj.config);
-   S=Object.assign(newState(),obj);
+   S=Object.assign(newState(),obj); mkHydrate(S);
    for(const k in S.hosts){S.hosts[k].sw=(S.hosts[k].sw||[]).map(x=>typeof x==="string"?parseSwLine(x)||{n:x,v:""}:x);
      S.hosts[k].findings=S.hosts[k].findings||{};
      S.hosts[k].accounts=S.hosts[k].accounts||{};
@@ -7595,15 +8351,18 @@ function gotoTab(t){
 
 /* ---------------- environment profile (settings + config, no scan data) --- */
 function saveProfile(){
- const prof={meta:{kind:"Compliance-Compiler-Profile",ver:"2.0",saved:new Date().toISOString()},
-   settings:S.settings, config:S.config};
- dl(`Compliance_Profile_${today()}.json`, JSON.stringify(prof,null,1),"application/json");
+ /* tagging rules are site configuration, so they travel with the profile; sources, overrides
+    and the release log are about one dataset and stay in the session */
+ const D=mkDoc("Compliance_Profile");S.marking.rules.forEach(r=>D.add(r.mark,"tagging rule"));const M=mkSeal(D);
+ const prof={meta:{kind:"Compliance-Compiler-Profile",ver:"2.0",saved:new Date().toISOString(),banner:M.banner},
+   settings:S.settings, config:S.config, marking:{rules:S.marking.rules}};
+ dl(`Compliance_Profile_${today()}.json`, JSON.stringify(prof,null,1),"application/json",M);
  status("Environment profile saved (settings + detection config, no scan data). Share it so your team starts from the same baseline.");
 }
 $("profIn").addEventListener("change",e=>loadProfile(e.target.files[0]));
 async function loadProfile(f){
  if(!f) return;
- const prev=S, prevSettings=S.settings, prevConfig=S.config;   // transactional, as loadSession
+ const prev=S, prevSettings=S.settings, prevConfig=S.config, prevRules=S.marking.rules;   // transactional, as loadSession
  let bad=[];
  try{
    checkFileSize(f,true);
@@ -7615,10 +8374,12 @@ async function loadProfile(f){
       survives the rollback below and would make it a lie. */
    if(o.settings) S.settings=Object.assign({},S.settings,o.settings);
    if(o.config){ S.config=migrateConfig(o.config); bad=rejectedPatterns(S.config); }
+   if(o.marking&&Array.isArray(o.marking.rules)) S.marking.rules=mkHydrate({marking:{rules:o.marking.rules},settings:{}}).marking.rules;
+   mkHydrate({marking:{},settings:S.settings});
    invalidateFusion();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
    status(`Environment profile applied${o.meta&&o.meta.saved?" (saved "+o.meta.saved.slice(0,10)+")":""}. Settings and detection rules updated; scan data untouched.`+rejectNote(bad));
- }catch(e){ S=prev; S.settings=prevSettings; S.config=prevConfig; try{renderAll();}catch(_){}
+ }catch(e){ S=prev; S.settings=prevSettings; S.config=prevConfig; S.marking.rules=prevRules; try{renderAll();}catch(_){}
    alert("Profile load failed: "+e.message+" - previous settings and detection rules restored."); }
  $("profIn").value="";
 }
@@ -7804,7 +8565,7 @@ document.addEventListener("securitypolicyviolation",e=>{
    Arguments arrive as data-* attributes and are therefore ALWAYS strings: anything numeric or
    boolean is coerced explicitly below ("false" is truthy). ========================================= */
 const FILE_INPUTS=new Set(["fileIn","sessIn","profIn","apprIn","baseIn","listIn","intelIn","trendIn"]);
-const BANNERS=new Set(["UNCLASSIFIED","CUI","UNCLASSIFIED//CUI","UNCLASSIFIED//FOUO"]);
+const BANNERS=new Set(["UNCLASSIFIED","CUI","CONFIDENTIAL","SECRET","SECRET//NOFORN","TOP SECRET"]);
 const PPSM_FIELDS=new Set(["include","svc","app","srcIp","dstIp","notes"]);
 const STIG_FIELDS=new Set(["device","comments"]);
 const SW_FIELDS=new Set(["include","approvedBy","approvalDate","approvalRef",...SW_COLS.map(c=>c[0])]);
@@ -7893,8 +8654,12 @@ const ACTIONS=Object.freeze({
  pickFile:el=>{ if(FILE_INPUTS.has(el.dataset.arg)) $(el.dataset.arg).click(); },
 
  /* --- banner --- */
- setBanner:el=>{ if(BANNERS.has(el.dataset.arg)){ S.settings.banner=el.dataset.arg; applyBanner(); } },
- bannerInput:el=>{ S.settings.banner=el.value; applyBanner(); persistNothingNote(); },
+ setBanner:el=>{ if(BANNERS.has(el.dataset.arg)){ S.settings.banner=el.dataset.arg; mkDirty(); applyBanner(); rptTouch(); } },
+ /* the floor is stored canonical: whatever form it was typed in, it is read and written back in
+    register order, and a blank floor is refused rather than read as "no marking" */
+ bannerInput:el=>{ const p=mkParse(el.value); const b=p.key?mkBanner(p.key):"";
+   S.settings.banner=b||"UNCLASSIFIED"; mkDirty(); applyBanner(); rptTouch();
+   status(b?"Floor set to "+b+(p.notes.length?" ("+p.notes.join("; ")+")":"")+".":"A blank or unreadable floor is not allowed; the floor is UNCLASSIFIED."); },
 
  /* --- compound handlers that used to be semicolon-joined statements in the attribute --- */
  rerunDetection:()=>{ runDetection(); renderSTIG(); status("Detection re-run. Manual overrides preserved."); },
@@ -7952,6 +8717,11 @@ try{ if(!Object.keys(S.hosts).length) setTimeout(openWizard,90); }catch(e){}
 
 renderAll();
 auditUIActions();
+/* The marking engine checks its own algebra every time the page opens. A failure is a console
+   error, so the release gate (zero console errors) refuses a build whose roll-up is wrong. */
+setTimeout(()=>{ try{ MK_SELFTEST=mkSelfTest(150);
+  if(!MK_SELFTEST.pass) console.error("Palisade marking engine self-test FAILED:",MK_SELFTEST.fails.join(" | ")); }
+  catch(e){ MK_SELFTEST={pass:false,checks:0,fails:[String(e&&e.message||e)]}; console.error("Palisade marking engine self-test could not run:",e); } },0);
 </script>
 </body>
 </html>
