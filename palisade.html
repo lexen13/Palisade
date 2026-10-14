@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-m+uhvD7pwtlN/Rnk5tYHLXR7Q6WzQ5yrgQyjP9dUuLM='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-78wkBgVIgIqBSFOC2l+eEFNXSDUmgADeEVGFFJshSGA='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -2014,7 +2014,7 @@ const MK_VOCAB=(()=>{const v=new Map(),a=(t,k,...ps)=>ps.forEach(p=>v.set(p,[t,k
  a("AEA","DOE UCNI","UCNI","DOE UCNI","DOE UNCLASSIFIED CONTROLLED NUCLEAR INFORMATION");
  a("AEA","TFNI","TFNI","TRANSCLASSIFIED FOREIGN NUCLEAR INFORMATION");
  a("SCI","SI","SI","COMINT","SPECIAL INTELLIGENCE");a("SCI","SI-G","GAMMA");a("SCI","TK","TK","TALENT KEYHOLE");
- a("SCI","HCS","HCS","HUMINT CONTROL SYSTEM");a("SCI","KDK","KDK","KLONDIKE");a("SCI","RSV","RSV","RESERVE");a("SCI","BUR","BUR");
+ a("SCI","HCS","HCS","HUMINT CONTROL SYSTEM");a("SCI","SCI","SCI","SENSITIVE COMPARTMENTED INFORMATION");a("SCI","KDK","KDK","KLONDIKE");a("SCI","RSV","RSV","RESERVE");a("SCI","BUR","BUR");
  a("FGI",1,"FGI","FOREIGN GOVERNMENT INFORMATION");
  a("NATO",3,"CTS","COSMIC TOP SECRET");a("NATO",2,"NS","NATO SECRET");a("NATO",1,"NC","NATO CONFIDENTIAL");
  a("NATO",-2,"NR","NATO RESTRICTED");a("NATO",0,"NU","NATO UNCLASSIFIED");
@@ -2305,6 +2305,7 @@ function mkReview(key){const m=mkObj(key);if(!m)return [];const r=[];
  if(m.unk.size)r.push("unrecognised: "+[...m.unk].join(", "));
  if(m.l<0&&!m.cui)r.push("no classification level stated");
  if(m.l<1&&(m.sci.size||m.sap.size||m.aea.has("RD")||m.aea.has("FRD")))r.push("control marking without a classification level");
+ if(m.sci.has("SCI"))r.push("SCI stated without naming the control system");
  if(m.decl.size)r.push("declassification instruction in the marking: "+[...m.decl].join(", "));
  return r;}
 /* banner colour tier: u cui c s ts tssci */
@@ -2456,11 +2457,36 @@ function mkSource(id,type,det,how){
 function mkTouch(obj,id,rowKey){if(!obj||!id)return;const c=obj.mkc||(obj.mkc=[]);rowKey=rowKey||"";
  for(const [f,k] of c)if(f===id&&k===rowKey)return;c.push([id,rowKey]);}
 function mkTouchAll(obj,from){(from&&from.mkc||[]).forEach(([f,k])=>mkTouch(obj,f,k));}
+/* every record that can carry contributions */
+function mkEachRec(st,fn){
+ const o=x=>!!x&&typeof x==="object",each=c=>{if(o(c))Object.keys(c).forEach(k=>{if(o(c[k]))fn(c[k]);});};
+ if(!o(st))return;
+ if(o(st.hosts))Object.keys(st.hosts).forEach(k=>{const h=st.hosts[k];if(!o(h))return;fn(h);each(h.findings);});
+ each(st.software);each(st.ppsm);if(o(st.intel))each(st.intel.rows);
+ if(o(st.listings))["hw","sw"].forEach(t=>{if(Array.isArray(st.listings[t]))st.listings[t].forEach(r=>{if(o(r))fn(r);});});
+ each(st.assets);if(o(st.stigResults))Object.keys(st.stigResults).forEach(k=>each(st.stigResults[k]));}
+/* the most sensitive thing each source put into the records loaded now: what the authority
+   block's Sources line and the Markings tab show, never just the file's banner */
+function mkSrcHigh(id){return mkMemo("srchigh",()=>{const m=new Map();
+ mkEachRec(S,r=>(r.mkc||[]).forEach(([f,rk])=>m.set(f,mkJoin(m.get(f)||"",rk?mkJoin(rk,mkFileRaise(f)):mkFileKey(f)))));
+ return m;}).get(id)||mkFileKey(id);}
+/* sources no record comes from any more, and that the operator has not marked, are forgotten */
+function mkPrune(){const used=new Set([MK_TYPED_SRC]);mkEachRec(S,r=>(r.mkc||[]).forEach(([f])=>used.add(f)));
+ (S.listings.hw||[]).concat(S.listings.sw||[]).forEach(r=>{if(r&&r.src)used.add(r.src);});
+ if(S.intel&&S.intel.rows)Object.keys(S.intel.rows).forEach(c=>(S.intel.rows[c].srcs||[]).forEach(f=>used.add(f)));
+ (S.trend||[]).concat(S.baseline?[S.baseline]:[]).forEach(p=>(p&&Array.isArray(p.src)?p.src:[]).forEach(f=>used.add(f)));
+ Object.keys(S.marking.files).forEach(id=>{if(!used.has(id)&&!S.marking.files[id].set)delete S.marking.files[id];});mkDirty();}
 /* a file's own marking: what the operator set, else what it said, then file rules */
+function mkFileRules(id){return mkMemo("FR\u0001"+id,()=>{const f=mkOwn(S.marking.files,id);
+ return mkRuleHits("file",fld=>fld==="name"?[id]:fld==="type"?[f?f.type:""]:[id,f?f.type:""]);});}
 function mkFileKey(id){return mkMemo("F\u0001"+id,()=>{
  const f=mkOwn(S.marking.files,id);let k=f?(f.set||f.det):"";
- const r=mkRuleHits("file",fld=>fld==="name"?[id]:fld==="type"?[f?f.type:""]:[id,f?f.type:""]);
- if(r.set.length)k=mkJoinAll(r.set);return mkJoinAll([k].concat(r.raise));});}
+ const r=mkFileRules(id);if(r.set.length)k=mkJoinAll(r.set);return mkJoinAll([k].concat(r.raise));});}
+/* What a file adds on top of a row's own portion mark. A portion mark outranks the file's banner,
+   so neither what the file said nor a "set" can lower it -- but raising the file (a raise tag, or
+   the operator marking it above what it said) raises every row that came from it. */
+function mkFileRaise(id){return mkMemo("FU\u0001"+id,()=>{const f=mkOwn(S.marking.files,id);
+ return mkJoinAll((f&&f.set&&!mkDominates(f.det,f.set)?[f.set]:[]).concat(mkFileRules(id).raise));});}
 
 /* ---- tagging rules ---------------------------------------------------------------------- */
 /* kind -> fields a rule can test. "any" tests all of them. */
@@ -2493,7 +2519,7 @@ function mkFrom(parts,kind,vals){
  parts.forEach(p=>{if(!p)return;k=mkJoin(k,p.k);(p.f||[]).forEach(x=>f.add(x));(p.r||[]).forEach(x=>r.add(x));});
  if(kind){const h=mkRuleHits(kind,vals);if(h.set.length)k=mkJoinAll(h.set);k=mkJoinAll([k].concat(h.raise));h.ids.forEach(x=>r.add(x));}
  return {k:mkJoin(k,mkFloor()),f:[...f],r:[...r]};}
-const mkC=obj=>(obj&&obj.mkc||[]).map(([id,rk])=>({k:rk||mkFileKey(id),f:[id]}));
+const mkC=obj=>(obj&&obj.mkc||[]).map(([id,rk])=>({k:rk?mkJoin(rk,mkFileRaise(id)):mkFileKey(id),f:[id],r:mkFileRules(id).ids}));
 /* host names appear in derived rows (software, PPSM, lenses) in place of keys */
 function mkHostKeyOf(n){if(mkOwn(S.hosts,n))return n;
  const ix=mkMemo("hostix",()=>{const m=new Map();for(const k in S.hosts){const h=S.hosts[k];if(h&&h.name&&!m.has(h.name))m.set(h.name,k);}return m;});
@@ -2519,12 +2545,30 @@ const mkE={
    return mkFrom(c,"listing",fld=>fld==="host"?[rec.host]:fld==="name"?[rec.name,rec.host]:[]);},
  asset:key=>mkMemo("A\u0001"+key,()=>{const a=mkOwn(S.assets,key);if(!a)return mkE.floor();
    return mkFrom((mkOwn(S.hosts,key)?[mkE.host(key)]:[]).concat(mkC(a)),"asset",fld=>fld==="name"?[key,a.name]:fld==="location"?[a.location,a.facility]:fld==="owner"?[a.owner]:[]);}),
+ /* results kept under an address whose host was later folded into a named one still follow
+    that host -- and its tags */
  stig:(hk,bk)=>mkMemo("t\u0001"+hk+"\u0001"+bk,()=>{const g=mkOwn(S.stigResults,hk),r=g?mkOwn(g,bk):null;
-   return mkFrom([mkE.host(hk)].concat(mkC(r)));}),
- trend:pt=>mkFrom([{k:pt&&pt.mk||"",f:[]}]),
- base:()=>mkFrom([{k:S.baseline&&S.baseline.mk||"",f:[]}]),
+   return mkFrom([mkOwn(S.hosts,hk)?mkE.host(hk):mkE.lost(hk)].concat(mkC(r)));}),
+ lost:hk=>mkMemo("l\u0001"+hk,()=>{for(const k in S.hosts)if(S.hosts[k]&&S.hosts[k].ip===hk)return mkE.host(k);
+   return mkFrom([],"host",fld=>fld==="name"||fld==="ip"?[hk]:[]);}),
+ /* A trend point or baseline keeps the marking it was captured at, and its sources' marking
+    now (a source raised since raises it). Tags are re-applied: a baseline's hosts by name,
+    address and OS; a trend point counted hosts it does not list, so every host tag that matches
+    a host loaded now -- or in the baseline -- applies to it. */
+ trend:pt=>mkFrom([{k:pt&&pt.mk||"",f:[]},mkE.tagsNow()].concat((pt&&Array.isArray(pt.src)?pt.src:[]).filter(id=>mkOwn(S.marking.files,id)).map(mkE.file))),
+ base:()=>mkMemo("base",()=>{const b=S.baseline||{},parts=[{k:b.mk||"",f:[]}];
+   for(const k in b.hosts||{}){const h=b.hosts[k]||{};parts.push(mkFrom([],"host",fld=>fld==="name"?[k,h.name]:fld==="ip"?[h.ip]:fld==="os"?[h.os]:[]));}
+   (Array.isArray(b.src)?b.src:[]).filter(id=>mkOwn(S.marking.files,id)).forEach(id=>parts.push(mkE.file(id)));
+   return mkFrom(parts);}),
+ tagsNow:()=>mkMemo("tagsnow",()=>{if(!S.marking.rules.some(r=>r.en&&r.kind==="host"))return mkE.floor();
+   const parts=[];for(const k in S.hosts){const h=S.hosts[k];
+     parts.push(mkFrom([],"host",fld=>fld==="name"?[k,h.name,h.fqdn,h.netbios]:fld==="ip"?[h.ip]:fld==="os"?[h.os]:[]));}
+   if(S.baseline)parts.push(mkE.base());return mkFrom(parts);}),
  /* inventory pasted into the Assets tab, and anything else typed by hand */
- typed:()=>mkFrom([{k:mkFileKey("(typed or pasted by the operator)"),f:[]}])
+ typed:()=>mkFrom([{k:mkFileKey("(typed or pasted by the operator)"),f:[]}]),
+ /* one pasted inventory item: its own portion mark, else the pasted text's marking */
+ inv:i=>{const T="(typed or pasted by the operator)";
+   return mkFrom([i&&i.mk?{k:mkJoin(i.mk,mkFileRaise(T)),f:[]}:{k:mkFileKey(T),f:[]}],"asset",fld=>fld==="name"&&i?[i.name]:[]);}
 };
 /* The workspace: everything loaded. It drives the page's own banner and the session file. */
 function mkWorkspace(){return mkMemo("ws",()=>{
@@ -2543,9 +2587,9 @@ function mkWorkspace(){return mkMemo("ws",()=>{
  if((S.inventory||[]).length)parts.push(mkE.typed());
  return mkFrom(parts);});}
 /* accumulate many resolutions cheaply: keys are joined once, at the end */
-function mkAcc(){const ks=new Set(),fs=new Set();
- return {add(r){if(!r)return;if(typeof r==="string"){if(r)ks.add(r);return;}if(r.k)ks.add(r.k);(r.f||[]).forEach(x=>fs.add(x));},
-   r(){return {k:mkJoin(mkJoinAll([...ks]),mkFloor()),f:[...fs],r:[]};}};}
+function mkAcc(){const ks=new Set(),fs=new Set(),rs=new Set();
+ return {add(r){if(!r)return;if(typeof r==="string"){if(r)ks.add(r);return;}if(r.k)ks.add(r.k);(r.f||[]).forEach(x=>fs.add(x));(r.r||[]).forEach(x=>rs.add(x));},
+   r(){return {k:mkJoin(mkJoinAll([...ks]),mkFloor()),f:[...fs],r:[...rs]};}};}
 function mkR(...parts){const A=mkAcc();parts.flat().forEach(p=>A.add(p));return A.r();}
 /* derived lists hand back software row OBJECTS; this finds the key again */
 mkE.swRow=row=>{const ix=mkMemo("swix",()=>{const m=new Map();for(const k in S.software)m.set(S.software[k],k);return m;});
@@ -2559,8 +2603,8 @@ function mkWorkspaceDoc(pid){const D=mkDoc(pid||"*");D.add(mkWorkspace(),"everyt
 /* One per product. add() joins a record in; row() does the same and returns a placeholder for
    the row's Portion Marking cell, filled in when the product is sealed. */
 function mkDoc(pid){
- const D={pid,k:"",f:new Set(),by:new Map(),n:0,M:null};
- D.add=(r,label)=>{if(!r)return "";if(typeof r==="string")r={k:r,f:[]};D.k=mkJoin(D.k,r.k);(r.f||[]).forEach(x=>D.f.add(x));
+ const D={pid,k:"",f:new Set(),r:new Set(),by:new Map(),n:0,M:null};
+ D.add=(r,label)=>{if(!r)return "";if(typeof r==="string")r={k:r,f:[]};D.k=mkJoin(D.k,r.k);(r.f||[]).forEach(x=>D.f.add(x));(r.r||[]).forEach(x=>D.r.add(x));
    let b=D.by.get(r.k);if(!b)D.by.set(r.k,b={n:0,eg:""});b.n++;if(!b.eg&&label)b.eg=String(label);return r.k;};
  D.row=(r,label)=>{D.n++;return {mk:D.add(r,label)||mkFloor()};};
  return D;}
@@ -2571,7 +2615,7 @@ function mkSeal(D){
  [mkOwn(S.marking.products,"*"),mkOwn(S.marking.products,D.pid)].forEach(o=>{if(!o||!o.mark)return;ovs.push(o);
    k=o.mode==="set"?o.mark:mkJoin(k,o.mark);});
  const M={pid:D.pid,key:k,derived,banner:mkBanner(k)||"UNCLASSIFIED",over:k!==derived,down:!mkDominates(k,derived),
-   ovs,srcs:[...D.f],by:D.by,n:D.n,review:mkReview(k),tier:mkTier(k)};
+   ovs,srcs:[...D.f],rules:[...D.r],by:D.by,n:D.n,review:mkReview(k),tier:mkTier(k)};
  D.M=M;return M;}
 const MK_COMMINGLED="This content is classified at the {L} level and may contain elements of controlled unclassified "
  +"information (CUI), unclassified, or information classified at a lower level than the overall classification displayed. "
@@ -2589,7 +2633,7 @@ function mkCab(M){
    L.push("Derived From: "+(s.mkDerivedFrom||(srcs.length>1?"Multiple Sources":srcs.length?srcs[0]:"[source document - set on the Markings tab]")));
    const decl=[...m.decl];
    L.push("Declassify On: "+(s.mkDeclOn||(decl.length?"[sources carry "+decl.join(", ")+" - confirm and set on the Markings tab]":"[per the source documents - set on the Markings tab]")));
-   if(srcs.length>1&&!s.mkDerivedFrom)L.push("Sources: "+srcs.slice(0,25).map(id=>id+" "+mkPortion(mkFileKey(id)||mkFloor())).join("; ")+(srcs.length>25?"; and "+(srcs.length-25)+" more":""));}
+   if(srcs.length>1&&!s.mkDerivedFrom)L.push("Sources: "+srcs.slice(0,25).map(id=>id+" "+mkPortion(mkSrcHigh(id)||mkFloor())).join("; ")+(srcs.length>25?"; and "+(srcs.length-25)+" more":""));}
  if(m.cui){
    const cats=[...m.cat].concat(m.d.has("PROPIN")?["PROPIN"]:[],m.nonic.has("SSI")?["SP-SSI"]:[]).sort();
    const ldc=(m.fd==="F"?["NOFORN"]:m.fd==="X"&&m.rel?["REL TO "+mkCountries(m.rel,true).join(", ")]:[]).concat([...m.ldc]);
@@ -2602,6 +2646,13 @@ function mkCab(M){
  if(m.l>=1&&m.cui&&MK_POLICY.profile==="DOD")L.push(MK_COMMINGLED.replace("{L}",MK_LVL_B[m.l]));
  if(M.over)L.push("Marking note: "+(M.down?"LOWERED":"raised")+" by override from the derived "+mkBanner(M.derived)
    +(M.ovs.map(o=>o.why).filter(Boolean).length?" - "+M.ovs.map(o=>o.why).filter(Boolean).join("; "):""));
+ /* what the operator decided, where it reached this product: tags that marked its data, and
+    sources marked below what they said about themselves */
+ const rules=(M.rules||[]).map(id=>S.marking.rules.find(r=>r.id===id)).filter(Boolean);
+ if(rules.length)L.push("Tagged: "+rules.slice(0,10).map(r=>(r.kind+" "+r.pat).slice(0,60)+" "+mkPortion(r.mark)+(r.mode==="set"?" (set)":"")
+   +(r.why?" - "+r.why.slice(0,80):"")).join("; ")+(rules.length>10?"; and "+(rules.length-10)+" more":""));
+ M.srcs.forEach(id=>{const f=mkOwn(S.marking.files,id);if(f&&f.set&&f.det&&!mkDominates(f.set,f.det))
+   L.push("Marking note: source "+id+" marked "+mkPortion(f.set)+" by the operator although it says "+mkPortion(f.det)+(f.why?" - "+f.why:""));});
  M.review.forEach(r=>L.push("Marking review: "+r));
  return L;}
 /* A CSV is a list of rows. MK_B stands for a banner row; a {mk} cell (from D.row) for a portion
@@ -2633,21 +2684,13 @@ function mkLead(v,opt){
  if(m[1]==="C"&&!(opt&&opt.allowC))return null;
  const p=mkParse(m[1],{strict:true,rel:opt&&opt.rel});
  return p.strict?{key:p.key,rest:m[2]}:null;}
-/* a cell with its portion mark taken off, for anything used as an identity */
-function mkStrip(v,opt){const l=mkLead(v,opt);return l?l.rest:v;}
-/* a whole cell that is a marking and nothing else, e.g. a banner row */
-function mkWhole(v){const s=String(v??"").trim();if(!s||s.length>160)return null;const p=mkParse(s,{strict:true});return p.strict?p.key:null;}
-/* Look at a sheet's rows for what it says about itself. Banner rows are rows whose every
-   non-blank cell is the same strict marking, within the first or last 6 rows. A marking column
-   is a header that names one. Returns {key, how, skip:Set(row indices), col}. */
+/* A sheet's authority block and designation indicator (which Palisade writes above its closing
+   banner), and its marking column: a header that names one. Banner rows are ingSheet's: it reads
+   them wherever they sit. Returns {key, how, marks:[[key, evidence]], skip:Set(row indices), col}. */
 const MK_COL_HDR=/^(?:\(?[a-z]+\)?\s*)?(?:classification|classification level|security classification|data classification|marking|markings|portion marking|portion marks?|portion|banner|caveats?|dissemination controls?|control marking|handling|class)$/i;
-const MK_CAB_LINE=/^(?:Classified By|Derived From|Declassify On|Classification Reason|Reason|Controlled by|CUI Categor(?:y|ies)|Limited Dissemination Control|Distribution\/Dissemination Control|LDC|POC|Sources|Marking note|Marking review|CL BY|DRV FROM|DECL ON):|^This content is classified at |^Distribution Statement [A-F]\b/i;
+const MK_CAB_LINE=/^(?:Classified By|Derived From|Declassify On|Classification Reason|Reason|Controlled by|CUI Categor(?:y|ies)|Limited Dissemination Control|Distribution\/Dissemination Control|LDC|POC|Sources|Tagged|Marking note|Marking review|CL BY|DRV FROM|DECL ON):|^This content is classified at |^Distribution Statement [A-F]\b/i;
 function mkSheet(rows,hdrIdx){
- const out={key:"",how:[],skip:new Set(),col:-1};const n=rows.length;
- const cand=[];for(let i=0;i<Math.min(6,n);i++)cand.push(i);for(let i=Math.max(0,n-6);i<n;i++)if(cand.indexOf(i)<0)cand.push(i);
- cand.forEach(i=>{if(i===hdrIdx)return;const cells=(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
-   if(!cells.length||cells.some(c=>c!==cells[0]))return;const k=mkWhole(cells[0]);
-   if(k){out.key=mkJoin(out.key,k);out.skip.add(i);out.how.push("banner row "+(i+1)+' "'+cells[0].slice(0,60)+'"');}});
+ const out={key:"",how:[],marks:[],skip:new Set(),col:-1};const n=rows.length;
  /* the authority block and marking notes Palisade writes above its closing banner are not data */
  for(let i=Math.max(0,n-24);i<n;i++){if(i<=hdrIdx)continue;const cells=(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
    if(cells.length===1&&MK_CAB_LINE.test(cells[0])){out.skip.add(i);const c0=cells[0];
@@ -2658,15 +2701,9 @@ function mkSheet(rows,hdrIdx){
      if(/^CUI Categor/i.test(c0)&&!/^\[/.test(v))k=mkKey("CUI//"+v.replace(/\s*,\s*/g,"/"));
      else if(/^(?:Limited Dissemination Control|Distribution\/Dissemination Control|LDC):/i.test(c0)&&!/^none/i.test(v))k=mkKey("CUI//"+v.replace(/\s*,\s*(?![A-Z]{3,4}\b(?:,|$))/g,"/"));
      else if(/^Distribution Statement [A-F]\b/i.test(c0))k=mkKey("CUI//DIST "+c0.match(/^Distribution Statement ([A-F])/i)[1].toUpperCase());
-     if(k){out.key=mkJoin(out.key,k);out.how.push("designation indicator: "+c0.slice(0,80));}}}
+     if(k){out.key=mkJoin(out.key,k);out.marks.push([k,"designation indicator: "+c0.slice(0,80)]);}}}
  if(hdrIdx>=0&&rows[hdrIdx])rows[hdrIdx].forEach((h,c)=>{if(out.col<0&&MK_COL_HDR.test(String(h??"").trim()))out.col=c;});
  return out;}
-/* one row's own marking: the marking column, else a leading portion mark on any cell */
-function mkRowKey(row,sheet,ctx){
- if(!row)return "";
- if(sheet&&sheet.col>=0){const v=String(row[sheet.col]??"").trim();if(v){const p=mkParse(v,{rel:ctx&&ctx.rel});if(p.key)return p.key;}}
- let k="";for(const c of row){const l=mkLead(c,ctx);if(l)k=mkJoin(k,l.key);}
- return k;}
 
 /* ---- the page's own banner -------------------------------------------------------------- */
 function applyBanner(){
@@ -2687,8 +2724,23 @@ function mkHydrate(st){
  out.rules=(Array.isArray(m.rules)?m.rules:[]).map(mkCleanRule).filter(Boolean);
  const pr=m.products&&typeof m.products==="object"?m.products:{};
  for(const p in pr){const o=pr[p];if(o&&o.mark&&mkKey(o.mark))out.products[p]={mark:mkKey(o.mark),mode:o.mode==="set"?"set":"raise",why:String(o.why||""),at:String(o.at||"")};}
- out.log=(Array.isArray(m.log)?m.log:[]).slice(-500).filter(x=>x&&typeof x==="object");
+ out.log=(Array.isArray(m.log)?m.log:[]).slice(-500).filter(x=>x&&typeof x==="object")
+   .map(x=>({at:String(x.at||""),file:String(x.file||""),banner:String(x.banner||""),derived:String(x.derived||""),down:!!x.down}));
  st.marking=out;
+ /* Every record's contributions, re-read. A contribution that cannot be read is not dropped --
+    that would put its record at the floor -- it is charged to the session file itself, at the
+    marking the file states on its first line. */
+ const SESS="(session file: unreadable marking entry)";let bad=false;
+ mkEachRec(st,r=>{if(!("mkc" in r))return;const c=[];
+   (Array.isArray(r.mkc)?r.mkc:[null]).forEach(p=>{if(Array.isArray(p)&&typeof p[0]==="string"&&p[0]&&(p[1]==null||typeof p[1]==="string"))c.push([p[0],mkKey(p[1]||"")]);
+     else{bad=true;if(!c.some(x=>x[0]===SESS))c.push([SESS,""]);}});
+   if(c.length)r.mkc=c;else delete r.mkc;});
+ if(bad&&!out.files[SESS])out.files[SESS]={name:SESS,type:"session",det:mkKey(st.meta&&typeof st.meta.marking==="string"?st.meta.marking:"")
+   ||mkKey(st.meta&&typeof st.meta.banner==="string"?st.meta.banner:""),how:["record markings in the session file could not be read; marked as the session file was"],set:"",why:"",rows:0,at:""};
+ const src=a=>Array.isArray(a)?a.filter(x=>typeof x==="string").slice(0,5000):undefined;
+ if(Array.isArray(st.trend))st.trend=st.trend.filter(p=>p&&typeof p==="object").map(p=>Object.assign(p,{mk:mkKey(typeof p.mk==="string"?p.mk:""),src:src(p.src)}));
+ if(Array.isArray(st.inventory))st.inventory.forEach(i=>{if(i&&typeof i==="object")i.mk=mkKey(typeof i.mk==="string"?i.mk:"");});
+ if(st.baseline&&typeof st.baseline==="object"){st.baseline.mk=mkKey(typeof st.baseline.mk==="string"?st.baseline.mk:"");st.baseline.src=src(st.baseline.src);}
  const d=newState().settings;["mkProfile","mkLegacy","mkClassBy","mkDerivedFrom","mkDeclOn","mkCtrlBy","mkCtrlOffice","mkPoc","mkAiMax"]
    .forEach(k=>{if(st.settings&&st.settings[k]===undefined)st.settings[k]=d[k];});
  if(st.settings&&(st.settings.banner===undefined||st.settings.banner===null))st.settings.banner="UNCLASSIFIED";
@@ -2829,7 +2881,7 @@ function ingSheet(rows,hdrIdx,E,where,corp){
     into "SECRET//REL TO USA" and "GBR", the banner put back together */
  const lone=i=>{const c=cellsOf(i);if(!c.length)return "";if(c.every(x=>x===c[0]))return c[0];
    return c.length<8&&/\/\/.*\b(?:REL(?: TO)?|DISPLAY ONLY|EYES)\b/i.test(c[0])&&c.slice(1).every(x=>/^[A-Z]{3,4}(?:\s*\/\/.*)?$/.test(x))?c.join(", "):"";};
- sh.skip.forEach(i=>{if(!mkWhole(lone(i)))skip.add(i);});
+ sh.skip.forEach(i=>skip.add(i));
  /* Palisade's authority block, from a hand-saved copy whose "Classified By: J. Smith, ISSM" was
     split at its comma: still not data (mkSheet looks at one-cell rows) */
  for(let i=Math.max(hdrIdx+1,n-24);i<n;i++){const c=cellsOf(i);
@@ -2842,7 +2894,7 @@ function ingSheet(rows,hdrIdx,E,where,corp){
    skip.add(i);const b=ban.get(c)||{k,at:[]};b.at.push(i+1);ban.set(c,b);}
  ban.forEach((b,c)=>E.add(b.k,where+"banner row"+(b.at.length>1?"s ":" ")
    +(b.at.length>4?b.at.slice(0,3).join(", ")+" and "+(b.at.length-3)+" more":b.at.join(", "))+' "'+c.slice(0,60)+'"',"",c));
- sh.how.filter(h=>!/^banner row /.test(h)).forEach(h=>E.add("",where+h));
+ sh.how.forEach(h=>E.add("",where+h));sh.marks.forEach(([k,h])=>E.add(k,where+h));
  let col=sh.col;
  if(col>=0){const hdr=String((rows[hdrIdx]||[])[col]??"").trim();let nb=0,ok=0,eg="";
    for(let i=hdrIdx+1;i<n&&nb<200;i++){if(skip.has(i))continue;const v=String((rows[i]||[])[col]??"").trim();if(!v||!mkKey(v))continue;
@@ -3562,7 +3614,7 @@ function snapshot(){
  for(const k in S.ppsm){s.ports[k]={proto:S.ppsm[k].proto,port:S.ppsm[k].port,svc:S.ppsm[k].svc,hosts:S.ppsm[k].hosts.length};}
  s.cols=activeCols().map(c=>c.name);
  /* what was removed since the baseline exists only here, so the baseline keeps its marking */
- s.mk=mkWorkspace().k;
+ const ws=mkWorkspace();s.mk=ws.k;s.src=ws.f;
  return s;
 }
 function computeDelta(){
@@ -3961,7 +4013,7 @@ async function ingestWorkbook(f,warns){
 }
 function clearIntel(){
  if(Object.keys(S.intel.rows).length&&!confirm("Remove all loaded threat-intel records? Scan data is untouched.")) return;
- S.intel=emptyIntel(); invalidateFusion(); renderAll();
+ S.intel=emptyIntel(); mkPrune(); invalidateFusion(); renderAll();
  status("Threat intel cleared.");
 }
 
@@ -4220,7 +4272,7 @@ function clearListings(){
    if(!r.fromListing) continue;
    if(r.hosts.length){r.fromListing=false;r.listHosts=[];delete r.listNote;unmark(r);}
    else delete S.software[k];}
- S.listings=emptyListings(); invalidateFusion(); consolidateSoftware(); renderAll();
+ S.listings=emptyListings(); mkPrune(); invalidateFusion(); consolidateSoftware(); renderAll();
  status("HW/SW listing data cleared. Scan-derived evidence untouched.");
 }
 /* ---- loaded-listings mapping report (rendered on the Assets tab) ---- */
@@ -4622,15 +4674,11 @@ function rptScoreMk(fu){
 /* a front-matter line: the system name typed in Settings, the endpoint count, the score source */
 function rptHeadMk(fu,hosts){
  return mkR(S.settings.isName?mkE.typed():null,hosts?Object.keys(S.hosts).map(mkE.host):[],rptScoreMk(fu));}
-/* One host's line for a software title it shares with other hosts: this host, the title's own
-   sources and any rule on the title -- not the other hosts, which are not in the line. */
-function rptHostSwMk(hk,r){
- return mkFrom([mkE.host(hk)].concat(mkC(r)),"software",fld=>fld==="name"?[r.name,(r.name+" "+(r.version||"")).trim()]:fld==="vendor"?[r.vendor]:[]);}
 /* a per-asset dossier as the report prints it: the host, the findings it counts, its STIG
    results, accounts, asset record and software */
 function rptDossierMk(d){
  return mkR(mkE.host(d.hk),d.inst.map(i=>i.mk),d.stig.map(r=>r.mk),d.accts.map(r=>r.mk),
-   d.asset?mkE.asset(d.hk):null,d.sw.map(r=>rptHostSwMk(d.hk,r)));}
+   d.asset?mkE.asset(d.hk):null,d.sw.map(r=>mkHostSw(d.hk,r)));}
 /* the posture charts, marked by exactly what rptCharts draws */
 function rptChartsMk(){const A=mkAcc();rptCharts(RPT_THEME.light,false,A);return A.r();}
 
@@ -4891,7 +4939,10 @@ function exportAiPackage(){
     as "" -- which dominates nothing -- so it asks every time rather than waving anything through. */
  const ceilTxt=s.mkAiMax==null||String(s.mkAiMax).trim()===""?"CUI":String(s.mkAiMax), ceil=mkKey(ceilTxt);
  const ceilB=ceil?mkBanner(ceil):'"'+ceilTxt+'" (not a readable marking)';
- if(!MK_DRY&&!mkDominates(ceil,M.key)&&!confirm("This AI prompt package is marked\n\n    "+M.banner
+ /* a platform approved for CUI is approved for the basic categories; a specified category,
+    which carries handling of its own, has to be named in the ceiling to pass without asking */
+ const basic=k=>{const m=k&&mkRead(k,{strict:true}).m;if(!m)return k;[...m.cat].forEach(c=>{if(!/^SP-/.test(c))m.cat.delete(c);});return mkOut(mkNorm(m),"key");};
+ if(!MK_DRY&&!mkDominates(ceil,basic(M.key))&&!confirm("This AI prompt package is marked\n\n    "+M.banner
    +"\n\nwhich is above what the AI platform is approved for: "+ceilB+".\n\n"
    +"Export it only if the assistant you will paste it into is accredited for "+M.banner+". Export anyway?")){
    status("AI prompt package NOT exported — it is marked "+M.banner+", above the AI platform's approved "+ceilB+".");
@@ -5347,7 +5398,7 @@ const RPT_SECTIONS = [
   const hix=new Map(Object.keys(S.hosts).map(k=>[S.hosts[k],k]));
   /* [status, asset, type/IP, note, marking]: a pasted row is the operator's, an asset record
      its own, an unexpected host its host record */
-  const rows=r.notScanned.map(i=>["In inventory, never scanned",i.name,i.type||"",i.note||"",typed?mkE.typed():mkE.asset(i.name)])
+  const rows=r.notScanned.map(i=>["In inventory, never scanned",i.name,i.type||"",i.note||"",typed?mkE.inv(i):mkE.asset(i.name)])
     .concat(r.notInInv.map(h=>["Scanned, not in inventory",h.name,h.ip||"",h.os||"",hix.has(h)?mkE.host(hix.get(h)):mkWorkspace()]));
   const cut=rptCap(rows);
   return rptLead("A list built only from scan results can never reveal an asset that failed to scan — which is "
@@ -5789,10 +5840,11 @@ async function exportPackage(){
     dominates anything built from what is loaded: never lower */
  let wsM=null;
  const entries=cap.map(f=>{const m=pkgMeta(f.name), M=f.M||(wsM=wsM||mkSeal(mkWorkspaceDoc("*")));
-   D.add({k:M.key,f:M.srcs||[]},f.name);
+   D.add({k:M.key,f:M.srcs||[],r:M.rules||[]},f.name);
    return {name:root+"/"+m.folder+"/"+f.name, data:f.text, plain:f.name, meta:m, M, note:pkgMarkNote(f,M),
            bytes:new Blob([f.text]).size,
-           rows:/\.csv$/i.test(f.name)?Math.max(0,String(f.text).split("\n").length-1):null};});
+           /* data rows as the export counted them -- banner and authority lines are not rows */
+           rows:f.M&&f.M.n?f.M.n:/\.csv$/i.test(f.name)?Math.max(0,String(f.text).split("\n").length-1):null};});
  /* the index itself counts the endpoints and names the system */
  D.add(rptHeadMk(null,true),"index header");
  const M=mkSeal(D);
@@ -6017,7 +6069,9 @@ function trendDateOf(){
 }
 function addTrendPoint(label,when,stats,mk){
  S.trend=S.trend||[];
+ /* a point from the data loaded now remembers its sources, so raising one later raises the point */
  const pt={taken:when||trendDateOf(),label:label||"",stats:stats||trendStats(),mk:mk||mkWorkspace().k};
+ if(!mk)pt.src=mkWorkspace().f;
  const i=S.trend.findIndex(p=>p.taken===pt.taken);
  if(i>=0) S.trend[i]=pt; else S.trend.push(pt);
  S.trend.sort((a,b)=>String(a.taken).localeCompare(String(b.taken)));
@@ -6068,7 +6122,7 @@ async function ingestTrendSessions(files){
 function clearTrend(){
  if(!S.trend.length) return;
  if(!confirm("Clear the entire trend timeline? Scan data is untouched.")) return;
- S.trend=[]; renderTrend(); status("Trend cleared.");
+ S.trend=[]; mkPrune(); renderTrend(); applyBanner(); status("Trend cleared.");
 }
 
 /* ---- multi-series line chart (inline SVG, same theme tokens as the report charts) ---- */
@@ -6996,7 +7050,7 @@ function exportRecon(){
  const pasted=!!(S.inventory&&S.inventory.length);
  /* A pasted line carries no provenance of its own -- and "seed from assets" fills the box from
     the asset inventory -- so a line naming an asset also carries that asset's marking. */
- const invR=i=>mkR(pasted?mkE.typed():null,mkOwn(S.assets,i.name)?mkE.asset(i.name):null);
+ const invR=i=>mkR(pasted?mkE.inv(i):null,mkOwn(S.assets,i.name)?mkE.asset(i.name):null);
  const invList=pasted?S.inventory:assetKeys().filter(k=>S.assets[k].inScope!=="N").map(k=>({name:k}));
  const hkOf=new Map(Object.keys(S.hosts).map(k=>[S.hosts[k],k]));
  /* the summary counts every inventory entry and every scanned host */
@@ -9063,7 +9117,8 @@ function mkRenderHero(){
  $("mkHero").innerHTML=h;}
 
 function mkRenderSources(){
- const F=S.marking.files,floor=mkFloor(),eff=id=>mkFileKey(id)||floor;
+ /* a source is shown at the most sensitive thing it put into the records, not just its banner */
+ const F=S.marking.files,floor=mkFloor(),eff=id=>mkJoin(mkSrcHigh(id)||floor,floor);
  const ids=Object.keys(F).sort((a,b)=>mkCmp(eff(b),eff(a))||mkAlpha(a,b));
  if(!ids.length){$("mkSources").innerHTML=`<p>No source files yet. Every file you load appears here with what it said about itself; a file that says nothing is marked at the floor, ${mkChip(floor,1)}.</p>`;return;}
  const shown=ids.slice(0,300);
@@ -9073,6 +9128,7 @@ function mkRenderSources(){
      +`<td>${f.det?mkChip(f.det,1)+" "+esc(mkBanner(f.det)):'<span class="mkflag">said nothing</span>'}`
      +`${f.how&&f.how.length?`<div class="mksub">${esc(f.how.slice(0,4).join("; "))}${f.how.length>4?" &hellip;":""}</div>`:""}</td>`
      +`<td>${mkChip(eff(id),1)}${own?"":' <span class="mkflag" title="this file states no marking of its own">at the floor</span>'}`
+     +`${own&&eff(id)!==mkJoin(own,floor)?`<div class="mksub">rows up to this; the file itself ${esc(mkPortion(own))}</div>`:""}`
      +`${f.set?`<div class="mksub">set by you${f.why?": &ldquo;"+esc(f.why)+"&rdquo;":""}</div>`:""}</td>`
      +`<td style="min-width:110px"><details class="mkd"><summary>${f.set?"Change":"Set marking"}</summary>`
      +mkEditForm("mkFileSet","This file is",["key",id],"Set","reason (needed if lower than it said)",false)
