@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-PXDn2NIpVx7L6zLh1iMmtmopnTG/Lu2eWjiwdF33wHE='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dG+ceOyv38xcrY1CIBeuRQ8eqZMMJcNn+yM+2zFBmkg='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -1315,7 +1315,7 @@ function acctRows(){
  const out=[];
  for(const hk of Object.keys(S.hosts).sort()){
    const h=S.hosts[hk];
-   for(const k of Object.keys(h.accounts||{}).sort()) out.push({host:h.name,hk,a:h.accounts[k]});
+   for(const k of Object.keys(h.accounts||{}).sort()) out.push({host:h.name,hk,a:h.accounts[k],mk:mkE.acct(hk,h.accounts[k].name||k)});
  }
  return out;
 }
@@ -2417,6 +2417,17 @@ function mkWorkspace(){return mkMemo("ws",()=>{
  if(S.baseline)parts.push(mkE.base());
  if((S.inventory||[]).length)parts.push(mkE.typed());
  return mkFrom(parts);});}
+/* accumulate many resolutions cheaply: keys are joined once, at the end */
+function mkAcc(){const ks=new Set(),fs=new Set();
+ return {add(r){if(!r)return;if(typeof r==="string"){if(r)ks.add(r);return;}if(r.k)ks.add(r.k);(r.f||[]).forEach(x=>fs.add(x));},
+   r(){return {k:mkJoin(mkJoinAll([...ks]),mkFloor()),f:[...fs],r:[]};}};}
+function mkR(...parts){const A=mkAcc();parts.flat().forEach(p=>A.add(p));return A.r();}
+/* derived lists hand back software row OBJECTS; this finds the key again */
+mkE.swRow=row=>{const ix=mkMemo("swix",()=>{const m=new Map();for(const k in S.software)m.set(S.software[k],k);return m;});
+ const k=ix.get(row);return k?mkE.sw(k):mkR((row&&row.hosts||[]).map(mkE.hostByName));};
+/* a threat-intel fusion row: the intel row, and every scan finding it was joined to */
+mkE.fusion=r=>mkMemo("fu\u0001"+r.cve,()=>mkR(mkE.intel(r.cve),(r.hits||[]).map(h=>mkE.finding(h.hk,h.pid))));
+mkE.hosts=names=>mkR((names||[]).map(mkE.hostByName));
 function mkWorkspaceDoc(pid){const D=mkDoc(pid||"*");D.add(mkWorkspace(),"everything loaded");return D;}
 
 /* ---- products --------------------------------------------------------------------------- */
@@ -3033,6 +3044,7 @@ function eolFindings(){
    if(!osGroups[nm].row.hosts.includes(h.name)) osGroups[nm].row.hosts.push(h.name);
  }
  Object.values(osGroups).forEach(g=>out.push(g));
+ out.forEach(x=>{x.mk=mkR(x.isHost?[]:[mkE.sw(x.key)],x.row.hosts.map(mkE.hostByName));});
  return out;
 }
 
@@ -3966,20 +3978,22 @@ function productExposure(){
    let prod="";
    for(const k in fu.swIndex){if(fu.swIndex[k].cves.includes(r.cve)){prod=fu.swIndex[k].name;break;}}
    if(!prod) prod=r.t.products[0]||(r.hits[0]&&r.hits[0].pname)||r.cve;
-   const g=groups[prod]||(groups[prod]={name:prod,hosts:new Set(),cves:[],weap:false,best:0,tier:{P1:0,P2:0,P3:0,P4:0}});
-   r.hosts.forEach(h=>g.hosts.add(h));
+   const g=groups[prod]||(groups[prod]={name:prod,hosts:new Set(),cves:[],weap:false,best:0,tier:{P1:0,P2:0,P3:0,P4:0},A:mkAcc()});
+   r.hosts.forEach(h=>g.hosts.add(h)); g.A.add(mkE.fusion(r));
+   for(const k in fu.swIndex){if(fu.swIndex[k].cves.includes(r.cve)){g.A.add(mkE.sw(k));break;}}
    if(!g.cves.includes(r.cve)) g.cves.push(r.cve);
    g.weap=g.weap||r.weap; g.best=Math.max(g.best,r.score);
    if(r.tier) g.tier[r.tier]++;
  }
+ Object.values(groups).forEach(g=>{g.mk=g.A.r();delete g.A;});
  return Object.values(groups).sort((a,b)=>(b.weap?1:0)-(a.weap?1:0)||b.best-a.best||b.hosts.size-a.hosts.size);
 }
 function osFootprint(){
  const m={};
  for(const hk in S.hosts){const h=S.hosts[hk];
    const os=(h.os||"Unknown").replace(/\s+Service Pack.*$/i,"").trim()||"Unknown";
-   (m[os]=m[os]||{os,hosts:[]}).hosts.push(h.name);}
- return Object.values(m).map(x=>({os:x.os,hosts:x.hosts,eol:eolFor(x.os,"")}))
+   const x=(m[os]=m[os]||{os,hosts:[],A:mkAcc()});x.hosts.push(h.name);x.A.add(mkE.host(hk));}
+ return Object.values(m).map(x=>({os:x.os,hosts:x.hosts,eol:eolFor(x.os,""),mk:x.A.r()}))
    .sort((a,b)=>b.hosts.length-a.hosts.length);
 }
 function buildLenses(){
@@ -3990,7 +4004,7 @@ function buildLenses(){
  px.filter(g=>g.weap).forEach(g=>quick.push({
    sev:"critical",effort:g.hosts.size<=5?"Quick strike":"Coordinated",
    action:(isOsName(g.name)?"Mitigate / patch ":"Patch ")+g.name,
-   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],
+   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],mk:g.mk,
    why:"Weaponized exploitation in the wild — "+g.cves.slice(0,4).join(", ")
      +(g.cves.length>4?" +"+(g.cves.length-4)+" more":"")+" — confirmed on this network"}));
  eolF.filter(x=>x.eol.state==="expired").forEach(x=>{
@@ -3998,14 +4012,14 @@ function buildLenses(){
    if(wi&&wi.weap&&!quick.some(q=>q.action.indexOf(x.row.name)>=0))
      quick.push({sev:"critical",effort:"Coordinated",
        action:"Isolate / replace "+x.row.name,
-       scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],
+       scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],mk:mkR(x.mk,(wi.cves||[]).map(c=>mkE.intel(c))),
        why:"Past end of support since "+x.eol.date+" AND weaponized per threat intel ("
          +wi.cves.slice(0,3).join(", ")+") — no patch exists; replace or isolate"});
  });
  px.filter(g=>!g.weap&&!isOsName(g.name)).slice(0,10).forEach(g=>fruit.push({
    sev:g.tier.P2?"serious":"warning",effort:"Quick",
    action:"Update "+g.name,
-   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],
+   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],mk:g.mk,
    why:"One update clears "+g.cves.length+" CVE(s) across "+g.hosts.size+" endpoint(s)"
      +(g.best?" (priority score "+g.best+")":"")}));
  // productExposure() needs a threat-intel sheet, which left "one update, many
@@ -4018,7 +4032,7 @@ function buildLenses(){
        sev:p.c[4]?"critical":p.c[3]?"serious":"warning",
        effort:p.hostCount<=5?"Quick":"Coordinated",
        action:p.action,
-       scope:p.hostCount+" endpoint(s)",hosts:p.hosts,
+       scope:p.hostCount+" endpoint(s)",hosts:p.hosts,mk:p.mk,
        why:"One action closes "+p.c.total+" finding(s)"
          +(p.cves.length?" covering "+p.cves.length+" CVE(s)":"")
          +" across "+p.hostCount+" endpoint(s)"
@@ -4028,35 +4042,37 @@ function buildLenses(){
  osf.filter(o=>o.eol&&o.eol.state==="expired").forEach(o=>camp.push({
    sev:"serious",effort:"Campaign",
    action:"OS upgrade campaign: "+o.os,
-   scope:o.hosts.length+" endpoint(s)",hosts:o.hosts,
+   scope:o.hosts.length+" endpoint(s)",hosts:o.hosts,mk:o.mk,
    why:"Operating system past vendor end of support"+(o.eol.date?" since "+o.eol.date:"")
      +" — plan imaging/upgrade waves, application compatibility checks, and change control"}));
  px.filter(g=>isOsName(g.name)&&!g.weap).forEach(g=>camp.push({
    sev:"warning",effort:"Coordinated",
    action:"Baseline patching: "+g.name,
-   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],
+   scope:g.hosts.size+" endpoint(s)",hosts:[...g.hosts],mk:g.mk,
    why:g.cves.length+" CVE(s) at operating-system level — fold into the patch cycle with maintenance windows"}));
  eolF.filter(x=>x.eol.state==="expired"&&x.row.hosts.length>=3&&!isOsName(x.row.name)).forEach(x=>camp.push({
    sev:"serious",effort:"Campaign",
    action:"Migration campaign: "+x.row.name,
-   scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],
+   scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],mk:x.mk,
    why:"Fleet-wide unsupported product — budget and schedule a replacement rather than point fixes"}));
  eolF.forEach(x=>modern.push({
    sev:x.eol.state==="expired"?"serious":"warning",
    effort:x.row.hosts.length>3?"Campaign":"Moderate",
    action:(x.eol.state==="expired"?"Replace / upgrade ":"Verify lifecycle: ")
      +x.row.name+(x.row.version?" "+x.row.version:""),
-   scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],
+   scope:x.row.hosts.length+" host(s)",hosts:[...x.row.hosts],mk:x.mk,
    why:x.eol.state==="expired"
      ?"Vendor support ended "+(x.eol.date||"")+(x.eol.note?" — "+x.eol.note:"")
      :"Lifecycle date unconfirmed"+(x.eol.note?" — "+x.eol.note:"")}));
  Object.values(S.software).filter(r=>r.include&&r.approval==="Denied").forEach(r=>modern.push({
    sev:"warning",effort:"Quick",
    action:"Remove denied software: "+r.name+(r.version?" "+r.version:""),
-   scope:r.hosts.length+" host(s)",hosts:[...r.hosts],
+   scope:r.hosts.length+" host(s)",hosts:[...r.hosts],mk:mkE.swRow(r),
    why:"Approval decision recorded as Denied — removal closes a CM-7 / CM-11 gap"}));
  const rank={critical:0,serious:1,warning:2};
  [quick,fruit,camp,modern].forEach(a=>a.sort((x,y)=>rank[x.sev]-rank[y.sev]||(parseInt(y.scope)||0)-(parseInt(x.scope)||0)));
+ /* every lens item: what it was built from, and every host it names */
+ [quick,fruit,camp,modern].forEach(a=>a.forEach(i=>{i.mk=mkR(i.mk||[],mkE.hosts(i.hosts));}));
  return {quick,fruit,camp,modern,px,osf,eolF,fu};
 }
 function lensStats(L){
@@ -6638,7 +6654,7 @@ function stigResultRows(){
        if(r.status==="Open")c.catOpen[r.severity]=(c.catOpen[r.severity]||0)+1;});
      const assessed=c.Open+c.NotAFinding;
      out.push({hk,host:(S.hosts[hk]&&S.hosts[hk].name)||hk,key,rec,c,
-       score:assessed?Math.round(c.NotAFinding/assessed*100):null});
+       score:assessed?Math.round(c.NotAFinding/assessed*100):null,mk:mkE.stig(hk,key)});
    }
  }
  return out.sort((a,b)=>b.c.catOpen.high-a.c.catOpen.high||b.c.Open-a.c.Open||a.host.localeCompare(b.host));
@@ -6646,7 +6662,7 @@ function stigResultRows(){
 function stigOpenFindings(){
  const out=[];
  stigResultRows().forEach(r=>r.rec.rules.filter(x=>x.status==="Open").forEach(x=>
-   out.push({host:r.host,hk:r.hk,stig:r.rec.title,version:r.rec.version,release:r.rec.release,rule:x})));
+   out.push({host:r.host,hk:r.hk,key:r.key,stig:r.rec.title,version:r.rec.version,release:r.rec.release,rule:x,mk:r.mk})));
  const ord={high:0,medium:1,low:2};
  return out.sort((a,b)=>ord[a.rule.severity]-ord[b.rule.severity]||a.host.localeCompare(b.host));
 }
@@ -6672,13 +6688,13 @@ function stigCoverage(){
      const want=normStigName(c.name);
      const hit=got.find(g=>{const have=normStigName(g.rec.title);
        return have.includes(want)||want.includes(have);});
-     if(hit) covered.push({hk,host:S.hosts[hk].name,stig:c.name,result:hit});
-     else gaps.push({hk,host:S.hosts[hk].name,stig:c.name});
+     if(hit) covered.push({hk,host:S.hosts[hk].name,stig:c.name,result:hit,mk:hit.mk});
+     else gaps.push({hk,host:S.hosts[hk].name,stig:c.name,mk:mkE.host(hk)});
    });
    got.forEach(g=>{
      const have=normStigName(g.rec.title);
      if(!applicable.some(c=>{const want=normStigName(c.name);return have.includes(want)||want.includes(have);}))
-       extra.push({hk,host:S.hosts[hk].name,title:g.rec.title,result:g});
+       extra.push({hk,host:S.hosts[hk].name,title:g.rec.title,result:g,mk:g.mk});
    });
  }
  return {gaps,covered,extra,rows};
@@ -7124,7 +7140,7 @@ function vulnInstances(){
        expl:f.expl,cves:f.cves,family:f.family||"Uncategorized",
        ports:(f.ports&&f.ports.length)?f.ports:["general"],
        age:findingAge(f),overdue:od,solution:f.solution,synopsis:f.synopsis,
-       patchPub:f.patchPub,remedy:remedyOf(f),f});
+       patchPub:f.patchPub,remedy:remedyOf(f),f,mk:mkE.finding(hk,pid)});
    }
  }
  return out;
@@ -7135,24 +7151,25 @@ function tallyInto(c,i){c[i.sev]++;c.total++;if(i.overdue)c.overdue++;if(i.expl)
 function vulnByHost(){
  const m={};
  vulnInstances().forEach(i=>{
-   const t=m[i.hk]||(m[i.hk]={host:i.host,hk:i.hk,ip:i.ip,os:i.os,c:emptyCounts()});
-   tallyInto(t.c,i);
+   const t=m[i.hk]||(m[i.hk]={host:i.host,hk:i.hk,ip:i.ip,os:i.os,c:emptyCounts(),A:mkAcc()});
+   tallyInto(t.c,i); t.A.add(i.mk);
  });
  // hosts with zero findings still belong in an IP summary
  for(const hk of Object.keys(S.hosts)){
-   if(!m[hk]) m[hk]={host:S.hosts[hk].name,hk,ip:S.hosts[hk].ip||"",os:S.hosts[hk].os||"",c:emptyCounts()};
+   if(!m[hk]) m[hk]={host:S.hosts[hk].name,hk,ip:S.hosts[hk].ip||"",os:S.hosts[hk].os||"",c:emptyCounts(),A:mkAcc()};
  }
+ Object.values(m).forEach(t=>{t.A.add(mkE.host(t.hk));t.mk=t.A.r();delete t.A;});
  return Object.values(m).sort((a,b)=>b.c[4]-a.c[4]||b.c[3]-a.c[3]||b.c.total-a.c.total||a.host.localeCompare(b.host));
 }
 function vulnByKey(keyFn){
  const m={};
  vulnInstances().forEach(i=>{
    keyFn(i).forEach(k=>{
-     const t=m[k]||(m[k]={key:k,c:emptyCounts(),hosts:new Set()});
-     tallyInto(t.c,i); t.hosts.add(i.host);
+     const t=m[k]||(m[k]={key:k,c:emptyCounts(),hosts:new Set(),A:mkAcc()});
+     tallyInto(t.c,i); t.hosts.add(i.host); t.A.add(i.mk);
    });
  });
- return Object.values(m).map(t=>({key:t.key,c:t.c,hosts:[...t.hosts].sort()}))
+ return Object.values(m).map(t=>({key:t.key,c:t.c,hosts:[...t.hosts].sort(),mk:t.A.r()}))
    .sort((a,b)=>b.c[4]-a.c[4]||b.c[3]-a.c[3]||b.c.total-a.c.total||String(a.key).localeCompare(String(b.key)));
 }
 function vulnByPort(){return vulnByKey(i=>i.ports);}
@@ -7387,9 +7404,10 @@ function remediationPlan(instances){
    if(!t){
      t={key:r.fixKey,kind:r.kind,label:r.fixLabel,product:r.product,productRaw:r.productRaw,
         target:"",advisories:new Set(),confidence:r.confidence,c:emptyCounts(),
-        hosts:new Set(),cves:new Set(),plugins:new Set(),score:0,age:null};
+        hosts:new Set(),cves:new Set(),plugins:new Set(),score:0,age:null,A:mkAcc()};
      g.set(r.fixKey,t);
    }
+   t.A.add(i.mk||mkE.finding(i.hk,i.pid));
    if(r.advisory) t.advisories.add(r.advisory);
    tallyInto(t.c,i);
    t.hosts.add(i.hk); t.plugins.add(i.pid);
@@ -7402,6 +7420,8 @@ function remediationPlan(instances){
  return [...g.values()].map(t=>{
    const cves=[...t.cves].sort();
    const ii=intelLoaded?vulnIntelInfo(cves):{tier:"",iavm:[]};
+   /* the row prints intel's tier, so the intel rows behind it are part of what it says */
+   if(intelLoaded) cves.forEach(c=>{if(S.intel.rows[c])t.A.add(mkE.intel(c));});
    let score=t.score;
    if(ii.tier==="P1") score*=Number(W.intelP1Multiplier)||1;
    else if(ii.tier==="P2") score*=Number(W.intelP2Multiplier)||1;
@@ -7410,7 +7430,7 @@ function remediationPlan(instances){
      target:t.target,advisories:[...t.advisories].sort(),confidence:t.confidence,c:t.c,age:t.age,
      hosts:[...t.hosts].map(hk=>(S.hosts[hk]&&S.hosts[hk].name)||hk).sort(),
      hostCount:t.hosts.size,plugins:t.plugins.size,cves,tier:ii.tier,iavm:ii.iavm,
-     score:Math.round(score*10)/10};
+     score:Math.round(score*10)/10,mk:t.A.r()};
  }).sort((a,b)=>b.score-a.score||b.c.total-a.c.total||b.hostCount-a.hostCount
    ||String(a.action).localeCompare(String(b.action)));
 }
@@ -7422,8 +7442,8 @@ function vulnByProduct(instances){
  (instances||[]).forEach(i=>{
    const p=(i.remedy||remedyOf(i)).product;
    let t=m.get(p);
-   if(!t){t={product:p,c:emptyCounts(),hosts:new Set(),cves:new Set(),fixes:new Map()};m.set(p,t);}
-   tallyInto(t.c,i); t.hosts.add(i.hk); (i.cves||[]).forEach(c=>t.cves.add(c));
+   if(!t){t={product:p,c:emptyCounts(),hosts:new Set(),cves:new Set(),fixes:new Map(),A:mkAcc()};m.set(p,t);}
+   tallyInto(t.c,i); t.hosts.add(i.hk); (i.cves||[]).forEach(c=>t.cves.add(c)); t.A.add(i.mk);
  });
  plan.forEach(p=>{const t=m.get(p.product); if(t) t.fixes.set(p.key,p);});
  return [...m.values()].map(t=>{
@@ -7431,7 +7451,7 @@ function vulnByProduct(instances){
    return {product:t.product,c:t.c,hostCount:t.hosts.size,
      hosts:[...t.hosts].map(hk=>(S.hosts[hk]&&S.hosts[hk].name)||hk).sort(),
      cves:[...t.cves].sort(),fixes,top:fixes[0]||null,
-     score:fixes.reduce((s,f)=>s+f.score,0)};
+     score:fixes.reduce((s,f)=>s+f.score,0),mk:mkR(t.A.r(),fixes.map(f=>f.mk))};
  }).sort((a,b)=>b.score-a.score||b.c.total-a.c.total||a.product.localeCompare(b.product));
 }
 /* Stacked severity bar, the visual SecurityCenter uses in its summary rows. */
@@ -7455,14 +7475,15 @@ function vulnGroups(){
      const r=remedyOf(f);
      const t=g[key]||(g[key]={name:f.name||("plugin "+pid),sev:0,cvss:0,expl:false,cves:new Set(),
        hosts:new Set(),age:null,overdue:0,family:f.family||"",
-       product:r.product,fix:r.fixLabel+(r.target?" to "+r.target+" or later":"")});
+       product:r.product,fix:r.fixLabel+(r.target?" to "+r.target+" or later":""),A:mkAcc()});
+     t.A.add(mkE.finding(hk,pid));
      t.sev=Math.max(t.sev,f.sev); t.cvss=Math.max(t.cvss,f.cvss); t.expl=t.expl||f.expl;
      const a=findingAge(f); if(a!==null&&(t.age===null||a>t.age)) t.age=a;
      if(findingOverdue(f)) t.overdue++;
      f.cves.forEach(c=>t.cves.add(c)); t.hosts.add(h.name);}}
  return Object.values(g).map(t=>({name:t.name,sev:t.sev,cvss:t.cvss,expl:t.expl,family:t.family,
    product:t.product,fix:t.fix,
-   age:t.age,overdue:t.overdue,cves:[...t.cves].sort(),hosts:[...t.hosts].sort()}))
+   age:t.age,overdue:t.overdue,cves:[...t.cves].sort(),hosts:[...t.hosts].sort(),mk:t.A.r()}))
    .sort((a,b)=>b.sev-a.sev||b.cvss-a.cvss||b.hosts.length-a.hosts.length||a.name.localeCompare(b.name));
 }
 function vulnIntelInfo(cves){
@@ -7772,7 +7793,8 @@ function accountUsers(){
  acctRows().forEach(r=>{
    const k=r.a.name.toUpperCase();
    const t=m[k]||(m[k]={name:r.a.name,hosts:[],privileged:false,lastLogon:"",lastHost:"",
-     enabled:false,reported:0});
+     enabled:false,reported:0,A:mkAcc()});
+   t.A.add(r.mk);
    t.hosts.push({host:r.host,hk:r.hk,lastLogon:r.a.lastLogon||"",
      enabled:!r.a.flags.disabled&&!r.a.flags.autoDisabled,
      privileged:!!(r.a.flags.admin||r.a.flags.builtin500)});
@@ -7781,6 +7803,7 @@ function accountUsers(){
    if(r.a.lastLogon){t.reported++;
      if(r.a.lastLogon>t.lastLogon){t.lastLogon=r.a.lastLogon;t.lastHost=r.host;}}
  });
+ Object.values(m).forEach(t=>{t.mk=t.A.r();delete t.A;});
  return Object.values(m).sort((a,b)=>(b.lastLogon||"").localeCompare(a.lastLogon||"")
    ||b.hosts.length-a.hosts.length||a.name.localeCompare(b.name));
 }
