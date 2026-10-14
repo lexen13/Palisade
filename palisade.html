@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oSuakUfeWqw5bp6WOr0JcP9EzzXEG4WJmUhaTm2rXr8='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dL7HXS+AChHVIiWbiW79lqcS82WIL/uj9swpWruFllk='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -1141,6 +1141,22 @@
     <div id="mkRules" style="margin-top:12px"></div>
   </div>
   <div class="panel">
+    <h2>Site markings &mdash; words your site uses that Palisade does not know</h2>
+    <p>A program name, a local caveat, a company label: Palisade keeps any word it does not recognise and holds it for
+      review. Define it here and it is read as a real marking everywhere &mdash; in its place in the banner, and raising
+      anything that carries it to at least what it implies. Saved in Detection Config and the environment profile.</p>
+    <div class="mkedit" style="margin-top:4px">
+      <div class="field"><label>word or phrase</label><input id="mkSiteWord" placeholder="ORCHID" spellcheck="false" autocomplete="off"></div>
+      <div class="field narrow"><label>is a</label><select id="mkSiteKind"><option value="control">dissemination control</option><option value="sci">SCI control system</option><option value="sap">special access program</option><option value="cui-category">CUI category</option><option value="cui-ldc">CUI dissemination control</option><option value="other-agency">other-agency control</option><option value="company-label">company label</option><option value="foreign-caveat">foreign caveat</option></select></div>
+      <div class="field narrow"><label>portion form</label><input id="mkSitePortion" placeholder="OR (optional)" spellcheck="false" autocomplete="off"></div>
+      <div class="field"><label>implies at least</label><input id="mkSiteImp" placeholder="SECRET//NOFORN (optional)" spellcheck="false" autocomplete="off"></div>
+      <div class="field narrow"><label>country</label><input id="mkSiteCountry" placeholder="GBR (foreign caveat)" spellcheck="false" autocomplete="off"></div>
+      <div class="field wide"><label>note</label><input id="mkSiteNoteIn" placeholder="e.g. per SCG 24-03, para 4"></div>
+      <button class="primary" data-click="mkSiteAdd">Define</button>
+    </div>
+    <div id="mkSite" style="margin-top:12px"></div>
+  </div>
+  <div class="panel">
     <h2>Products &mdash; how each export will be marked</h2>
     <div id="mkProducts"></div>
   </div>
@@ -1172,6 +1188,7 @@
     <summary>Field-by-field reference for every key in the JSON below</summary>
     <div class="xbody">
     <p><code>remedyWeights</code>: how much risk one finding instance retires when its fix is applied &mdash; this is what the Remediation Plan ranks on, so an enclave tasked only on Critical/High can zero <code>sev2</code>/<code>sev1</code> here. <code>productAliases</code>: merges the several ways scanners name one product (a RHEL check says <code>firefox</code>, the Windows plugin says <code>Mozilla Firefox</code>) for the Software Summary view only &mdash; the remediation plan keys on the un-aliased product, so an alias can never claim one patch covers two products that need different fixes.</p>
+    <p><code>siteMarkings</code>: words your site uses in markings that Palisade does not know &mdash; a program or caveat name, a local control, a company label. Each entry is <code>{"marking":"ORCHID","kind":"control","portion":"OR","also":["PROJECT ORCHID"],"implies":"SECRET//NOFORN","note":"..."}</code>. <code>kind</code> is <code>control</code> (a dissemination control, the default), <code>sci</code>, <code>sap</code>, <code>cui-category</code>, <code>cui-ldc</code>, <code>other-agency</code>, <code>company-label</code> or <code>foreign-caveat</code> (with <code>"country":"GBR"</code>). <code>implies</code> is the least marking anything carrying the word is given &mdash; it can only raise. A word Palisade already reads (a level, a control, a country code, a one-letter misspelling of one) is refused: a site marking can define a new word, never change an existing one. Easiest from the Markings tab, which lists any unrecognised words in what is loaded.</p>
     <p><code>catalog</code>: master list of STIG-mapped products in export order &mdash; <code>name</code>, <code>ver</code> (STIG version shown in the header row; blank renders as <b>ver?</b> until you fill it from the current DISA quarterly release), <code>active</code> (whether it's a matrix column now), <code>patterns</code> (case-insensitive substrings matched against OS string + installed-software output + fired plugin names; prefix a pattern with <code>re:</code> to use a regular expression instead, which is how the RHEL and Windows Server entries cope with scanners reporting a version token mid-string), and optional <code>osPatterns</code> (OS string only). Inactive entries auto-activate the first time scan evidence hits them on any host. <code>noisePatterns</code>: installed-software lines to suppress from the unmapped review list. <code>vendorRules</code> / <code>typeRules</code>: first-match-wins prefill for the Software Listing's Vendor and Type columns. <code>deviceRules</code>: hostname-prefix &rarr; device type. <code>listingAliases</code>: header-name aliases for HW/SW baseline listings &mdash; add the headers your listings use and re-load, no code edits. Maintain this as STIGs release/sunset &mdash; no code changes needed.</p>
     </div>
   </details>
@@ -1643,6 +1660,8 @@ const DEFAULT_CONFIG = {
     right field and re-load -- no code edits. The HW-vs-SW discriminator column ("kind")
     is often unnamed; if no header maps, data rows are scanned for a column whose values
     are HW/SW and it is used automatically. */
+ /* words your site uses in markings that Palisade does not know -- see the Markings tab */
+ siteMarkings:[],
  listingAliases:{
   kind:["type","hw sw","hw or sw","item type","entry type","asset category","component category"],
   hostname:["hostname","host name","asset name","computer name","device name","machine name","system name","netbios name"],
@@ -1992,6 +2011,17 @@ const MK_SBL=[["ACPI","ATTORNEY-CLIENT PRIVILEGED INFO"],["CUSPI","CONTENTS INCL
  ["DPPD","DELIBERATIVE PROCESS PRIVILEGED DOCUMENT"],["HVCO","HANDLE VIA CHANNELS ONLY"],["SSS","SOURCE SELECTION SENSITIVE"]];
 /* a foreign caveat names its originator: the material is that country's, held as FGI */
 const MK_FC={"AUSTEO":"AUS","AGAO":"AUS","CABINET":"AUS","UK EYES ONLY":"GBR"};
+const MK_EYES=new Set(["AUSTEO","AGAO","UK EYES ONLY"]);
+/* Site markings (Detection Config "siteMarkings", carried in the environment profile): words a
+   site uses that the register above does not know. An entry gives such a word a meaning -- the
+   kind of marking it is, its portion form and other spellings, and optionally the least marking
+   it implies -- and can never change how anything built in reads: an entry whose words already
+   mean something is refused, and an implication only ever adds. Keys are stored as text, so data
+   loaded before a word was defined is read with its new meaning as soon as it is. */
+const MK_SITE_KINDS={control:"d",sci:"sci",sap:"sap","cui-category":"cat","cui-ldc":"ldc","other-agency":"nonic",
+ "company-label":"pv","foreign-caveat":"fc"};
+const MK_SITE_NONE=Object.freeze({sig:"[]",vocab:new Map(),by:new Map(),words:new Set(),ok:[],errs:[]});
+let MK_SITE=MK_SITE_NONE;
 /* phrase -> [type, key]. Types: L level, CUI, NF, REL, DISP, D dissem, LDC, N non-IC, AEA, SCI,
    FGI, NATO (a level plus NATO as FGI), SAP, NIL (a word that marks nothing). */
 const MK_VOCAB=(()=>{const v=new Map(),a=(t,k,...ps)=>ps.forEach(p=>v.set(p,[t,k]));
@@ -2082,6 +2112,8 @@ function mkFuzzy(w){if(w.length<5||MK_WORDS.has(w)||!/^[A-Z]+$/.test(w))return n
  return hit;}
 const mkIsCountry=w=>MK_ISO3.has(w);
 const mkCodeLike=w=>/^[A-Z]{3,4}$/.test(w)&&!MK_VOCAB.has(w);
+const mkFcOf=c=>MK_FC[c]||(MK_SITE.by.get(c)||{}).country||"";
+const MK_DIS_K=new Set(MK_DIS.map(x=>x[0])),MK_NONIC_K=new Set(MK_NONIC.map(x=>x[0])),MK_LDC_K=new Set(MK_LDC.map(x=>x[0]));
 
 /* Text -> {m, notes, strict}. strict holds only when every word was recognised exactly (no
    spelling repair, no unknown words) and a level or CUI is stated: the bar for treating a
@@ -2107,19 +2139,21 @@ function mkRead(text,opt){
  const segs=s.split("/").map(x=>x.split(/[\s,]+/).map(w=>w.replace(/^[.:]+|[.:]+$/g,"")).filter(Boolean)).filter(x=>x.length);
  const m=mkEmpty();let list=null,sigma=[],unkRun=[],rd=false,frd=false;const rels=[],disps=[],fgis=[];
  const fgiOf=c=>{m.fgi=m.fgi||{c:false,s:new Set()};m.fgi.s.add(c);};
+ const impl=[];
  const flush=()=>{if(unkRun.length){m.unk.add(unkRun.join(" "));unkRun=[];}};
  const lvl=v=>{if(m.l>=0&&m.l!==v&&v>=0)notes.push("two classification levels stated; the higher is kept");m.l=Math.max(m.l,v);};
  const free=x=>!MK_VOCAB.has(x);
  for(let si=0;si<segs.length;si++){
    let w=segs[si];
-   w=w.map(x=>{const f=opt.strict?null:mkFuzzy(x);if(f){notes.push('read "'+x+'" as '+f);strict=false;return f;}return x;});
+   w=w.map(x=>{const f=opt.strict||MK_SITE.words.has(x)?null:mkFuzzy(x);if(f){notes.push('read "'+x+'" as '+f);strict=false;return f;}return x;});
    /* a list continues across a "/" when the whole segment is country codes: REL TO USA/GBR */
    if(list&&w.every(mkIsCountry)){w.forEach(x=>list.push(x));continue;}
    list=null;
    let i=0;
    while(i<w.length){
      let hit=null,n=0;
-     for(let k=Math.min(MK_MAXPH,w.length-i);k>=1;k--){const p=w.slice(i,i+k).join(" ");if(MK_VOCAB.has(p)){hit=MK_VOCAB.get(p);n=k;break;}}
+     for(let k=Math.min(MK_MAXPH,w.length-i);k>=1;k--){const p=w.slice(i,i+k).join(" ");if(MK_VOCAB.has(p)){hit=MK_VOCAB.get(p);n=k;break;}
+       if(MK_SITE.vocab.has(p)){hit=["SITE",MK_SITE.vocab.get(p)];n=k;break;}}
      const x=w[i];
      if(!hit){
        /* shapes rather than words: SCI compartments, AEA forms, SAP programs, CUI categories,
@@ -2172,6 +2206,9 @@ function mkRead(text,opt){
      else if(t==="SBL")m.sbl.add(k);
      else if(t==="FC"){m.fc.add(k);fgiOf(MK_FC[k]);}
      else if(t==="PV")m.pv.add(k);
+     else if(t==="SITE"){const x=k.token;if(k.set==="fc"){m.fc.add(x);fgiOf(k.country);}
+       else{if(k.set==="cat"||k.set==="ldc")m.cui=true;m[k.set].add(x);}
+       if(k.imp){impl.push(k.imp);notes.push(x+" is a site marking that implies at least "+(mkBanner(k.imp)||k.imp));}}
      /* "PRIVATE LABEL" takes the rest of its part, whatever it says, as one company label */
      else if(t==="PVL"){const L=w.slice(i).join(" ").replace(/\u0001(\d+)/g,(x,n)=>pvs[+n]||"").trim();i=w.length;if(L)m.pv.add(L);}
      else if(t==="SAP")m.sap.add(k);
@@ -2210,11 +2247,13 @@ function mkRead(text,opt){
  if(m.l>=1&&!portion&&!opt.strict&&/[a-z]/.test(String(text??""))&&!/\/\//.test(s)&&!(m.cui||m.fd==="F"||m.fd==="X"||m.d.size||m.nonic.size||m.sci.size
    ||m.sap.size||m.aea.size||m.fgi||m.ldc.size||m.dist!==31||m.sbl.size))
    notes.push(MK_LVL_B[m.l]+" written as an ordinary word: read as the US classification to be safe; if it is a company or foreign label, set the source's marking on the Markings tab");
- if(m.fc.size)notes.push("foreign caveat "+[...m.fc].join(", ")+": held as foreign government information of "+[...new Set([...m.fc].map(c=>MK_FC[c]))].join(", "));
+ if(m.fc.size)notes.push("foreign caveat "+[...m.fc].join(", ")+": held as foreign government information of "+[...new Set([...m.fc].map(mkFcOf))].join(", "));
  const any=m.l>=0||m.cui||m.unk.size||m.fd!=="B"||m.d.size||m.nonic.size||m.sci.size||m.sap.size||m.aea.size||m.fgi||m.ldc.size||m.decl.size||m.dist!==31
    ||m.tlp>=0||m.pap>=0||m.sbl.size||m.fc.size||m.pv.size;
  if(!any)return {m:null,notes,strict:false,portion};
- return {m:mkNorm(m),notes,strict:strict&&(m.l>=0||m.cui)&&!m.unk.size,portion};
+ /* what a site marking implies is joined in last, so it never depends on where the word sat */
+ let r=mkNorm(m);for(const k of impl){const x=mkRead(k,{strict:true}).m;if(x)r=mkJoinM(r,x);}
+ return {m:r,notes,strict:strict&&(r.l>=0||r.cui)&&!r.unk.size,portion};
 }
 /* Normal form. It only removes what no later join could bring back into view, which is why a
    canonical key loses nothing that matters. */
@@ -2307,10 +2346,13 @@ function mkOut(m,form,ctx,pol){
    else if(k==="RELIDO"){if(m.fd==="X"&&m.rido)dis.push("RELIDO");}
    else if(k==="DISPLAY"){if(m.fd==="X"&&m.disp)dis.push("DISPLAY ONLY "+mkCountries(m.disp,false).join(", "));}
    else if(m.d.has(k)&&!(k==="FOUO"&&(cui||C))&&!(k==="PROPIN"&&asCat))dis.push(P?p:b);});
+ /* a site's own controls follow the register's, alphabetically, in their portion form in portions */
+ const siteOut=(set,known,pf)=>[...set].filter(k=>!known.has(k)).sort(mkAlpha).map(k=>{const e=MK_SITE.by.get(k);return pf&&e&&e.portion?e.portion:k;});
+ siteOut(m.d,MK_DIS_K,P).forEach(x=>dis.push(x));
  /* CUI limited dissemination. DoD banners carry only the release controls; the rest go to the
     designation indicator. NARA lists them alphabetically in one category, and in a classified
     banner merges them into the dissemination category. */
- const ldc=MK_LDC.filter(([k])=>m.ldc.has(k)).map(([k,p])=>P&&!K?p:k);
+ const ldc=MK_LDC.filter(([k])=>m.ldc.has(k)).map(([k,p])=>P&&!K?p:k).concat(siteOut(m.ldc,MK_LDC_K,P&&!K));
  if(K&&m.dist!==31)ldc.push("DIST "+MK_DIST_OF[m.dist]);
  const ds=asCat?(NARA?dis.concat(ldc).sort(mkAlpha):dis.concat(K?ldc:[])):dis.concat(cuiInC||K?ldc:[]);
  if(ds.length)seg.push(ds.join("/"));
@@ -2319,6 +2361,7 @@ function mkOut(m,form,ctx,pol){
  if(!legacyCui){const ni=MK_NONIC.filter(([k])=>m.nonic.has(k)&&!(k==="SSI"&&asCat)).map(([k,p])=>
      C&&!K&&/ NOFORN/.test(k)?(P?p.replace("-NF",""):k.replace(" NOFORN","")):(P?p:k));
    if(ni.length)seg.push([...new Set(ni)].join("/"));}
+ const nx=siteOut(m.nonic,MK_NONIC_K,P);if(nx.length)seg.push(nx.join("/"));
  if(m.fc.size)seg.push([...m.fc].sort(mkAlpha).join("/"));
  if(K&&m.decl.size)seg.push([...m.decl].sort(mkAlpha).join("/"));
  if(m.unk.size)seg.push([...m.unk].sort(mkAlpha).join("/"));
@@ -2326,6 +2369,46 @@ function mkOut(m,form,ctx,pol){
    if(m.tlp>=0)seg.push("TLP:"+MK_TLP[m.tlp]);if(m.pap>=0)seg.push("PAP:"+MK_PAP[m.pap]);
    if(m.pv.size)seg.push([...m.pv].sort(mkAlpha).map(x=>"PRIVATE LABEL "+x).join("/"));}
  return seg.filter((x,i)=>i===0||x).join("//").replace(/^\/\//,"");}
+
+/* ---- site markings: install, after judging each entry against the built-in register ---- */
+const mkSiteNorm=x=>String(x??"").normalize("NFKC").toUpperCase().replace(/\s+/g," ").trim();
+function mkSiteClear(){MK_CACHE.clear();MK_OC.clear();MK_JC.clear();MK_WO.clear();}
+/* Returns true when the list changed what is installed. Never throws: a bad entry is refused
+   with a reason (MK_SITE.errs) and the rest are installed. */
+function mkSiteSet(list){
+ list=Array.isArray(list)?list:[];let sig;try{sig=JSON.stringify(list);}catch(e){sig="?";}
+ if(sig===MK_SITE.sig)return false;
+ MK_SITE=MK_SITE_NONE;mkSiteClear();
+ const T={sig,vocab:new Map(),by:new Map(),words:new Set(),ok:[],errs:[]};
+ /* a spelling is free only if the register reads it as one unrecognised word or phrase and nothing else */
+ const free=t=>{const r=mkRead(t),m=r.m;return !!m&&m.unk.size===1&&m.unk.has(t)&&!r.notes.some(n=>/^read "/.test(n))&&mkOut(m,"key")===t;};
+ const okText=t=>/^[A-Z0-9](?:[A-Z0-9 -]{0,58}[A-Z0-9])$/.test(t)&&t.split(" ").length<=MK_MAXPH&&!/ - |--/.test(t);
+ list.slice(0,500).forEach((x,i)=>{
+   const name=x&&typeof x==="object"&&x.marking!=null?'"'+String(x.marking).slice(0,40)+'"':"entry "+(i+1);
+   const bad=msg=>{T.errs.push(name+": "+msg);};
+   if(!x||typeof x!=="object"||Array.isArray(x))return bad("not an entry");
+   const tok=mkSiteNorm(x.marking),kind=x.kind==null||x.kind===""?"control":String(x.kind);
+   if(!Object.prototype.hasOwnProperty.call(MK_SITE_KINDS,kind))return bad("kind must be one of "+Object.keys(MK_SITE_KINDS).join(", "));
+   const set=MK_SITE_KINDS[kind],portion=x.portion==null?"":mkSiteNorm(x.portion);
+   if(portion&&!/^(?:d|nonic|ldc)$/.test(set))return bad("only a control, other-agency control or CUI dissemination control has a separate portion form");
+   if(x.also!=null&&!Array.isArray(x.also))return bad('"also" must be a list of other spellings');
+   const spell=[...new Set([tok].concat(portion?[portion]:[],(x.also||[]).slice(0,20).map(mkSiteNorm)))].filter(Boolean);
+   if(!tok)return bad('needs a "marking"');
+   for(const t of spell){
+     if(!okText(t))return bad('"'+t.slice(0,40)+'" must be 2 to 60 letters, digits, single spaces or hyphens, at most '+MK_MAXPH+" words");
+     if(T.vocab.has(t))return bad('"'+t+'" is already defined by another entry');
+     const cw=t.split(" ").find(w=>MK_ISO3.has(w));if(cw)return bad('"'+cw+'" is a country or organisation code, which release lists use');
+     if(!free(t)){const k=mkKey(t);return bad('"'+t+'" already means '+(mkBanner(k)||mkOut(mkObj(k),"key")||"something")+" - a site marking can only define a word Palisade does not know");}}
+   let country="";
+   if(set==="fc"){country=mkSiteNorm(x.country);if(!/^[A-Z]{3}$/.test(country)||!MK_ISO3.has(country))return bad('a foreign caveat needs its originating country as a trigraph, e.g. "country": "GBR"');}
+   let imp="";
+   if(x.implies!=null&&String(x.implies).trim()){const r=mkRead(String(x.implies).slice(0,200));
+     if(!r.m||r.m.unk.size||r.notes.some(n=>/^read "/.test(n)))return bad('"implies" must be a marking Palisade reads exactly, e.g. "SECRET//NOFORN"');
+     imp=mkOut(r.m,"key");}
+   const e=Object.freeze({token:tok,kind,set,portion,country,imp,note:String(x.note==null?"":x.note).slice(0,200),spell:Object.freeze(spell)});
+   spell.forEach(t=>{T.vocab.set(t,e);t.split(" ").forEach(w=>T.words.add(w));});T.by.set(tok,e);T.ok.push(e);});
+ if(list.length>500)T.errs.push((list.length-500)+" entries past the first 500 were not read");
+ MK_SITE=T;mkSiteClear();return true;}
 
 /* ---- the string API: everything outside this block deals in canonical keys ------------ */
 const MK_CACHE=new Map(),MK_JC=new Map(),MK_OC=new Map();
@@ -2381,7 +2464,7 @@ function mkReview(key){const m=mkObj(key);if(!m)return [];const r=[];
  if(m.l<0&&!m.cui)r.push("no classification level stated");
  if(m.l<1&&(m.sci.size||m.sap.size||m.aea.has("RD")||m.aea.has("FRD")))r.push("control marking without a classification level");
  if(m.sci.has("SCI"))r.push("SCI stated without naming the control system");
- [...m.fc].filter(c=>c!=="CABINET").forEach(c=>r.push(c+": the originator limits this to its own nationals, and a US holder is outside that - confirm the handling with the originator"));
+ [...m.fc].filter(c=>MK_EYES.has(c)).forEach(c=>r.push(c+": the originator limits this to its own nationals, and a US holder is outside that - confirm the handling with the originator"));
  if(m.decl.size)r.push("declassification instruction in the marking: "+[...m.decl].join(", "));
  return r;}
 /* banner colour tier: u cui c s ts tssci */
@@ -2482,6 +2565,8 @@ function mkSelfTest(n){
   ["","","","TLP:CLEAR","TLP:GREEN","TLP:AMBER","TLP:AMBER+STRICT","TLP:RED"],["","","","","PAP:RED","PAP:GREEN","PAP:AMBER"],
   ["","","","","ACPI","DPPD","SSS"],["","","","","","AUSTEO","CABINET","UK EYES ONLY"],["","","","","PRIVATE LABEL ACME SECRET SAUCE","HIGHLY CONFIDENTIAL","TRADE SECRET"],
   ["","","","","RAWFISA","WAIVED"]];
+ /* the site's own words, when there are any, go through the same algebra */
+ const site=[...MK_SITE.by.keys()].slice(0,16);if(site.length)POOL.push(["","",""].concat(site),["","","",""].concat(site.slice().reverse()));
  const gen=()=>{const parts=POOL.map(pick).filter(Boolean);
    for(let i=parts.length-1;i>0;i--){const j=rnd(i+1);[parts[i],parts[j]]=[parts[j],parts[i]];}
    return parts.map((p,i)=>(i?pick(["//","/"," // "," - "]):"")+p).join("");};
@@ -2534,7 +2619,7 @@ function emptyMarking(){return {files:Object.create(null),rules:[],products:Obje
 let MK_DRY=false;            // set while products are rendered only to learn their marking
 let MK_SELFTEST=null;        // the result of the engine self-test run at page open
 const MK_C={s:null,m:new Map()};
-function mkDirty(){MK_C.s=S;MK_C.m=new Map();
+function mkDirty(){MK_C.s=S;MK_C.m=new Map();mkSiteSet(S&&S.config&&S.config.siteMarkings);
  MK_POLICY.profile=S&&S.settings&&S.settings.mkProfile==="NARA"?"NARA":"DOD";
  MK_POLICY.legacy=S&&S.settings&&S.settings.mkLegacy==="convert"?"convert":"preserve";}
 function mkMemo(k,fn){if(MK_C.s!==S)mkDirty();let v=MK_C.m.get(k);if(v===undefined){v=fn();MK_C.m.set(k,v);}return v;}
@@ -2805,7 +2890,13 @@ function mkLead(v,opt){
  const m=String(v??"").match(/^\s*\(([A-Z][A-Z0-9 \/,\-]{0,90})\)\s*(.*)$/s);if(!m)return null;
  if(m[1]==="C"&&!(opt&&opt.allowC))return null;
  const p=mkParse(m[1],{strict:true,rel:opt&&opt.rel});
- return p.strict?{key:p.key,rest:m[2]}:null;}
+ if(p.strict)return {key:p.key,rest:m[2]};
+ /* a stated level, then whole "//" parts no register knows -- "(TS//ORCHID)": still a portion
+    mark, the unknown part held for review (and read as a site marking once one defines it) */
+ const sg=m[1].split("//");
+ return sg.length>1&&p.key&&mkParse(sg[0],{strict:true}).strict&&sg.slice(1).every(mkPurePart)?{key:p.key,rest:m[2]}:null;}
+/* a "//" part that the register reads in full, or that is nothing but words it does not know */
+function mkPurePart(x){const k=mkParse(x,{strict:true}).key,q=mkObj(k);return !!k&&(!q.unk.size||k===[...q.unk].sort(mkAlpha).join("/"));}
 /* A sheet's authority block and designation indicator (which Palisade writes above its closing
    banner), and its marking column: a header that names one. Banner rows are ingSheet's: it reads
    them wherever they sit. Returns {key, how, marks:[[key, evidence]], skip:Set(row indices), col}. */
@@ -2842,6 +2933,8 @@ function applyBanner(){
    stored key back into the canonical form this build reads (an older build's key, or a hand-edited
    file, is re-read rather than trusted). Never throws on odd input; drops what cannot be a rule. */
 function mkHydrate(st){
+ /* the session's own site markings first, so its keys are re-read with the words it defined */
+ if(st.config&&typeof st.config==="object")mkSiteSet(st.config.siteMarkings);
  const m=st.marking&&typeof st.marking==="object"?st.marking:{};const out=emptyMarking();
  const fl=m.files&&typeof m.files==="object"?m.files:{};
  for(const id in fl){const f=fl[id];if(!f||typeof f!=="object")continue;
@@ -9214,7 +9307,47 @@ function renderMarkings(){
  if(MK_UI.prod){if($("pane-markings").classList.contains("active")&&MK_UI.prod.ms<400)mkProductsCompute();else MK_UI.stale=true;}
  mkRenderParts();}
 function mkRenderParts(){
- [mkRenderHero,mkRenderSources,mkRenderRules,mkRenderProducts,mkRenderPolicy,mkRenderLog,mkCheck,mkSortRender].forEach(f=>f());}
+ [mkRenderHero,mkRenderSources,mkRenderRules,mkRenderSite,mkRenderProducts,mkRenderPolicy,mkRenderLog,mkCheck,mkSortRender].forEach(f=>f());}
+const MK_SITE_LABEL={control:"dissemination control",sci:"SCI control system",sap:"special access program","cui-category":"CUI category",
+ "cui-ldc":"CUI dissemination control","other-agency":"other-agency control","company-label":"company label","foreign-caveat":"foreign caveat"};
+/* the words in everything loaded that no register knows, most frequent first */
+function mkUnknownNow(){return mkMemo("ui-unk",()=>{const W=mkWhy(),n=new Map();
+ W.D.by.forEach((b,k)=>{const m=mkObj(k);if(m)m.unk.forEach(u=>n.set(u,(n.get(u)||0)+b.n));});
+ return [...n.entries()].sort((a,b)=>b[1]-a[1]||mkAlpha(a[0],b[0])).slice(0,40);});}
+function mkRenderSite(){const el=$("mkSite");if(!el)return;
+ const L=MK_SITE.ok,E=MK_SITE.errs,U=mkUnknownNow();MK_UI.unk=U.map(x=>x[0]);
+ let h="";
+ if(U.length)h+=`<p><b>Not recognised in what is loaded:</b> `+U.map(([w,c],i)=>`<button class="small ghost" data-click="mkSiteDefine" data-arg="${i}" title="define this word">${esc(w)} <span class="mksub">&times;${c}</span></button>`).join(" ")
+   +` <span class="mksub">&mdash; held for review in every banner they reach. Click one to define it.</span></p>`;
+ h+=!L.length?`<p class="mksub">No site markings defined.</p>`
+  :`<div class="tablewrap" style="max-height:40vh"><table><tr><th>Word</th><th>Is a</th><th>Also read</th><th>Implies at least</th><th>Note</th><th></th></tr>`
+   +L.map(e=>`<tr><td class="mono"><b>${esc(e.token)}</b>${e.portion?` <span class="mksub">portion ${esc(e.portion)}</span>`:""}</td>`
+    +`<td>${esc(MK_SITE_LABEL[e.kind]||e.kind)}${e.country?" ("+esc(e.country)+")":""}</td>`
+    +`<td class="mono">${esc(e.spell.filter(t=>t!==e.token&&t!==e.portion).join(", "))}</td>`
+    +`<td>${e.imp?mkChip(e.imp,1)+" "+esc(mkBanner(e.imp)):'<span class="mksub">nothing more</span>'}</td><td style="color:var(--dim)">${esc(e.note)}</td>`
+    +`<td><button class="small danger" data-click="mkSiteDel" data-key="${esc(e.token)}">Remove</button></td></tr>`).join("")+`</table></div>`;
+ if(E.length)h+=`<div class="mkwarn"><b>Refused:</b> ${esc(E.join("; "))}.</div>`;
+ el.innerHTML=h;}
+/* add or remove one entry: the whole list is re-judged, and a refused change is not kept */
+function mkSiteChange(list,ok,word){
+ const before=S.config.siteMarkings;S.config.siteMarkings=list;mkSiteSet(list);
+ if(word&&!MK_SITE.by.has(word)){const why=MK_SITE.errs.find(x=>x.indexOf('"'+word.slice(0,40)+'"')===0)||"";
+   S.config.siteMarkings=before;mkSiteSet(before);status("Not defined: "+(why.replace(/^"[^"]*": /,"")||"that entry was refused")+".");return false;}
+ renderConfig();mkSelfTestQuiet();mkDirty();mkAfterEdit(ok());return true;}
+function mkSiteAdd(){
+ const v=id=>($(id)||{}).value||"",word=mkSiteNorm(v("mkSiteWord")),kind=v("mkSiteKind");
+ if(!word)return status("Not defined: type the word or phrase.");
+ if(!Object.prototype.hasOwnProperty.call(MK_SITE_KINDS,kind))return status("Not defined: pick what kind of marking it is.");
+ const e={marking:word,kind};if(v("mkSitePortion").trim())e.portion=v("mkSitePortion").trim();
+ if(v("mkSiteImp").trim()){const r=mkVet(v("mkSiteImp"));if(r.err)return status("Not defined: "+r.err);e.implies=mkStoreForm(r.key);}
+ if(kind==="foreign-caveat")e.country=v("mkSiteCountry").trim();
+ if(v("mkSiteNoteIn").trim())e.note=v("mkSiteNoteIn").trim().slice(0,200);
+ const list=(Array.isArray(S.config.siteMarkings)?S.config.siteMarkings:[]).filter(x=>!(x&&mkSiteNorm(x.marking)===word)).concat([e]);
+ if(mkSiteChange(list,()=>word+" is now a "+(MK_SITE_LABEL[kind]||kind)+(e.implies?" implying at least "+mkBanner(mkKey(e.implies)):"")+"; everything loaded is "+mkNow().banner+".",word))
+   ["mkSiteWord","mkSitePortion","mkSiteImp","mkSiteCountry","mkSiteNoteIn"].forEach(id=>{if($(id))$(id).value="";});}
+function mkSiteDel(tok){
+ const list=(Array.isArray(S.config.siteMarkings)?S.config.siteMarkings:[]).filter(x=>!(x&&mkSiteNorm(x.marking)===tok));
+ mkSiteChange(list,()=>tok+" is no longer a site marking; where it appears it is held for review again. Everything loaded is "+mkNow().banner+".");}
 
 function mkRenderHero(){
  const M=mkNow(),floor=mkFloor(),W=mkWhy(),D=W.D,ids=Object.keys(S.marking.files);
@@ -9476,10 +9609,11 @@ function migrateConfig(cfg){
  if(cfg&&!cfg.remedyWeights)cfg.remedyWeights=JSON.parse(JSON.stringify(DEFAULT_CONFIG.remedyWeights));
  if(cfg&&!cfg.productAliases)cfg.productAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.productAliases));
  if(cfg&&!cfg.listingAliases)cfg.listingAliases=JSON.parse(JSON.stringify(DEFAULT_CONFIG.listingAliases));
+ if(cfg&&!Array.isArray(cfg.siteMarkings))cfg.siteMarkings=[];
  return cfg;
 }
 function applyConfig(){
- let bad=[];
+ let bad=[];const site0=MK_SITE.sig;
  try{
    const cfg=migrateConfig(safeParse($("cfgBox").value));
    if(!Array.isArray(cfg.catalog)) throw new Error("config needs a 'catalog' array");
@@ -9488,9 +9622,15 @@ function applyConfig(){
  }catch(e){alert("Config JSON error: "+e.message);return;}
  invalidateFusion(); // intel weights / aliases may have changed
  runDetection(); renderSTIG(); renderIntel(); renderConfig();
- status("Detection config applied."+rejectNote(bad));
+ /* site markings re-read everything loaded: redraw what shows a marking, and check the algebra again */
+ if(MK_SITE.sig!==site0){mkSelfTestQuiet();renderAll();rptTouch();}
+ status("Detection config applied."+rejectNote(bad)+mkSiteNote());
 }
-function resetConfig(){S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));invalidateFusion();renderConfig();runDetection();renderSTIG();renderIntel();}
+function mkSiteNote(){const E=MK_SITE.errs;return E.length?" "+E.length+" site marking(s) refused: "+E.slice(0,3).join("; ")+(E.length>3?"; …":"")+" (Markings tab).":"";}
+function mkSelfTestQuiet(){try{MK_SELFTEST=mkSelfTest(150);if(!MK_SELFTEST.pass)console.error("Palisade marking engine self-test FAILED:",MK_SELFTEST.fails.join(" | "));}
+ catch(e){MK_SELFTEST={pass:false,checks:0,fails:[String(e&&e.message||e)]};console.error("Palisade marking engine self-test could not run:",e);}}
+function resetConfig(){const site0=MK_SITE.sig;S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));invalidateFusion();renderConfig();runDetection();renderSTIG();renderIntel();
+ if(MK_SITE.sig!==site0){mkSelfTestQuiet();renderAll();rptTouch();}}
 
 /* ---------------- exports ---------------- */
 /* Spreadsheet-formula neutralisation, applied at the only two cells-to-text choke points
@@ -10278,6 +10418,9 @@ const ACTIONS=Object.freeze({
  mkProductsRefresh:()=>{ mkProductsCompute(); mkRenderProducts(); status("Every product re-rendered to read its marking."); },
  mkSetting:el=>{ if(MK_SETTING_KEYS.has(el.dataset.key)) mkSettingSet(el); },
  mkSelfTestRun:()=>mkSelfTestRun(),
+ mkSiteAdd:()=>mkSiteAdd(),
+ mkSiteDel:el=>{ if(MK_SITE.by.has(el.dataset.key)) mkSiteDel(el.dataset.key); },
+ mkSiteDefine:el=>{ const i=idx(el),U=MK_UI.unk||[]; if(i>=0&&i<U.length&&$("mkSiteWord")){ $("mkSiteWord").value=U[i]; $("mkSiteWord").focus(); } },
  mkCheck:()=>mkCheck(), mkSort:()=>mkSortRender(),
  mkCheckTry:el=>{ const i=idx(el); if(i>=0&&i<MK_CHECK_EXAMPLES.length){ $("mkChkIn").value=MK_CHECK_EXAMPLES[i]; mkCheck(); } },
 
