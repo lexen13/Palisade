@@ -4496,6 +4496,46 @@ function lensStats(L){
    actions:L.quick.length+L.fruit.length+L.camp.length+L.modern.length};
 }
 
+/* ---- markings in the HTML and text products ----------------------------------------------
+   Every product below is a mkDoc. Each portion it prints -- a section, a table row, a chart, a
+   lens item, a header line, a tile row -- is marked by every record it shows or counts, and is
+   added to the product; the banner is the join of those portions and the floor, sealed with any
+   override (mkSeal). A count is marked by the records it counts: "6 endpoints" carries all six
+   hosts, "3 critical" carries the three findings. So a banner is never below anything on the
+   page, and never above it unless an override says so in writing. */
+const rptKey=R=>(R&&typeof R==="object"?R.k:R)||mkFloor();
+/* Portion marks are printed only when the product is above plain UNCLASSIFIED: an all-(U)
+   document needs none, and CUI is all-or-nothing, so a CUI document gets every one. */
+function rptPm(M){return !!M&&(M.derived!=="U"||M.key!=="U");}
+function rptPmSpan(R){return RPT_OPT.pm?'<span class="pm">'+esc(mkPortion(rptKey(R)))+'</span> ':"";}
+const rptLensItems=L=>[].concat(L.quick,L.fruit,L.camp,L.modern);
+/* the posture numbers: endpoints (every host), P1 groups (the P1 intel rows and the findings
+   they were fused with), unsupported components (the expired lifecycle findings) */
+function rptPostureMk(L){
+ return mkR(Object.keys(S.hosts).map(mkE.host),L.fu?L.fu.rows.filter(r=>r.tier==="P1").map(mkE.fusion):[],
+   L.eolF.filter(x=>x.eol.state==="expired").map(x=>x.mk));}
+/* A "Sheet column: X" score source is named after a column header of the intel sheets
+   themselves, so it carries those files; the built-in sources are fixed labels. */
+function rptScoreMk(fu){
+ if(!fu||!/^extra:/.test(fu.scoreSource||"")) return null;
+ const ids=new Set();
+ for(const c in S.intel.rows){const t=S.intel.rows[c];(t.srcs||[]).forEach(x=>ids.add(x));(t.mkc||[]).forEach(x=>ids.add(x[0]));}
+ return ids.size?mkR([...ids].map(mkE.file)):mkR(Object.keys(S.intel.rows).map(mkE.intel));}
+/* a front-matter line: the system name typed in Settings, the endpoint count, the score source */
+function rptHeadMk(fu,hosts){
+ return mkR(S.settings.isName?mkE.typed():null,hosts?Object.keys(S.hosts).map(mkE.host):[],rptScoreMk(fu));}
+/* One host's line for a software title it shares with other hosts: this host, the title's own
+   sources and any rule on the title -- not the other hosts, which are not in the line. */
+function rptHostSwMk(hk,r){
+ return mkFrom([mkE.host(hk)].concat(mkC(r)),"software",fld=>fld==="name"?[r.name,(r.name+" "+(r.version||"")).trim()]:fld==="vendor"?[r.vendor]:[]);}
+/* a per-asset dossier as the report prints it: the host, the findings it counts, its STIG
+   results, accounts, asset record and software */
+function rptDossierMk(d){
+ return mkR(mkE.host(d.hk),d.inst.map(i=>i.mk),d.stig.map(r=>r.mk),d.accts.map(r=>r.mk),
+   d.asset?mkE.asset(d.hk):null,d.sw.map(r=>rptHostSwMk(d.hk,r)));}
+/* the posture charts, marked by exactly what rptCharts draws */
+function rptChartsMk(){const A=mkAcc();rptCharts(RPT_THEME.light,false,A);return A.r();}
+
 /* ---- inline-SVG horizontal bar chart (single measure) ---- */
 function rptBarPath(x,y,w,h,r){
  r=Math.min(r,Math.max(0,w-0.5),h/2);
@@ -4531,20 +4571,24 @@ function rptChip(color,label,T){
  return '<span style="display:inline-flex;align-items:center;gap:5px;margin-left:12px;font-weight:400;font-size:11px;color:'+T.ink2+'">'
   +'<span style="width:10px;height:10px;border-radius:3px;background:'+color+'"></span>'+esc(label)+'</span>';
 }
-function rptCharts(T){
+/* pm: put each figure's portion mark in its title. acc: an mkAcc that receives the marking of
+   each figure actually drawn -- one source of truth for what a chart shows and how it is marked.
+   Each figure counts every record behind its bars, and only those. */
+function rptCharts(T,pm,acc){
  let h="";
+ const want=pm||acc, P=parts=>{if(!want)return "";const R=mkR(parts);if(acc)acc.add(R);return pm?mkPortion(rptKey(R))+" ":"";};
  const fu=Object.keys(S.intel.rows).length?getIntelFusion():null;
  if(fu&&fu.matched){
    const counts={P1:0,P2:0,P3:0,P4:0}; fu.rows.forEach(r=>{if(r.tier)counts[r.tier]++;});
    const TC={P1:T.critical,P2:T.serious,P3:T.warning,P4:T.neutral},
          TL={P1:"act now",P2:"urgent",P3:"scheduled",P4:"low"};
-   h+=rptChart("Confirmed vulnerabilities by priority tier",
+   h+=rptChart(P(want?fu.rows.filter(r=>r.tier).map(mkE.fusion):[])+"Confirmed vulnerabilities by priority tier",
      ["P1","P2","P3","P4"].filter(t=>counts[t]).map(t=>({label:t+" — "+TL[t],value:counts[t],color:TC[t],
        tip:t+" ("+TL[t]+") — "+counts[t]+" CVE(s) confirmed on network"})),T);
  }
  const px=productExposure();
  if(px.length){
-   h+=rptChart("Most exposed products (endpoints affected)",
+   h+=rptChart(P(px.slice(0,7).map(g=>g.mk))+"Most exposed products (endpoints affected)",
      px.slice(0,7).map(g=>({label:g.name,value:g.hosts.size,color:g.weap?T.critical:T.bar,
        tip:g.name+" — "+g.hosts.size+" endpoint(s), "+g.cves.length+" CVE(s)"+(g.weap?", WEAPONIZED":"")})),
      T,rptChip(T.bar,"exposed",T)+rptChip(T.critical,"weaponized",T));
@@ -4552,7 +4596,7 @@ function rptCharts(T){
  const osf=osFootprint();
  if(osf.length&&Object.keys(S.hosts).length){
    const anyEol=osf.some(o=>o.eol&&o.eol.state==="expired");
-   h+=rptChart("Operating system footprint (endpoints)",
+   h+=rptChart(P(osf.slice(0,8).map(o=>o.mk))+"Operating system footprint (endpoints)",
      osf.slice(0,8).map(o=>({label:o.os,value:o.hosts.length,
        color:(o.eol&&o.eol.state==="expired")?T.critical:T.bar,
        tip:o.os+" — "+o.hosts.length+" endpoint(s)"+(o.eol&&o.eol.state==="expired"?" (past end of support)":"")})),
@@ -4602,124 +4646,178 @@ function renderReports(){
     +'</div>';}).join("");
 }
 
-/* ---- e-mailable leadership report (self-contained HTML, light theme) ---- */
+/* ---- e-mailable leadership report (self-contained HTML, light theme) ----
+   Marked like the builder's report: the banner is the join of what it prints -- the tiles
+   (every host, the P1 rows, the expired components, every action), the charts, each lens row --
+   coloured by level, and repeated at the top and bottom of every printed page. */
 function exportLeadershipReport(){
- if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
- const T=RPT_THEME.light, L=buildLenses(), st=lensStats(L), s=S.settings;
+ if(!Object.keys(S.hosts).length){if(!MK_DRY)alert("Load scan data first.");return;}
+ const T=RPT_THEME.light, L=buildLenses(), st=lensStats(L), s=S.settings, D=mkDoc("Leadership_Report");
+ const items=rptLensItems(L), headR=rptHeadMk(L.fu,false), tilesR=mkR(rptPostureMk(L),items.map(i=>i.mk)),
+   chartsR=rptChartsMk(), footR=rptScoreMk(L.fu)||mkE.floor();
+ D.add(headR,"system and score source"); D.add(tilesR,"posture tiles"); D.add(chartsR,"charts"); D.add(footR,"footer");
+ items.forEach(i=>D.row(i.mk,i.action));
+ const M=mkSeal(D), pm=rptPm(M);
+ const P=R=>pm?'<b style="white-space:nowrap">'+esc(mkPortion(rptKey(R)))+'</b> ':"";
+ const cell='border:1px solid '+T.grid+';padding:6px 9px';
  const tile=(v,l,col)=>'<div style="flex:1;min-width:130px;background:'+T.surface+';border:1px solid '+T.ring+';border-radius:10px;padding:14px 16px">'
    +'<div style="font-size:27px;font-weight:600;color:'+(col||T.ink)+'">'+v+'</div>'
    +'<div style="font-size:12px;color:'+T.ink2+';margin-top:3px">'+l+'</div></div>';
  const sections=LENS_META.map(([k,title,sub])=>{
-   const items=L[k]; if(!items.length) return "";
-   return '<h2 style="font-size:16px;margin:26px 0 4px">'+esc(title)+'</h2>'
+   const its=L[k]; if(!its.length) return "";
+   return '<h2 style="font-size:16px;margin:26px 0 4px">'+P(mkR(its.map(i=>i.mk)))+esc(title)+'</h2>'
     +'<p style="color:'+T.ink2+';font-size:13px;margin:0 0 10px">'+esc(sub)+'</p>'
-    +'<table style="border-collapse:collapse;width:100%;font-size:12.5px;background:'+T.surface+'">'
-    +'<tr>'+["Sev","Action (grouped)","Scope","Why","Effort"].map(x=>'<th style="border:1px solid '+T.grid+';padding:6px 9px;text-align:left;color:'+T.ink2+';background:#f2f1ee">'+x+'</th>').join("")+'</tr>'
-    +items.map(i=>'<tr>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px;white-space:nowrap;color:'+T.ink2+'">'+sevMark(i.sev,T)+'</td>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px;font-weight:600">'+esc(i.action)+'</td>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px" title="'+esc((i.hosts||[]).join(", "))+'">'+esc(i.scope)+'</td>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px;color:'+T.ink2+'">'+esc(i.why)+'</td>'
-      +'<td style="border:1px solid '+T.grid+';padding:6px 9px">'+esc(i.effort)+'</td></tr>').join("")
-    +'</table>';}).join("");
- const banner='<div style="background:#5b2ea6;color:#fff;text-align:center;font-weight:700;letter-spacing:.2em;padding:5px 0;font-size:11px;text-transform:uppercase">'+esc(s.banner)+'</div>';
+    +'<table style="border-collapse:collapse;width:100%;font-size:12.5px;background:'+T.surface+'"><thead>'
+    +'<tr>'+(pm?["Marking"]:[]).concat(["Sev","Action (grouped)","Scope","Why","Effort"]).map(x=>'<th style="'+cell+';text-align:left;color:'+T.ink2+';background:#f2f1ee">'+x+'</th>').join("")+'</tr></thead><tbody>'
+    +its.map(i=>'<tr>'
+      +(pm?'<td style="'+cell+';white-space:nowrap;font-weight:700;font-size:11px">'+esc(mkPortion(rptKey(i.mk)))+'</td>':"")
+      +'<td style="'+cell+';white-space:nowrap;color:'+T.ink2+'">'+sevMark(i.sev,T)+'</td>'
+      +'<td style="'+cell+';font-weight:600">'+esc(i.action)+'</td>'
+      +'<td style="'+cell+'" title="'+esc((i.hosts||[]).join(", "))+'">'+esc(i.scope)+'</td>'
+      +'<td style="'+cell+';color:'+T.ink2+'">'+esc(i.why)+'</td>'
+      +'<td style="'+cell+'">'+esc(i.effort)+'</td></tr>').join("")
+    +'</tbody></table>';}).join("");
+ const banner=cls=>'<div class="bnr '+cls+'" style="'+mkBannerCss(M)+';text-align:center;font-weight:700;letter-spacing:.2em;padding:5px 0;font-size:11px;text-transform:uppercase">'+esc(M.banner)+'</div>';
  const doc='<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
   +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">'
   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
-  +'<title>Cyber Risk &amp; Remediation Report — '+esc(s.isName||"")+' '+today()+'</title></head>'
+  +'<title>Cyber Risk &amp; Remediation Report — '+esc(s.isName||"")+' '+today()+'</title>'
+  /* print: the banner keeps its colour and repeats on every page, clear of the text (rptPage) */
+  +'<style>@page{size:letter;margin:16mm 12mm}.bnr{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+  +'.pg{width:100%;border-collapse:collapse}.pg>thead,.pg>tfoot{display:none}.pg>tbody>tr>td{padding:0}'
+  +'@media print{.bnrT{position:fixed;top:0;left:0;right:0}.bnrB{position:fixed;bottom:0;left:0;right:0}'
+  +'.pg>thead{display:table-header-group}.pg>tfoot{display:table-footer-group}.pgsp{height:9mm}'
+  +'body{background:#fff!important}.lwrap{padding:0!important;max-width:none!important}'
+  +'thead{display:table-header-group}tr,figure,.mkcab{break-inside:avoid}h2{break-after:avoid}}</style></head>'
   +'<body style="margin:0;background:'+T.page+';color:'+T.ink+';font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;line-height:1.5">'
-  +banner
-  +'<div style="max-width:880px;margin:0 auto;padding:28px 24px 60px">'
-  +'<h1 style="font-size:21px;margin:0 0 2px">Cyber Risk &amp; Remediation Report</h1>'
-  +'<p style="color:'+T.ink2+';font-size:13px;margin:0 0 18px">'+esc(s.isName||"(system name not set — fill Settings)")+' &middot; generated '+today()
+  +banner("bnrT")
+  +rptPage('<div class="lwrap" style="max-width:880px;margin:0 auto;padding:28px 24px 60px">'
+  +'<h1 style="font-size:21px;margin:0 0 2px">'+P(mkE.floor())+'Cyber Risk &amp; Remediation Report</h1>'
+  +'<p style="color:'+T.ink2+';font-size:13px;margin:0 0 18px">'+P(headR)+esc(s.isName||"(system name not set — fill Settings)")+' &middot; generated '+today()
   +(L.fu?' &middot; priority scoring: '+esc(L.fu.scoreLabel):' &middot; no threat intel loaded')
   +' &middot; produced fully offline by Palisade</p>'
+  +mkCabHtml(M)
+  +(pm?'<div style="font-size:11px;color:'+T.ink2+';margin:0 0 6px">'+P(tilesR)+'Posture at a glance</div>':"")
   +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px">'
   +tile(st.endpoints,"endpoints scanned")
   +tile(st.p1,"P1 — act now",st.p1?T.critical:T.ink)
   +tile(st.eol,"unsupported components",st.eol?T.serious:T.ink)
   +tile(st.actions,"recommended actions")+'</div>'
-  +rptCharts(T)
+  +rptCharts(T,pm)
   +sections
   +'<p style="color:'+T.muted+';font-size:11.5px;margin-top:30px;border-top:1px solid '+T.grid+';padding-top:10px">'
-  +'Evidence-derived from Tenable / ACAS scan exports'+(L.fu?' fused with threat intelligence ('+esc(L.fu.scoreLabel)+')':'')
+  +P(footR)+'Evidence-derived from Tenable / ACAS scan exports'+(L.fu?' fused with threat intelligence ('+esc(L.fu.scoreLabel)+')':'')
   +'. Data is as of the underlying scan dates. Grouped scopes carry host-level detail in the compiler session. '
   +'Prioritization guides remediation order; approval, acceptance, and scheduling decisions remain with the ISSM.</p>'
-  +'</div>'+banner+'</body></html>';
- dl("Leadership_Report_"+today()+".html",doc,"text/html");
- status("Leadership report exported — self-contained HTML with charts, ready to attach to an e-mail.");
+  +'</div>')+banner("bnrB")+'</body></html>';
+ dl("Leadership_Report_"+today()+".html",doc,"text/html",M);
+ status("Leadership report exported — self-contained HTML with charts, marked "+M.banner+", ready to attach to an e-mail.");
 }
 
-/* ---- plain-text executive summary (for the e-mail body) ---- */
-function buildEmailSummary(){
- const L=buildLenses(), st=lensStats(L), s=S.settings;
- const lines=[s.banner,"","CYBER RISK SUMMARY — "+(s.isName||"(system)")+" — "+today(),""];
- lines.push("Posture: "+st.endpoints+" endpoints scanned; "+st.p1+" weaponized vulnerability group(s) confirmed on the network; "+st.eol+" component(s) past vendor support.");
- if(L.fu) lines.push("Priority scoring source: "+L.fu.scoreLabel+".");
- lines.push("");
+/* ---- plain-text executive summary (for the e-mail body) ----
+   The first and last lines are the derived banner. When the summary is above plain
+   UNCLASSIFIED every line that says something carries its portion mark, and a classified or
+   CUI summary closes with its authority block / designation indicator, which e-mail traffic
+   carries in the body. o.M, when o is given, receives the marking. */
+function buildEmailSummary(o){
+ const L=buildLenses(), st=lensStats(L), s=S.settings, D=mkDoc("Email_Summary"), F=mkE.floor();
+ const body=[];                                  // [lead, text, R]; no R = a blank line
+ const say=(lead,t,R)=>{body.push([lead,t,R]);if(R)D.add(R,t.slice(0,60));};
+ const gap=()=>body.push(["","",null]);
+ say("","CYBER RISK SUMMARY — "+(s.isName||"(system)")+" — "+today(),s.isName?mkE.typed():F); gap();
+ say("","Posture: "+st.endpoints+" endpoints scanned; "+st.p1+" weaponized vulnerability group(s) confirmed on the network; "+st.eol+" component(s) past vendor support.",rptPostureMk(L));
+ if(L.fu) say("","Priority scoring source: "+L.fu.scoreLabel+".",rptScoreMk(L.fu)||F);
+ gap();
  const top=(name,items,n)=>{if(!items.length)return;
-   lines.push(name.toUpperCase()+":");
-   items.slice(0,n).forEach(i=>lines.push("  - "+i.action+" — "+i.scope+". "+i.why));
-   if(items.length>n) lines.push("  (+"+(items.length-n)+" more in the attached report)");
-   lines.push("");};
+   say("",name.toUpperCase()+":",F);
+   items.slice(0,n).forEach(i=>say("  - ",i.action+" — "+i.scope+". "+i.why,i.mk));
+   /* the count of what is left out counts those items */
+   if(items.length>n) say("  ","(+"+(items.length-n)+" more in the attached report)",mkR(items.slice(n).map(i=>i.mk)));
+   gap();};
  top("Act now (quick strikes)",L.quick,5);
  top("Low-hanging fruit",L.fruit,4);
  top("Campaigns to plan",L.camp,4);
  top("Modernization / budget",L.modern,4);
- lines.push("Full detail, charts, and host-level scope are in the attached report. Approval and scheduling decisions remain with the ISSM.","",s.banner);
+ say("","Full detail, charts, and host-level scope are in the attached report. Approval and scheduling decisions remain with the ISSM.",F);
+ const M=mkSeal(D), pm=rptPm(M), cab=mkCab(M);
+ const lines=[M.banner,""].concat(body.map(([lead,t,R])=>R?lead+(pm?mkPortion(rptKey(R))+" ":"")+t:""));
+ lines.push("");if(cab.length)lines.push(...cab,"");lines.push(M.banner);
+ if(o) o.M=M;
  return lines.join("\n");
 }
 function copyEmailSummary(){
- if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
- const txt=buildEmailSummary();
+ if(!Object.keys(S.hosts).length){if(!MK_DRY)alert("Load scan data first.");return null;}
+ const o={}, txt=buildEmailSummary(o);
+ if(MK_DRY) return o.M;                          // a dry run only learns the marking
  $("emailSummaryPanel").style.display="block"; $("emailSummaryBox").value=txt;
+ /* it leaves the tool through the clipboard, not dl(), so it is logged here */
+ mkLogIssue("Email summary",o.M);
  try{navigator.clipboard.writeText(txt).then(
-   ()=>status("E-mail summary copied to clipboard (and shown below)."),
-   ()=>status("E-mail summary shown below — copy it from the box."));}
- catch(e){status("E-mail summary shown below — copy it from the box.");}
+   ()=>status("E-mail summary copied to clipboard (and shown below) — marked "+o.M.banner+"."),
+   ()=>status("E-mail summary shown below — copy it from the box. Marked "+o.M.banner+"."));}
+ catch(e){status("E-mail summary shown below — copy it from the box. Marked "+o.M.banner+".");}
+ return o.M;
 }
 
 /* ---- AI prompt package: briefing + JSON digest for an external approved AI.
    The tool makes no network calls; the user carries this file to whatever
    assistant their organization has cleared. Host names are withheld unless
-   explicitly included. ---- */
+   explicitly included. It is the one product made to leave on purpose, so it carries its
+   banner first and last, the digest and every item in it carry their marking, and a package
+   above what the AI platform is approved for (mkAiMax, CUI by default) stops for a decision. ---- */
 function exportAiPackage(){
- if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
+ if(!Object.keys(S.hosts).length){if(!MK_DRY)alert("Load scan data first.");return;}
  const incl=$("aiInclHosts")&&$("aiInclHosts").checked;
- const L=buildLenses(), st=lensStats(L), s=S.settings;
+ const L=buildLenses(), st=lensStats(L), s=S.settings, D=mkDoc("AI_GamePlan_Package");
  const strip=a=>incl?a:undefined;
- const pick=i=>({action:i.action,scope:i.scope,hosts:strip(i.hosts),severity:i.sev,effort:i.effort,why:i.why});
- const digest={
+ /* withholding host names does not lower an item: it still summarises those hosts' findings */
+ const pk=(R,label)=>mkPortion(D.row(R,label).mk);
+ const pick=i=>({marking:pk(i.mk,i.action),action:i.action,scope:i.scope,hosts:strip(i.hosts),severity:i.sev,effort:i.effort,why:i.why});
+ D.add(rptHeadMk(L.fu,false),"system and score source");
+ D.add(mkR(rptPostureMk(L),rptLensItems(L).map(i=>i.mk)),"summary counts");
+ const digest={marking:"",
   system:s.isName||"(unnamed system)", generated:today(), endpoints:st.endpoints,
   scoreSource:L.fu?L.fu.scoreLabel:"n/a (no threat intel loaded)",
   summary:{p1Groups:st.p1, unsupportedComponents:st.eol, recommendedActions:st.actions},
-  productExposure:L.px.slice(0,25).map(g=>({product:g.name,endpoints:g.hosts.size,hosts:strip([...g.hosts]),
+  productExposure:L.px.slice(0,25).map(g=>({marking:pk(g.mk,g.name),product:g.name,endpoints:g.hosts.size,hosts:strip([...g.hosts]),
     weaponized:g.weap,cves:g.cves.slice(0,10),topScore:g.best})),
-  osFootprint:L.osf.map(o=>({os:o.os,endpoints:o.hosts.length,hosts:strip(o.hosts),
+  osFootprint:L.osf.map(o=>({marking:pk(o.mk,o.os),os:o.os,endpoints:o.hosts.length,hosts:strip(o.hosts),
     pastEndOfSupport:!!(o.eol&&o.eol.state==="expired"),eolDate:o.eol?(o.eol.date||""):""})),
-  unsupported:L.eolF.map(x=>({component:x.row.name,version:x.row.version||"",hosts:x.row.hosts.length,
+  unsupported:L.eolF.map(x=>({marking:pk(x.mk,x.row.name),component:x.row.name,version:x.row.version||"",hosts:x.row.hosts.length,
     hostNames:strip([...x.row.hosts]),state:x.eol.state,eolDate:x.eol.date||""})),
   lenses:{quickStrikes:L.quick.map(pick),lowHangingFruit:L.fruit.map(pick),
           engineeringCampaigns:L.camp.map(pick),modernization:L.modern.map(pick)}
  };
- const md=[
+ const M=mkSeal(D); digest.marking=M.banner;
+ /* The gate. Skipped in a dry run, which only learns the marking. An unreadable ceiling reads
+    as "" -- which dominates nothing -- so it asks every time rather than waving anything through. */
+ const ceilTxt=s.mkAiMax==null||String(s.mkAiMax).trim()===""?"CUI":String(s.mkAiMax), ceil=mkKey(ceilTxt);
+ const ceilB=ceil?mkBanner(ceil):'"'+ceilTxt+'" (not a readable marking)';
+ if(!MK_DRY&&!mkDominates(ceil,M.key)&&!confirm("This AI prompt package is marked\n\n    "+M.banner
+   +"\n\nwhich is above what the AI platform is approved for: "+ceilB+".\n\n"
+   +"Export it only if the assistant you will paste it into is accredited for "+M.banner+". Export anyway?")){
+   status("AI prompt package NOT exported — it is marked "+M.banner+", above the AI platform's approved "+ceilB+".");
+   return;}
+ const cab=mkCab(M);
+ const md=[M.banner,"",
   "# AI game-plan request — paste this whole file into your approved AI assistant","",
-  (s.banner?("**Handling: "+s.banner+"** — confirm your AI platform is approved for this data before pasting."):""),"",
+  "**Handling: "+M.banner+"** — confirm your AI platform is approved for "+M.banner+" before pasting.","",
   "## Role","",
   "You are a cybersecurity remediation planner writing for senior leadership (military commander / CIO / COO). You receive a machine-generated digest of a network's vulnerability posture: scan-confirmed exposures fused with threat intelligence, grouped by product, plus OS footprint and lifecycle status.","",
   "## Task","",
   "1. For each lens (quick strikes, low-hanging fruit, engineering campaigns, modernization) write a short **game plan**: objective, 3-6 concrete sequenced steps, a suggested owner, a rough timeline, and one success measure.",
   "2. Write a **five-sentence executive summary** a non-technical leader can read aloud.",
   "3. Keep repetitive endpoint work **grouped** (e.g. \"Windows 10 upgrade × 8 endpoints\"), never host-by-host lists.",
-  "4. Flag anything in the digest that looks contradictory, stale, or in need of a human decision.","",
+  "4. Flag anything in the digest that looks contradictory, stale, or in need of a human decision.",
+  "5. Keep the markings: every digest item carries its portion marking (\"marking\"). Begin each part of your answer with the marking of the items it draws on, and treat the whole answer as "+M.banner+".","",
   "Plain language, action-first, no CVE lecture. "+(incl?"Host names are included and may be referenced.":"Host names were deliberately withheld — plan at the group level."),"",
   "## Data digest (JSON)","",
   "```json",
   JSON.stringify(digest,null,1),
   "```",""
- ].join("\n");
- dl("AI_GamePlan_Package_"+today()+".md",md,"text/markdown");
- status("AI prompt package exported"+(incl?" — host names INCLUDED.":" — host names withheld (counts and groups only)."));
+ ].concat(cab.length?cab.concat([""]):[],[M.banner]).join("\n");
+ dl("AI_GamePlan_Package_"+today()+".md",md,"text/markdown",M);
+ status("AI prompt package exported, marked "+M.banner+(incl?" — host names INCLUDED.":" — host names withheld (counts and groups only)."));
 }
 
 /* =========================================================================
@@ -4753,15 +4851,20 @@ function rptTiles(items,T){
   '<div class="tile"><div class="tv" style="color:'+(warn?T.critical:T.ink)+'">'+esc(String(v))+'</div>'
   +'<div class="tl">'+esc(l)+'</div></div>').join("")+'</div>';
 }
-/* Cells arrive as ready HTML so a builder can drop a tag in; callers escape. */
-function rptTable(cols,rows,T,foot){
+/* Cells arrive as ready HTML so a builder can drop a tag in; callers escape.
+   mks: one marking (an R or a key) per row. An entity table passes it, and when the document
+   shows portion marks each row leads with its own. */
+function rptTable(cols,rows,T,foot,mks){
  if(!rows.length) return "";
+ if(mks&&RPT_OPT.pm){cols=[{h:"Marking",w:"1%",mono:true,nw:true}].concat(cols);
+   rows=rows.map((r,i)=>['<b>'+esc(mkPortion(rptKey(mks[i])))+'</b>'].concat(r));}
  const al=o=>o.a==="r"?"right":o.a==="c"?"center":"left";
  const head=cols.map(c=>{const o=typeof c==="string"?{h:c}:c;
    return '<th style="text-align:'+al(o)+'">'+esc(o.h)+'</th>';}).join("");
  const body=rows.map(r=>'<tr>'+r.map((cell,i)=>{
    const o=typeof cols[i]==="string"?{}:(cols[i]||{});
    return '<td style="text-align:'+al(o)+(o.mono?';font-family:ui-monospace,Consolas,monospace':"")
+     +(o.nw?';white-space:nowrap;font-size:10.5px':"")
      +(o.dim?';color:'+T.ink2:"")+(o.w?';width:'+o.w:"")+'">'+cell+'</td>';}).join("")+'</tr>').join("");
  return '<table class="rt"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table>'
   +(foot?'<p class="rnote">'+esc(foot)+'</p>':"");
@@ -4793,11 +4896,18 @@ function rptCtrl(k){
    id      stable key used by presets and saved profiles -- do not rename
    group   how the builder groups the checkboxes
    need()  is there anything to say? empty sections drop out of the document
+   mk()    the section's marking: an R over EVERY record it shows or counts -- the tiles
+           summarise all of them even when the table is capped
    build() returns the section body as HTML                                */
 const RPT_SECTIONS = [
 {id:"scorecard", name:"Posture scorecard", group:"Summary",
  blurb:"The headline numbers, in one row of tiles.",
  need:()=>Object.keys(S.hosts).length>0,
+ /* endpoints, P1 and unsupported (posture); critical and past-window findings; STIG score over
+    every result; CAT I open; every recommended action */
+ mk:()=>{const L=buildLenses();
+  return mkR(rptPostureMk(L),vulnInstances().filter(i=>i.sev===4||i.overdue).map(i=>i.mk),
+    stigResultRows().map(r=>r.mk),rptLensItems(L).map(i=>i.mk));},
  build:T=>{
   const L=buildLenses(), st=lensStats(L), inst=vulnInstances();
   const sc=stigResultRows(), opens=stigOpenFindings();
@@ -4820,6 +4930,9 @@ const RPT_SECTIONS = [
 {id:"readiness", name:"Pre-delivery readiness", group:"Summary",
  blurb:"The QC checklist: what a reviewer will ask about first.",
  need:()=>Object.keys(S.hosts).length>0,
+ /* its checks read nearly everything loaded -- hosts, software, accounts, listings, inventory,
+    intel, STIG results, trend -- and name what they find, so it is marked as the workspace */
+ mk:()=>mkWorkspace(),
  build:T=>{
   const days=Number(($("staleDays")||{}).value)||35;
   const c=readiness(days), pass=c.filter(x=>x.ok).length;
@@ -4833,6 +4946,7 @@ const RPT_SECTIONS = [
 {id:"scanhealth", name:"Scan coverage & credentials", group:"Evidence quality",
  blurb:"Whether the scans authenticated — what every other section rests on.",
  need:()=>Object.keys(S.hosts).length>0,
+ mk:()=>mkR(Object.keys(S.hosts).map(mkE.host)),
  build:T=>{
   const hks=Object.keys(S.hosts).sort();
   const credOk=hks.filter(k=>scanCredOk(S.hosts[k]));
@@ -4858,34 +4972,37 @@ const RPT_SECTIONS = [
         ok?rptTag("yes",T.bar,T):(x.credChecks?rptTag("NO",T.critical,T):rptTag("not reported",T.warning,T)),
         '<span style="color:'+T.critical+'">'+esc(x.authIssue||"")+'</span>',
         esc(x.policy||""), fa===null?"—":(fa+"d"), esc((x.start||"").slice(0,16))];}),
-    T, rptCapNote(cut,"hosts"));
+    T, rptCapNote(cut,"hosts"), cut.rows.map(mkE.host));
   return h+rptCtrl("scanhealth");
  }},
 
 {id:"charts", name:"Posture charts", group:"Summary",
  blurb:"Priority tiers, most-exposed products, OS footprint.",
  need:()=>Object.keys(S.hosts).length>0 && !!rptCharts(RPT_THEME.light),
- build:T=>rptCharts(T)},
+ mk:()=>rptChartsMk(),
+ build:T=>rptCharts(T,RPT_OPT.pm)},
 
 {id:"lenses", name:"Leadership lenses", group:"Decision",
  blurb:"Grouped recommended actions: quick strikes, easy wins, campaigns, modernization.",
  need:()=>{const L=buildLenses();return L.quick.length+L.fruit.length+L.camp.length+L.modern.length>0;},
+ mk:()=>mkR(rptLensItems(buildLenses()).map(i=>i.mk)),
  build:T=>{
   const L=buildLenses();
   return LENS_META.map(([k,title,sub])=>{
     const cut=rptCap(L[k]); if(!L[k].length) return "";
-    return '<h3>'+esc(title)+'</h3><p class="rsub">'+esc(sub)+'</p>'
+    return '<h3>'+rptPmSpan(mkR(L[k].map(i=>i.mk)))+esc(title)+'</h3><p class="rsub">'+esc(sub)+'</p>'
      +rptTable([{h:"Sev",w:"96px"},"Action (grouped)",{h:"Scope",w:"150px"},"Why",{h:"Effort",w:"110px"}],
        cut.rows.map(i=>[
          rptTag(i.sev.toUpperCase(),rptSevColor(i.sev==="critical"?4:i.sev==="serious"?3:2,T),T),
          '<b>'+esc(i.action)+'</b>', rptScope(i.hosts,"endpoint"),
          '<span style="color:'+T.ink2+'">'+esc(i.why)+'</span>', esc(i.effort)]),
-       T, rptCapNote(cut,"actions"));}).join("");
+       T, rptCapNote(cut,"actions"), cut.rows.map(i=>i.mk));}).join("");
  }},
 
 {id:"remediation", name:"Remediation plan", group:"Decision",
  blurb:"Grouped by the fix that closes them — what to do, in order.",
  need:()=>remediationPlan(vulnInstances()).length>0,
+ mk:()=>mkR(remediationPlan(vulnInstances()).map(r=>r.mk)),
  build:T=>{
   const cut=rptCap(remediationPlan(vulnInstances()));
   return rptLead("Ranked by how much risk each fix retires. One row is one action, however many hosts it clears.")
@@ -4900,13 +5017,14 @@ const RPT_SECTIONS = [
         String(r.c.total), r.c.expl?String(r.c.expl):"·",
         r.c.overdue?'<b style="color:'+T.critical+'">'+r.c.overdue+'</b>':"·",
         String(r.score)]),
-     T, rptCapNote(cut,"actions"))
+     T, rptCapNote(cut,"actions"), cut.rows.map(r=>r.mk))
    +rptCtrl("vulns");
  }},
 
 {id:"vulns", name:"Vulnerability rollup", group:"Findings",
  blurb:"Every severity-rated finding, one row per weakness.",
  need:()=>vulnGroups().length>0,
+ mk:()=>mkR(vulnGroups().map(v=>v.mk)),
  build:T=>{
   const g=vulnGroups(), cut=rptCap(g);
   const n=s=>g.filter(x=>x.sev===s).length;
@@ -4919,21 +5037,22 @@ const RPT_SECTIONS = [
         v.age===null?"—":(v.age+"d"),
         '<span style="color:'+T.ink2+';font-size:11px">'+esc(v.cves.slice(0,6).join(", "))
           +(v.cves.length>6?" +"+(v.cves.length-6):"")+'</span>']),
-     T, rptCapNote(cut,"findings"));
+     T, rptCapNote(cut,"findings"), cut.rows.map(v=>v.mk));
  }},
 
 {id:"poam", name:"POA&M line items (combined)", group:"Findings",
  blurb:"Scan findings and open STIG rules as one list — the two POA&M drafts side by side.",
  need:()=>vulnGroups().length>0||stigOpenFindings().length>0,
+ mk:()=>mkR(vulnGroups().filter(v=>v.sev>=2).map(v=>v.mk),stigOpenFindings().map(o=>o.mk)),
  build:T=>{
   const rows=[];
   vulnGroups().filter(v=>v.sev>=2).forEach(v=>rows.push({
     src:"Scan", sev:v.sev, id:(v.cves[0]||""), title:v.name,
-    scope:v.hosts, fix:v.fix||"", extra:v.overdue?"past window":""}));
+    scope:v.hosts, fix:v.fix||"", extra:v.overdue?"past window":"", mk:v.mk}));
   stigOpenFindings().forEach(o=>rows.push({
     src:"STIG", sev:o.rule.severity==="high"?4:o.rule.severity==="medium"?3:2,
     id:o.rule.vid||o.rule.ruleId||"", title:o.rule.title||"", scope:[o.host],
-    fix:o.stig, extra:o.rule.severity==="high"?"CAT I":""}));
+    fix:o.stig, extra:o.rule.severity==="high"?"CAT I":"", mk:o.mk}));
   rows.sort((a,b)=>b.sev-a.sev||String(a.title).localeCompare(String(b.title)));
   const cut=rptCap(rows);
   return rptLead("Both halves of the plan of action in one place — scan findings and open STIG rules, "
@@ -4945,13 +5064,14 @@ const RPT_SECTIONS = [
         rptTag(r.sev===4?"Critical / CAT I":r.sev===3?"High / CAT II":"Medium / CAT III",rptSevColor(r.sev,T),T),
         esc(r.id), esc(r.title)+(r.extra?' '+rptTag(r.extra,T.critical,T):""),
         rptScope(r.scope,"host"), '<span style="color:'+T.ink2+'">'+esc(r.fix)+'</span>']),
-     T, rptCapNote(cut,"line items"))
+     T, rptCapNote(cut,"line items"), cut.rows.map(r=>r.mk))
    +rptCtrl("vulns");
  }},
 
 {id:"stigcompliance", name:"STIG compliance results", group:"Configuration",
  blurb:"Per-rule results from SCC or STIG Viewer — which checks actually pass.",
  need:()=>stigResultRows().length>0,
+ mk:()=>mkR(stigResultRows().map(r=>r.mk)),
  build:T=>{
   const rows=stigResultRows(), opens=stigOpenFindings(), cut=rptCap(rows);
   const assessed=rows.reduce((n,r)=>n+r.c.Open+r.c.NotAFinding,0);
@@ -4970,13 +5090,15 @@ const RPT_SECTIONS = [
         r.c.catOpen.high?'<b style="color:'+T.critical+'">'+r.c.catOpen.high+'</b>':"·",
         r.c.Open?String(r.c.Open):"·", String(r.c.NotAFinding),
         r.c.Not_Reviewed?String(r.c.Not_Reviewed):"·"]),
-     T, rptCapNote(cut,"host/STIG pairs"))
+     T, rptCapNote(cut,"host/STIG pairs"), cut.rows.map(r=>r.mk))
    +rptCtrl("stigcompliance");
  }},
 
 {id:"stigcoverage", name:"STIG coverage gaps", group:"Configuration",
  blurb:"Baselines that apply but were never assessed — invisible in either artifact alone.",
  need:()=>{try{return stigCoverage().gaps.length>0;}catch(e){return false;}},
+ /* the tiles count all three lists */
+ mk:()=>{const cv=stigCoverage();return mkR(cv.gaps.map(g=>g.mk),cv.covered.map(g=>g.mk),cv.extra.map(g=>g.mk));},
  build:T=>{
   const cv=stigCoverage(), cut=rptCap(cv.gaps);
   return rptLead("A STIG that applies but was never run shows as compliant in the results and as applicable "
@@ -4984,28 +5106,32 @@ const RPT_SECTIONS = [
    +rptTiles([[cv.covered.length,"applicable and assessed"],[cv.gaps.length,"applicable, never assessed",cv.gaps.length>0],
               [cv.extra.length,"assessed but not marked applicable"]],T)
    +rptTable(["Host","STIG that applies but was never assessed"],
-     cut.rows.map(g=>[esc(g.host),esc(g.stig)]),T,rptCapNote(cut,"gaps"));
+     cut.rows.map(g=>[esc(g.host),esc(g.stig)]),T,rptCapNote(cut,"gaps"),cut.rows.map(g=>g.mk));
  }},
 
 {id:"stigapplicability", name:"STIG applicability", group:"Configuration",
  blurb:"Which baselines apply across the enclave, and to how many hosts.",
  need:()=>Object.keys(S.hosts).length>0&&activeCols().length>0,
+ /* each row counts the hosts a baseline applies to; the column catalog is site configuration */
+ mk:()=>{const cols=activeCols();
+  return mkR(Object.keys(S.hosts).filter(hk=>cols.some(c=>stigMark(hk,c.name).on)).map(mkE.host));},
  build:T=>{
   const hks=Object.keys(S.hosts);
-  const rows=activeCols().map(c=>({name:c.name,ver:c.ver||"",
-    n:hks.filter(hk=>stigMark(hk,c.name).on).length})).filter(r=>r.n).sort((a,b)=>b.n-a.n);
+  const rows=activeCols().map(c=>{const on=hks.filter(hk=>stigMark(hk,c.name).on);
+    return {name:c.name,ver:c.ver||"",n:on.length,on};}).filter(r=>r.n).sort((a,b)=>b.n-a.n);
   const cut=rptCap(rows);
   return rptLead("Columns activate from scan evidence, so this reflects the enclave assessed rather than a preset list. "
      +"The full host-by-host matrix is in the STIG Applicability CSV.")
    +rptTable(["STIG / product",{h:"Version",w:"110px",mono:true},{h:"Hosts",a:"r",w:"70px"}],
      cut.rows.map(r=>[esc(r.name), r.ver?esc(r.ver):rptTag("ver?",T.warning,T), String(r.n)]),
-     T, rptCapNote(cut,"columns"))
+     T, rptCapNote(cut,"columns"), RPT_OPT.pm?cut.rows.map(r=>mkR(r.on.map(mkE.host))):null)
    +rptCtrl("stig");
  }},
 
 {id:"software", name:"Software baseline", group:"Baseline",
  blurb:"The de-duplicated product inventory and its approval status.",
  need:()=>Object.keys(S.software).length>0,
+ mk:()=>mkR(Object.keys(S.software).filter(k=>S.software[k].include).map(mkE.sw)),
  build:T=>{
   const all=swKeysSorted().map(k=>S.software[k]).filter(r=>r.include);
   const cut=rptCap(all);
@@ -5022,13 +5148,14 @@ const RPT_SECTIONS = [
          e?(e.state==="expired"?rptTag("unsupported "+(e.date||""),T.critical,T)
             :e.state==="unknown"?rptTag("verify",T.warning,T)
             :'<span style="color:'+T.ink2+'">to '+esc(e.date)+'</span>'):""];}),
-     T, rptCapNote(cut,"products"))
+     T, rptCapNote(cut,"products"), cut.rows.map(mkE.swRow))
    +rptCtrl("software");
  }},
 
 {id:"assets", name:"Asset inventory", group:"Baseline",
  blurb:"One row per asset, scan-derived fields plus what you filled in.",
  need:()=>Object.keys(S.assets).length>0,
+ mk:()=>mkR(Object.keys(S.assets).map(mkE.asset)),
  build:T=>{
   const keys=assetKeys(), cut=rptCap(keys);
   const man=keys.filter(k=>S.assets[k].fromScan===false).length;
@@ -5042,15 +5169,16 @@ const RPT_SECTIONS = [
        return [esc(a.name)+(a.fromScan===false?" "+rptTag("manual",T.neutral,T):""),
          esc(a.ip||""), esc(a.os||""), esc(a.type||""), esc(a.owner||""),
          esc(a.location||""), esc(a.lastSeen||"—")];}),
-     T, rptCapNote(cut,"assets"))
+     T, rptCapNote(cut,"assets"), cut.rows.map(mkE.asset))
    +rptCtrl("assets");
  }},
 
 {id:"ppsm", name:"Ports, protocols & services", group:"Baseline",
  blurb:"Listening services evidenced by the scans, in registration shape.",
  need:()=>Object.keys(S.ppsm).length>0,
+ mk:()=>mkR(Object.keys(S.ppsm).filter(k=>S.ppsm[k].include).map(mkE.port)),
  build:T=>{
-  const all=Object.keys(S.ppsm).sort().map(k=>S.ppsm[k]).filter(r=>r.include);
+  const ks=Object.keys(S.ppsm).sort().filter(k=>S.ppsm[k].include), all=ks.map(k=>S.ppsm[k]);
   const cut=rptCap(all);
   return rptLead("Scan evidence shows <b>listening</b> services only. Required outbound flows — NTP upstream, "
      +"syslog forwarding, the scanner reaching its targets — do not appear here and still need accounting for. "
@@ -5065,13 +5193,14 @@ const RPT_SECTIONS = [
      cut.rows.map(r=>[esc(r.proto.toUpperCase()), String(r.port), esc(r.svc||""), esc(r.app||""),
         String(r.hosts.length),
         (r.boundaries.filter(x=>x&&x.trim()).length||rptTag("none",T.warning,T))+""]),
-     T, rptCapNote(cut,"port tuples"))
+     T, rptCapNote(cut,"port tuples"), ks.slice(0,cut.rows.length).map(mkE.port))
    +rptCtrl("ppsm");
  }},
 
 {id:"accounts", name:"Account audit", group:"Evidence quality",
  blurb:"Enumerated accounts and the exception states worth explaining.",
  need:()=>acctRows().length>0,
+ mk:()=>mkR(acctRows().map(r=>r.mk)),
  build:T=>{
   const rows=acctRows();
   const flagged=rows.filter(r=>acctAssess(r.a)&&acctAssess(r.a)!=="");
@@ -5084,13 +5213,14 @@ const RPT_SECTIONS = [
      cut.rows.map(r=>[esc(r.host), esc(r.a.name), esc(r.a.src||""),
         '<span style="color:'+T.ink2+';font-size:11px">'+esc((r.a.groups||[]).join(", "))+'</span>',
         '<span style="color:'+T.ink2+'">'+esc(acctAssess(r.a))+'</span>']),
-     T, rptCapNote(cut,"accounts"))
+     T, rptCapNote(cut,"accounts"), cut.rows.map(r=>r.mk))
    +rptCtrl("accounts");
  }},
 
 {id:"eol", name:"Unsupported components", group:"Findings",
  blurb:"Past vendor end-of-support, or lifecycle still to confirm.",
  need:()=>eolFindings().length>0,
+ mk:()=>mkR(eolFindings().map(x=>x.mk)),
  build:T=>{
   const f=eolFindings(), cut=rptCap(f);
   return rptLead("<b>Verify each against the vendor's lifecycle page before citing it.</b> LTSC/LTSB builds and "
@@ -5104,17 +5234,23 @@ const RPT_SECTIONS = [
      cut.rows.map(x=>[x.eol.state==="expired"?rptTag("UNSUPPORTED",T.critical,T):rptTag("VERIFY",T.warning,T),
         esc(x.row.name), esc(x.row.version||""), esc(x.eol.date||"—"),
         String(x.row.hosts.length), '<span style="color:'+T.ink2+'">'+esc(x.eol.note||"")+'</span>']),
-     T, rptCapNote(cut,"components"))
+     T, rptCapNote(cut,"components"), cut.rows.map(x=>x.mk))
    +rptCtrl("eol");
  }},
 
 {id:"recon", name:"Asset reconciliation", group:"Evidence quality",
  blurb:"Assets that never scanned, and hosts nobody expected.",
  need:()=>{const r=reconcile();return r.notScanned.length>0||r.notInInv.length>0;},
+ /* the tiles count the authoritative list (the pasted inventory, else the asset records) and
+    every scanned host */
+ mk:()=>mkR((S.inventory||[]).length?mkE.typed():Object.keys(S.assets).map(mkE.asset),Object.keys(S.hosts).map(mkE.host)),
  build:T=>{
-  const r=reconcile();
-  const rows=r.notScanned.map(i=>["In inventory, never scanned",i.name,i.type||"",i.note||""])
-    .concat(r.notInInv.map(h=>["Scanned, not in inventory",h.name,h.ip||"",h.os||""]));
+  const r=reconcile(), typed=(S.inventory||[]).length>0;
+  const hix=new Map(Object.keys(S.hosts).map(k=>[S.hosts[k],k]));
+  /* [status, asset, type/IP, note, marking]: a pasted row is the operator's, an asset record
+     its own, an unexpected host its host record */
+  const rows=r.notScanned.map(i=>["In inventory, never scanned",i.name,i.type||"",i.note||"",typed?mkE.typed():mkE.asset(i.name)])
+    .concat(r.notInInv.map(h=>["Scanned, not in inventory",h.name,h.ip||"",h.os||"",hix.has(h)?mkE.host(hix.get(h)):mkWorkspace()]));
   const cut=rptCap(rows);
   return rptLead("A list built only from scan results can never reveal an asset that failed to scan — which is "
      +"the main thing worth catching.")
@@ -5124,13 +5260,15 @@ const RPT_SECTIONS = [
    +rptTable([{h:"Status",w:"210px"},"Asset",{h:"Type / IP",w:"140px"},"Note"],
      cut.rows.map(x=>[x[0].indexOf("never")>=0?rptTag("NEVER SCANNED",T.critical,T):rptTag("UNEXPECTED",T.serious,T),
         esc(x[1]), esc(x[2]), '<span style="color:'+T.ink2+'">'+esc(x[3])+'</span>']),
-     T, rptCapNote(cut,"assets"))
+     T, rptCapNote(cut,"assets"), cut.rows.map(x=>x[4]))
    +rptCtrl("recon");
  }},
 
 {id:"trend", name:"Trend & burndown", group:"Decision",
  blurb:"Whether the posture is improving — the question no single scan answers.",
  need:()=>(S.trend||[]).length>1,
+ /* each cycle keeps the marking of the dataset it was counted from */
+ mk:()=>mkR((S.trend||[]).map(mkE.trend)),
  build:T=>{
   const pts=S.trend||[];
   const vals=k=>pts.map(p=>p.stats[k]===undefined?null:p.stats[k]);
@@ -5158,6 +5296,8 @@ const RPT_SECTIONS = [
 {id:"controls", name:"Control mapping", group:"Reference",
  blurb:"Which NIST 800-53 controls each artifact supports, in plain language.",
  need:()=>true,
+ /* the tool's own reference text: nothing loaded is in it */
+ mk:()=>mkE.floor(),
  build:T=>rptTable(["Artifact",{h:"Controls",w:"170px",mono:true},"What it demonstrates"],
    [["STIG Applicability Matrix","stig"],["Software Listing","software"],["Approved Software List","approved"],
     ["Asset Inventory","assets"],["Asset Reconciliation","recon"],["Change Record","changes"],
@@ -5172,14 +5312,19 @@ const RPT_SECTIONS = [
 {id:"hosts", name:"Per-asset appendix", group:"Reference",
  blurb:"One block per host: identity, scan provenance, findings, STIG, accounts.",
  need:()=>Object.keys(S.hosts).length>0,
+ /* Only the dossiers actually printed: a host the row cap leaves out adds nothing of its own,
+    only its host record, because the closing note counts it. */
+ mk:()=>{const cut=rptCap(rptHostOrder());
+  return mkR(cut.rows.map(hk=>{const d=rptDossier(hk);return d?rptDossierMk(d):mkE.host(hk);}),
+    cut.more?rptHostOrder().slice(cut.rows.length).map(mkE.host):[]);},
  build:T=>{
-  const keys=Object.keys(S.hosts).sort((a,b)=>S.hosts[a].name.localeCompare(S.hosts[b].name));
+  const keys=rptHostOrder();
   const cut=rptCap(keys);
   return rptLead("Host-level detail for the record. The matching per-asset CSV carries the full finding list.")
-   +cut.rows.map(hk=>{const d=hostDossier(hk); if(!d) return "";
+   +cut.rows.map(hk=>{const d=rptDossier(hk); if(!d) return "";
      const h=d.h, sc=h.scan||{};
      const kv=(k,v)=>v?'<div class="kv"><span>'+esc(k)+'</span><b>'+esc(v)+'</b></div>':"";
-     return '<div class="hostblk"><h4>'+esc(h.name)+(h.ip?' <span class="dim">'+esc(h.ip)+'</span>':"")
+     return '<div class="hostblk"><h4>'+(RPT_OPT.pm?rptPmSpan(rptDossierMk(d)):"")+esc(h.name)+(h.ip?' <span class="dim">'+esc(h.ip)+'</span>':"")
        +(scanCredOk(h)?"":" "+rptTag("NOT CREDENTIALED",T.critical,T))+'</h4>'
        +'<div class="kvs">'+kv("Operating system",h.os)+kv("Device type",S.stig.device[hk]||"")
        +kv("Last scanned",h.lastSeen)+kv("Scan policy",sc.policy)+kv("MAC",h.mac)
@@ -5191,13 +5336,19 @@ const RPT_SECTIONS = [
        +kv("Listening ports",String(d.ports.length))+'</div>'
        +(d.stig.length?rptTable(["STIG",{h:"Score",a:"r",w:"56px"},{h:"CAT I",a:"c",w:"52px"},{h:"Open",a:"c",w:"52px"}],
           d.stig.map(r=>[esc(r.rec.title),r.score===null?"—":(r.score+"%"),
-            String(r.c.catOpen.high),String(r.c.Open)]),T):"")
+            String(r.c.catOpen.high),String(r.c.Open)]),T,"",d.stig.map(r=>r.mk)):"")
        +(d.eol.length?'<p class="rnote"><b style="color:'+T.critical+'">Unsupported here:</b> '
           +esc(d.eol.map(x=>x.r.name).join(", "))+'</p>':"")
        +'</div>';}).join("")
    +(cut.more?'<p class="rnote">'+cut.more+' more asset(s) not shown — raise the row cap or use the per-asset CSV.</p>':"");
  }}
 ];
+
+/* the appendix's host order, shared by its marking and its body so they cut at the same row */
+function rptHostOrder(){return Object.keys(S.hosts).sort((a,b)=>S.hosts[a].name.localeCompare(S.hosts[b].name));}
+/* a dossier walks every finding, STIG result and account, so one build computes each once for
+   its marking and its body (RPT_OPT is new per build) */
+function rptDossier(hk){const c=RPT_OPT.dz||(RPT_OPT.dz=new Map());if(!c.has(hk))c.set(hk,hostDossier(hk));return c.get(hk);}
 
 /* =================== presets ============================================
    Shipped as starting points, not as an opinion about who reads reports.
@@ -5227,14 +5378,22 @@ function rptPresets(){
 }
 
 /* =================== document assembly ================================== */
-function rptStyles(T){
+/* M: the document's sealed marking -- the banner takes its level's colour. print-color-adjust
+   keeps that colour on paper: without it a browser drops the background when printing and the
+   white banner text vanishes from every page. */
+function rptStyles(T,M){
  return '@page{size:letter;margin:16mm 12mm}'
  +'*{box-sizing:border-box}'
  +'body{margin:0;background:'+T.page+';color:'+T.ink+';line-height:1.5;'
    +'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13.5px}'
  +'.wrap{max-width:940px;margin:0 auto;padding:26px 24px 70px}'
- +'.bnr{background:#5b2ea6;color:#fff;text-align:center;font-weight:700;letter-spacing:.2em;'
+ +'.bnr{'+mkBannerCss(M||{tier:"none"})+';text-align:center;font-weight:700;letter-spacing:.2em;'
    +'padding:5px 0;font-size:11px;text-transform:uppercase}'
+ +'.bnr,.mkchip{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+ +'.pg{width:100%;border-collapse:collapse}.pg>thead,.pg>tfoot{display:none}.pg>tbody>tr>td{padding:0}'
+ +'.mkchip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10.5px;font-weight:700;'
+   +'letter-spacing:.05em;white-space:nowrap}'
+ +'.pm{font-weight:700;white-space:nowrap}'
  +'h1{font-size:22px;margin:0 0 3px;letter-spacing:-.2px}'
  +'h2{font-size:16.5px;margin:0 0 3px;letter-spacing:-.1px}'
  +'h3{font-size:14px;margin:20px 0 2px}'
@@ -5279,17 +5438,28 @@ function rptStyles(T){
    +'.noprint{display:none!important}'
    +'.bnrT{position:fixed;top:0;left:0;right:0}'
    +'.bnrB{position:fixed;bottom:0;left:0;right:0}'
+   +'.pg>thead{display:table-header-group}.pg>tfoot{display:table-footer-group}.pgsp{height:9mm}'
    +'body{background:#fff}'
-   +'.wrap{padding:12mm 0 12mm;max-width:none}'
+   +'.wrap{padding:0;max-width:none}'
    +'.sec{break-before:page}'
    +'.sec:first-of-type{break-before:auto}'
    +'.sechd,h3,h4{break-after:avoid}'
-   +'tr,figure,.tile,.hostblk,.rctrl{break-inside:avoid}'
+   +'tr,figure,.tile,.hostblk,.rctrl,.mkcab{break-inside:avoid}'
    +'thead{display:table-header-group}'
    +'.toc{break-after:page}'
    +'a{color:inherit;text-decoration:none}'
  +'}';
 }
+/* Print: the banners are position:fixed, so they repeat at the top and bottom of every page. A
+   fixed box takes no room, though, and every page after the first used to print its first line
+   -- usually a section heading and its portion mark -- under the top banner. This table's
+   header and footer groups repeat on every printed page too and hold the banners' height, so no
+   line ever prints under a banner. On screen they are not displayed. */
+function rptPage(inner){
+ return '<table class="pg"><thead><tr><td><div class="pgsp"></div></td></tr></thead>'
+  +'<tfoot><tr><td><div class="pgsp"></div></td></tr></tfoot><tbody><tr><td>'+inner+'</td></tr></tbody></table>';}
+/* opts.out, when given, receives the sealed marking (out.M) -- for dl(), the package, the
+   preview note. */
 function buildReport(ids,opts){
  const T=RPT_THEME.light, s=S.settings;
  /* preview:true -> the document is about to become the srcdoc of the sandboxed #rptPreview
@@ -5297,43 +5467,64 @@ function buildReport(ids,opts){
     script-src; the operator prints it from the parent (printPreview). The EXPORT is the same
     document plus one button, and its policy names that button's hash and nothing else. */
  const preview=!!(opts&&opts.preview);
- RPT_OPT=Object.assign({cap:40,hosts:false},opts||{});
+ RPT_OPT=Object.assign({cap:40,hosts:false},opts||{});RPT_OPT.pm=false;
  const chosen=(ids&&ids.length?ids:RPT_PRESETS_BUILTIN.leadership.sections);
- const live=RPT_SECTIONS.filter(x=>chosen.indexOf(x.id)>=0)
-   .map(x=>{let body="";try{if(x.need())body=x.build(T);}catch(e){
-      body='<p class="rnote">This section could not be built: '+esc(e.message)+'</p>';}
-     return {sec:x,body};})
-   .filter(x=>x.body);
  const fu=Object.keys(S.intel.rows).length?getIntelFusion():null;
- const banner=cls=>'<div class="bnr '+cls+'">'+esc(s.banner||"UNCLASSIFIED")+'</div>';
+ /* Marking. Each included section is a portion marked by every record it shows or counts
+    (sec.mk). The front matter is a portion too: the title and note are the operator's, the
+    meta line counts every endpoint and names the system and the score source; the footer names
+    the score source. The banner is the join of those portions only -- a section left out, or one
+    with nothing to say, never raises it -- then the floor and any override (mkSeal). Each
+    section's marking is known before its body is built, so the body can carry portion marks. */
+ const cand=RPT_SECTIONS.filter(x=>chosen.indexOf(x.id)>=0).map(x=>{
+   let has=false,err=null;try{has=!!x.need();}catch(e){err=e;}
+   if(!has&&!err) return null;
+   /* a section without mk(), or whose mk() fails, is marked as everything loaded: never lower */
+   let R;try{R=x.mk?x.mk():mkWorkspace();}catch(e){R=mkWorkspace();}
+   return {sec:x,R,err,body:""};}).filter(Boolean);
+ const ttlR=mkE.typed(), headR=rptHeadMk(fu,true), footR=rptScoreMk(fu)||mkE.floor(), note=opts&&opts.note;
+ const seal=secs=>{const D=mkDoc("Report");D.add(ttlR,"title");D.add(headR,"endpoint count, system, score source");
+   if(note)D.add(ttlR,"preset note");D.add(footR,"footer");secs.forEach(x=>D.add(x.R,x.sec.name));return mkSeal(D);};
+ const build=()=>cand.forEach(x=>{try{x.body=x.err?'<p class="rnote">This section could not be built: '+esc(x.err.message)+'</p>':x.sec.build(T);}
+   catch(e){x.body='<p class="rnote">This section could not be built: '+esc(e.message)+'</p>';}});
+ RPT_OPT.pm=rptPm(seal(cand)); build();
+ const live=cand.filter(x=>x.body);
+ const M=seal(live);
+ /* a dropped empty section can only lower the marking; rebuild if that turns portion marks off */
+ if(rptPm(M)!==RPT_OPT.pm){RPT_OPT.pm=rptPm(M);build();}
+ if(opts&&opts.out) opts.out.M=M;
+ const P=rptPmSpan;
+ const banner=cls=>'<div class="bnr '+cls+'">'+esc(M.banner)+'</div>';
  const toc=live.length>1
   ? '<div class="toc"><b>Contents</b><ol>'+live.map(x=>'<li><a href="#s-'+x.sec.id+'">'
-      +esc(x.sec.name)+'</a></li>').join("")+'</ol></div>' : "";
+      +P(x.R)+esc(x.sec.name)+'</a></li>').join("")+'</ol></div>' : "";
  const body=live.map((x,i)=>'<section class="sec" id="s-'+x.sec.id+'">'
-   +'<div class="sechd"><div class="n">Section '+(i+1)+'</div><h2>'+esc(x.sec.name)+'</h2>'
+   +'<div class="sechd"><div class="n">Section '+(i+1)+'</div><h2>'+P(x.R)+esc(x.sec.name)+'</h2>'
    +'<p>'+esc(x.sec.blurb)+'</p></div>'+x.body+'</section>').join("");
  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
   +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\''
     +(preview?'':'; script-src \'unsafe-hashes\' \'sha256-MguIPR6qNR8D3B+eAlK+bIRTZe8t3wkOY4B/56Me9FU=\'')+'">'
   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
   +'<title>'+esc((opts&&opts.title)||"Assessment Report")+' — '+esc(s.isName||"")+' '+today()+'</title>'
-  +'<style>'+rptStyles(T)+'</style></head><body>'
+  +'<style>'+rptStyles(T,M)+'</style></head><body>'
   +banner("bnrT")
   +(preview?"":'<div class="pbar noprint"><button onclick="window.print()">Print / Save as PDF</button></div>') /*EXPORT-ONLY-HANDLER*/
-  +'<div class="wrap">'
-  +'<h1>'+esc((opts&&opts.title)||"Assessment Report")+'</h1>'
-  +'<p class="meta">'+esc(s.isName||"(system name not set — fill Settings)")+' &middot; generated '+today()
+  +rptPage('<div class="wrap">'
+  +'<h1>'+P(ttlR)+esc((opts&&opts.title)||"Assessment Report")+'</h1>'
+  +'<p class="meta">'+P(headR)+esc(s.isName||"(system name not set — fill Settings)")+' &middot; generated '+today()
     +' &middot; '+Object.keys(S.hosts).length+' endpoint(s)'
     +(fu?' &middot; priority scoring: '+esc(fu.scoreLabel):' &middot; no threat intel loaded')
     +' &middot; produced fully offline by Palisade</p>'
-  +((opts&&opts.note)?'<p class="rlead">'+esc(opts.note)+'</p>':"")
+  /* the authority block / CUI designation indicator, on the first page under the title */
+  +mkCabHtml(M)
+  +(note?'<p class="rlead">'+P(ttlR)+esc(note)+'</p>':"")
   +toc+body
-  +'<p class="foot">Evidence-derived from Tenable / ACAS scan exports'
+  +'<p class="foot">'+P(footR)+'Evidence-derived from Tenable / ACAS scan exports'
     +(fu?' fused with threat intelligence ('+esc(fu.scoreLabel)+')':'')
     +'. Data is as of the underlying scan dates. Long tables are capped at '+RPT_OPT.cap
     +' rows in this document; the matching CSV exports carry every row. Prioritization guides remediation '
     +'order; approval, acceptance, and scheduling decisions remain with the ISSM.</p>'
-  +'</div>'+banner("bnrB")+'</body></html>';
+  +'</div>')+banner("bnrB")+'</body></html>';
 }
 
 /* =========================================================================
@@ -5354,7 +5545,9 @@ const CRC_TABLE=(()=>{const t=new Uint32Array(256);
 function crc32(u8){let c=0xFFFFFFFF;
  for(let i=0;i<u8.length;i++)c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8);
  return (c^0xFFFFFFFF)>>>0;}
-async function zipMake(files){
+/* comment: the archive comment (the package's banner), so the marking travels on the container
+   itself and an archive tool shows it before anything is extracted */
+async function zipMake(files,comment){
  const enc=new TextEncoder(), local=[], central=[], dir=[];
  const d=new Date();
  const dosTime=((d.getHours()<<11)|(d.getMinutes()<<5)|Math.floor(d.getSeconds()/2))&0xFFFF;
@@ -5397,11 +5590,12 @@ async function zipMake(files){
    central.push(new Uint8Array(h.buffer),e.name);
    off+=46+e.name.length;
  }
+ const note=enc.encode(String(comment||"").replace(/[^\x20-\x7e]/g,"")).slice(0,0xFFFF);
  const eocd=new DataView(new ArrayBuffer(22));
  eocd.setUint32(0,0x06054b50,true); eocd.setUint16(4,0,true); eocd.setUint16(6,0,true);
  eocd.setUint16(8,dir.length,true); eocd.setUint16(10,dir.length,true);
- eocd.setUint32(12,off-cdStart,true); eocd.setUint32(16,cdStart,true); eocd.setUint16(20,0,true);
- return new Blob([...local,...central,new Uint8Array(eocd.buffer)],{type:"application/zip"});
+ eocd.setUint32(12,off-cdStart,true); eocd.setUint32(16,cdStart,true); eocd.setUint16(20,note.length,true);
+ return new Blob([...local,...central,new Uint8Array(eocd.buffer),note],{type:"application/zip"});
 }
 
 /* Which folder a file lands in, and what the index says about it. Matched on
@@ -5453,15 +5647,20 @@ const PKG_FOLDERS={
  "9-other":           ["Other","Files with no folder rule yet."]
 };
 
-/* Runs every export with downloads intercepted, then wraps the lot in one zip. */
+/* Runs every export with downloads intercepted, then wraps the lot in one zip.
+   Marking: every captured file carries the marking it was sealed with (dl's M). The package --
+   the zip and its index -- is marked at the join of all of them; the index lists each file's
+   banner, each folder's highest, and the files that cannot carry a banner inside them. The zip
+   carries the banner as its archive comment, and its release is logged once, under it. */
 async function exportPackage(){
- if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
+ if(!Object.keys(S.hosts).length){if(!MK_DRY)alert("Load scan data first.");return;}
  status("Building evidence package…");
- const cap=[]; DL_CAPTURE=cap;
+ /* a caller's own capture (a dry run learning markings) is put back afterwards */
+ const prev=DL_CAPTURE, cap=[]; DL_CAPTURE=cap;
  try{
-   const o=rptOpts();
-   dl(((o.title||"Assessment_Report").replace(/[^A-Za-z0-9]+/g,"_"))+"_"+today()+".html",
-      buildReport(rptSel&&rptSel.length?rptSel:RPT_PRESETS_BUILTIN.full.sections,o),"text/html");
+   const o=rptOpts(), out={};
+   const html=buildReport(rptSel&&rptSel.length?rptSel:RPT_PRESETS_BUILTIN.full.sections,Object.assign(o,{out}));
+   dl(((o.title||"Assessment_Report").replace(/[^A-Za-z0-9]+/g,"_"))+"_"+today()+".html",html,"text/html",out.M);
    exportSTIG(); exportSoftware(); exportPPSM(); exportPPSMcsv();
    exportAssets(); exportEol(); exportControlMap();
    exportEmassSoftware(); exportEmassHardware(); exportOsPackages(); exportApprovalSheet();
@@ -5481,44 +5680,69 @@ async function exportPackage(){
       "reload the package next cycle" workflow for people who want it. */
    if($("pkgInclSession")&&$("pkgInclSession").checked) saveSession();
  }catch(e){
-   DL_CAPTURE=null;
-   alert("Package build failed while producing an artifact: "+e.message
+   DL_CAPTURE=prev;
+   if(!MK_DRY)alert("Package build failed while producing an artifact: "+e.message
      +"\n\nUse Export all artifacts (separate files) instead.");
    return;
  }
- DL_CAPTURE=null;
- const root="Palisade_Package_"+today();
- const entries=cap.map(f=>{const m=pkgMeta(f.name);
-   return {name:root+"/"+m.folder+"/"+f.name, data:f.text, plain:f.name, meta:m,
+ DL_CAPTURE=prev;
+ const root="Palisade_Package_"+today(), D=mkDoc("Package");
+ /* a file whose export reported no marking is taken at the whole workspace's marking, which
+    dominates anything built from what is loaded: never lower */
+ let wsM=null;
+ const entries=cap.map(f=>{const m=pkgMeta(f.name), M=f.M||(wsM=wsM||mkSeal(mkWorkspaceDoc("*")));
+   D.add({k:M.key,f:M.srcs||[]},f.name);
+   return {name:root+"/"+m.folder+"/"+f.name, data:f.text, plain:f.name, meta:m, M, note:pkgMarkNote(f,M),
            bytes:new Blob([f.text]).size,
            rows:/\.csv$/i.test(f.name)?Math.max(0,String(f.text).split("\n").length-1):null};});
+ /* the index itself counts the endpoints and names the system */
+ D.add(rptHeadMk(null,true),"index header");
+ const M=mkSeal(D);
+ /* a dry run only learns the marking: no zip, no download, no log */
+ if(MK_DRY){if(Array.isArray(prev))prev.push({name:root+".zip",text:"",mime:"application/zip",M});return M;}
  entries.sort((a,b)=>a.name.localeCompare(b.name));
- entries.unshift({name:root+"/index.html", data:pkgIndex(entries), plain:"index.html",
-                  meta:{folder:"",who:"",what:""}, bytes:0, rows:null});
+ entries.unshift({name:root+"/index.html", data:pkgIndex(entries,M), plain:"index.html",
+                  meta:{folder:"",who:"",what:""}, M, note:"", bytes:0, rows:null});
  try{
-   const blob=await zipMake(entries.map(e=>({name:e.name,data:e.data})));
+   const blob=await zipMake(entries.map(e=>({name:e.name,data:e.data})),M.banner);
    dlBlob(root+".zip",blob);
-   status("Evidence package exported — "+(entries.length-1)+" artifact(s) plus an index, in one "
+   mkLogIssue(root+".zip",M);
+   status("Evidence package exported, marked "+M.banner+" — "+(entries.length-1)+" artifact(s) plus an index, in one "
      +Math.round(blob.size/1024)+" KB zip. Open index.html inside it first.");
  }catch(e){
    alert("Could not write the zip in this browser: "+e.message
      +"\n\nUse Export all artifacts (separate files) instead.");
  }
+ return M;
 }
-/* The front page: what is in the box, who each file is for. */
-function pkgIndex(entries){
+/* Import shapes have their header on line 1 and no room for a banner row (eMASS), so the file
+   cannot carry its own marking: the index states it, and says how to handle the file. */
+const PKG_NO_BANNER=/^eMASS_/;
+function pkgMarkNote(f,M){
+ if(!f.M) return "marking not reported by this export — taken at the whole workspace's; handle at "+M.banner;
+ if(PKG_NO_BANNER.test(f.name)) return "import shape — banner not embedded; handle at "+M.banner;
+ const t=String(f.text||"");
+ return t.indexOf(M.banner)>=0||t.indexOf(esc(M.banner))>=0?"":"banner not found in the file; handle at "+M.banner;
+}
+/* The front page: what is in the box, who each file is for, and how each is marked. */
+function pkgIndex(entries,M){
  const T=RPT_THEME.light, s=S.settings;
+ const chip=(banner,tier)=>{const c=MK_COLORS[tier]||MK_COLORS.none;
+   return '<span class="mkchip" style="background:'+c[0]+';color:'+c[1]+'">'+esc(banner)+'</span>';};
  const groups={};
  entries.forEach(e=>{(groups[e.meta.folder]=groups[e.meta.folder]||[]).push(e);});
  const order=Object.keys(groups).sort();
- const banner=cls=>'<div class="bnr '+cls+'">'+esc(s.banner||"UNCLASSIFIED")+'</div>';
+ const banner=cls=>'<div class="bnr '+cls+'">'+esc(M.banner)+'</div>';
  const body=order.map(g=>{
-   const f=PKG_FOLDERS[g]||[g,""];
-   return '<section class="sec"><div class="sechd"><div class="n">'+esc(g)+'/</div>'
+   const f=PKG_FOLDERS[g]||[g,""], hk=mkJoinAll(groups[g].map(e=>e.M.key))||mkFloor();
+   return '<section class="sec"><div class="sechd"><div class="n">'+esc(g)+'/ &middot; highest marking '
+   +chip(mkBanner(hk),mkTier(hk))+'</div>'
    +'<h2>'+esc(f[0])+'</h2><p>'+esc(f[1])+'</p></div>'
-   +rptTable(["File",{h:"For",w:"140px"},"What it is",{h:"Rows",a:"r",w:"64px"},{h:"Size",a:"r",w:"74px"}],
+   +rptTable(["File",{h:"Marking",w:"1%"},{h:"For",w:"140px"},"What it is",{h:"Rows",a:"r",w:"64px"},{h:"Size",a:"r",w:"74px"}],
      groups[g].map(e=>['<a href="'+esc(g+"/"+e.plain)+'">'+esc(e.plain)+'</a>',
-       esc(e.meta.who), '<span style="color:'+T.ink2+'">'+esc(e.meta.what)+'</span>',
+       chip(e.M.banner,e.M.tier),
+       esc(e.meta.who), '<span style="color:'+T.ink2+'">'+esc(e.meta.what)+'</span>'
+         +(e.note?'<div style="color:'+T.critical+';font-size:11px;margin-top:2px"><b>'+esc(e.note)+'</b></div>':""),
        e.rows===null?"—":String(e.rows),
        (e.bytes>=1024?Math.round(e.bytes/1024)+" KB":e.bytes+" B")]),T)
    +'</section>';}).join("");
@@ -5526,13 +5750,16 @@ function pkgIndex(entries){
   +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">'
   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
   +'<title>Evidence package — '+esc(s.isName||"")+' '+today()+'</title>'
-  +'<style>'+rptStyles(T)+'</style></head><body>'+banner("bnrT")
-  +'<div class="wrap"><h1>Evidence package</h1>'
+  +'<style>'+rptStyles(T,M)+'</style></head><body>'+banner("bnrT")
+  +rptPage('<div class="wrap"><h1>Evidence package</h1>'
   +'<p class="meta">'+esc(s.isName||"(system name not set)")+' &middot; assembled '+today()
   +' &middot; '+Object.keys(S.hosts).length+' endpoint(s) &middot; produced fully offline by Palisade</p>'
+  +mkCabHtml(M)
   +'<p class="rlead">Every artifact from one dataset, in one archive. The <b>1-report</b> folder holds the '
   +'document; the rest is the evidence behind it, filed by who asks for it. Nothing here was uploaded '
   +'anywhere &mdash; all parsing and assembly happened in the browser.</p>'
+  +'<p class="rlead">Each file is marked from what it contains; this package and this index are marked at the '
+  +'highest of them, '+chip(M.banner,M.tier)+'. Handle every file at least at its own marking.</p>'
   +(entries.some(e=>/^Palisade_Session/.test(e.plain))
     ? '<p class="rnote"><b>6-session/ holds the complete raw dataset, including enumerated accounts and '
       +'their privilege flags. It is a working file: remove it before this package travels beyond the '
@@ -5542,7 +5769,7 @@ function pkgIndex(entries){
   +body
   +'<p class="foot">Data is as of the underlying scan dates. Tables in the report are capped; the CSVs here '
   +'carry every row. Approval, acceptance, and scheduling decisions remain with the ISSM.</p>'
-  +'</div>'+banner("bnrB")+'</body></html>';
+  +'</div>')+banner("bnrB")+'</body></html>';
 }
 
 /* ---- report builder UI -------------------------------------------------
@@ -5613,21 +5840,21 @@ function refreshRptPreview(){
    f.srcdoc='<body style="font:14px system-ui;color:#52514e;padding:26px">Pick at least one section.</body>';
    $("rptPreviewNote").textContent=""; return;
  }
- const t0=performance.now();
- f.srcdoc=buildReport(rptSel,Object.assign(rptOpts(),{preview:true}));
+ const t0=performance.now(), out={};
+ f.srcdoc=buildReport(rptSel,Object.assign(rptOpts(),{preview:true,out}));
  $("rptPreviewNote").textContent=rptSel.length+" section(s) requested · built in "
-   +Math.round(performance.now()-t0)+" ms";
+   +Math.round(performance.now()-t0)+" ms · marked "+out.M.banner+(out.M.over?" (override)":"");
 }
 /* The preview frame is sandboxed without allow-scripts, so it cannot carry its own print
    button any more. allow-same-origin + allow-modals is what keeps this reachable from here. */
 function printPreview(){const f=$("rptPreview");if(f&&f.contentWindow)f.contentWindow.print();}
 function exportCombinedReport(){
- if(!Object.keys(S.hosts).length){alert("Load scan data first.");return;}
- if(!rptSel.length){alert("Pick at least one section first.");return;}
- const o=rptOpts();
+ if(!Object.keys(S.hosts).length){if(!MK_DRY)alert("Load scan data first.");return;}
+ if(!rptSel.length){if(!MK_DRY)alert("Pick at least one section first.");return;}
+ const o=rptOpts(), out={};
  const slug=o.title.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")||"Assessment_Report";
- dl(slug+"_"+today()+".html",buildReport(rptSel,o),"text/html");
- status("Report exported — "+rptSel.length+" section(s), print-ready. "
+ dl(slug+"_"+today()+".html",buildReport(rptSel,Object.assign(o,{out})),"text/html",out.M);
+ status("Report exported — "+rptSel.length+" section(s), print-ready, marked "+out.M.banner+". "
    +(o.hosts?"Host names INCLUDED.":"Host names withheld (counts and groups only)."));
 }
 function saveRptPreset(){
