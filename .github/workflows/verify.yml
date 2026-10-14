@@ -153,7 +153,7 @@ jobs:
             echo "| \`seal.mjs --verify\` | the CSP \`script-src\` hash matches the inline script bytes |"
             echo "| MANIFEST comparison | the committed manifest describes the committed file |"
             echo "| \`csp-lint.sh\` | the CSP attack surface has not regressed past its baseline |"
-            echo "| \`harness.mjs\` | the page loads from a real \`file://\` URL with 0 errors, 0 CSP violations, all 18 views clean |"
+            echo "| \`harness.mjs\` | the page loads from a real \`file://\` URL with 0 errors, 0 CSP violations, all 19 views clean |"
             echo "| \`check-frozen.mjs\` | the demo dataset still yields the same evidence numbers |"
             echo "| \`sha256sum -c\` | the published digests match the published files |"
             echo
@@ -253,7 +253,7 @@ jobs:
           this release was cut: the CSP `script-src` hash matches the inline script
           bytes, the CSP surface lint is at or below baseline, and the page loads in
           Chromium from a real `file://` URL with zero errors, zero CSP violations
-          and unchanged evidence numbers across all 18 views.
+          and unchanged evidence numbers across all 19 views.
 
           `palisade.html`, `palisade.cdx.json` and `palisade.spdx.json` carry a build
           provenance attestation. Check it with:
