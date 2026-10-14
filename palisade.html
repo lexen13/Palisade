@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dG+ceOyv38xcrY1CIBeuRQ8eqZMMJcNn+yM+2zFBmkg='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-p31fPTY5hXmKcvZaG9uGaI5xznuQEYusaiiE5q2U5OE='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -1854,7 +1854,14 @@ const MK_LVL_P=["U","C","S","TS"], MK_LVL_B=["UNCLASSIFIED","CONFIDENTIAL","SECR
 const MK_DIS=[["RSEN","RS","RSEN"],["FOUO","FOUO","FOUO"],["ORCON","OC","ORCON"],["ORCON-USGOV","OC-USGOV","ORCON-USGOV"],
  ["IMCON","IMC","IMCON"],["NOFORN","NF","NOFORN"],["PROPIN","PR","PROPIN"],["REL","REL TO","REL TO"],["RELIDO","RELIDO","RELIDO"],
  ["DSEN","DSEN","DSEN"],["FISA","FISA","FISA"],["DISPLAY","DISPLAY ONLY","DISPLAY ONLY"]];
-const MK_NONIC=[["LIMDIS","DS"],["EXDIS","XD"],["NODIS","ND"],["SBU","SBU"],["SBU NOFORN","SBU-NF"],["LES","LES"],["LES NOFORN","LES-NF"],["SSI","SSI"]];
+const MK_NONIC=[["LIMDIS","DS"],["EXDIS","XD"],["NODIS","ND"],["SBU","SBU"],["SBU NOFORN","SBU-NF"],["LES","LES"],["LES NOFORN","LES-NF"],["SSI","SSI"],
+ ["LIMITED OFFICIAL USE","LOU"],["OFFICIAL USE ONLY","OUO"]];
+/* DoD distribution statements (DoDI 5230.24) restrict a technical document's AUDIENCE, as a bit
+   set of who may receive it: 1 DoD, 2 DoD contractors, 4 other US Government, 8 their
+   contractors, 16 the public. Combining two is the intersection -- B (US Government) with D (DoD
+   and DoD contractors) leaves DoD alone, which is E. The six statements are closed under that,
+   so the roll-up is exact. 31 is "none stated". */
+const MK_DIST={A:31,B:5,C:15,D:3,E:1,F:0},MK_DIST_OF={5:"B",15:"C",3:"D",1:"E",0:"F"};
 /* CUI limited dissemination controls other than the release ones: [key, portion] */
 const MK_LDC=[["FED ONLY","FED ONLY"],["FEDCON","FEDCON"],["NOCON","NOCON"],["DL ONLY","DL ONLY"],["ATTORNEY-CLIENT","AC"],["ATTORNEY-WP","AWP"]];
 const MK_SCI_SYS=new Set(["SI","TK","HCS","KDK","RSV","BUR"]);
@@ -1897,6 +1904,12 @@ const MK_VOCAB=(()=>{const v=new Map(),a=(t,k,...ps)=>ps.forEach(p=>v.set(p,[t,k
  a("N","NODIS","ND","NODIS","NO DISTRIBUTION");a("N","SBU","SBU","SENSITIVE BUT UNCLASSIFIED");
  a("N","SBU NOFORN","SBU-NF","SBU NOFORN");a("N","LES","LES","LAW ENFORCEMENT SENSITIVE");
  a("N","LES NOFORN","LES-NF","LES NOFORN");a("N","SSI","SSI","SENSITIVE SECURITY INFORMATION");
+ a("N","LIMITED OFFICIAL USE","LOU","LIMITED OFFICIAL USE");a("N","OFFICIAL USE ONLY","OUO","OFFICIAL USE ONLY");
+ a("DIST",1,"DISTRIBUTION STATEMENT","DISTRIBUTION","DIST","DIST STATEMENT");
+ /* everyday shorthand for CUI that is not a marking, read conservatively as the CUI it means */
+ a("ALIAS","PRVCY","PII","PRIVACY","PRIVACY ACT","PRIVACY INFORMATION","PERSONALLY IDENTIFIABLE INFORMATION");
+ a("ALIAS","SP-EXPT","ITAR","EXPORT CONTROLLED","EXPORT CONTROL","EAR","EXPORT CONTROLLED INFORMATION");
+ a("ALIAS","SP-CTI","CONTROLLED TECHNICAL INFORMATION");a("ALIAS","ISVI","INFORMATION SYSTEMS VULNERABILITY INFORMATION");
  a("AEA","RD","RESTRICTED DATA");a("AEA","FRD","FORMERLY RESTRICTED DATA");
  a("AEA","CNWDI","CNWDI","CRITICAL NUCLEAR WEAPON DESIGN INFORMATION");
  a("AEA","DOD UCNI","DCNI","DOD UCNI","DOD UNCLASSIFIED CONTROLLED NUCLEAR INFORMATION");
@@ -1923,7 +1936,7 @@ const MK_DECL=/^(?:\d{8}|25X[1-9]|50X1-HUM|50X2-WMD|X[1-8]|MR|OADR)$/;
 const MK_POLICY={profile:"DOD",legacy:"preserve"};
 
 function mkEmpty(){return {l:-1,cui:false,cat:new Set(),sci:new Set(),sap:new Set(),aea:new Set(),fgi:null,d:new Set(),
- fd:"B",rel:null,disp:null,rido:false,ldc:new Set(),nonic:new Set(),decl:new Set(),unk:new Set()};}
+ fd:"B",rel:null,disp:null,rido:false,ldc:new Set(),dist:31,nonic:new Set(),decl:new Set(),unk:new Set()};}
 /* edit distance with transposition, capped: enough to read SECERT, NOFRON, UNCLASIFIED */
 function mkDist(a,b,max){if(Math.abs(a.length-b.length)>max)return max+1;
  const d=[];for(let i=0;i<=a.length;i++)d[i]=[i];for(let j=0;j<=b.length;j++)d[0][j]=j;
@@ -2008,6 +2021,11 @@ function mkRead(text,opt){
        list=L;(t==="REL"?rels:t==="DISP"?disps:fgis).push(L);}
      else if(t==="D"){if(k==="RELIDO")m.rido=true;else m.d.add(k);}
      else if(t==="LDC"){m.ldc.add(k);m.cui=true;}
+     else if(t==="DIST"){const x=w[i];if(x&&/^[A-FX]$/.test(x)){i++;
+         if(x==="X"){m.dist&=MK_DIST.C;notes.push("obsolete Distribution X read as Distribution C");}
+         else{m.dist&=MK_DIST[x];if(x==="A")notes.push("Distribution A asserts public release; it restricts nothing");}}
+       else{unkRun.push(w[i-n]);strict=false;}}
+     else if(t==="ALIAS"){m.cui=true;m.cat.add(k);notes.push(w.slice(i-n,i).join(" ")+" is not a marking; read as CUI//"+k);}
      else if(t==="N"){m.nonic.add(k);if(/NOFORN/.test(k))m.fd="F";}
      else if(t==="AEA"){if(k==="RD")rd=true;else if(k==="FRD")frd=true;else if(k==="CNWDI"){rd=true;m.aea.add("CNWDI");}else m.aea.add(k);}
      else if(t==="SCI")m.sci.add(k);
@@ -2020,8 +2038,9 @@ function mkRead(text,opt){
  if(fgis.length){m.fgi=m.fgi||{c:false,s:new Set()};if(fgis.some(L=>!L.length))m.fgi.c=true;fgis.flat().forEach(x=>m.fgi.s.add(x));}
  if(rd)m.aea.add("RD");if(frd)m.aea.add("FRD");sigma.forEach(n=>m.aea.add("SIGMA "+n));
  if(m.cat.size)m.cui=true;
- /* CUI is unclassified information: a CUI marking states level U even when it does not say so */
- if(m.cui)m.l=Math.max(m.l,0);
+ /* CUI is unclassified information: a CUI marking states level U even when it does not say so,
+    and so do the controls that only ever applied to unclassified information */
+ if(m.cui||m.d.has("FOUO")||[...m.nonic].some(x=>/^(SBU|LES|LIMITED OFFICIAL USE|OFFICIAL USE ONLY)/.test(x)))m.l=Math.max(m.l,0);
  /* A bare REL means "the banner's list"; with no banner to say what that was, the only safe
     reading is NOFORN. */
  if(rels.length){
@@ -2041,7 +2060,7 @@ function mkRead(text,opt){
  if(m.cui&&m.d.has("FOUO"))notes.push("FOUO is superseded by CUI");
  if(m.l<1&&(m.sci.size||m.sap.size||m.aea.has("RD")||m.aea.has("FRD")))notes.push("SCI, SAP or Atomic Energy Act marking with no classification level: review");
  if(m.unk.size)notes.push("not recognised, kept verbatim: "+[...m.unk].join(", "));
- const any=m.l>=0||m.cui||m.unk.size||m.fd!=="B"||m.d.size||m.nonic.size||m.sci.size||m.sap.size||m.aea.size||m.fgi||m.ldc.size||m.decl.size;
+ const any=m.l>=0||m.cui||m.unk.size||m.fd!=="B"||m.d.size||m.nonic.size||m.sci.size||m.sap.size||m.aea.size||m.fgi||m.ldc.size||m.decl.size||m.dist!==31;
  if(!any)return {m:null,notes,strict:false,portion};
  return {m:mkNorm(m),notes,strict:strict&&(m.l>=0||m.cui)&&!m.unk.size,portion};
 }
@@ -2080,7 +2099,7 @@ function mkJoinM(a,b){if(!a)return b;if(!b)return a;
  r.l=Math.max(a.l,b.l);r.cui=a.cui||b.cui;r.cat=u(a.cat,b.cat);r.sci=u(a.sci,b.sci);r.sap=u(a.sap,b.sap);r.aea=u(a.aea,b.aea);
  r.fgi=a.fgi||b.fgi?{c:!!(a.fgi&&a.fgi.c)||!!(b.fgi&&b.fgi.c),s:u(a.fgi?a.fgi.s:[],b.fgi?b.fgi.s:[])}:null;
  r.d=u(a.d,b.d);mkFdJoin(a,b,r);
- r.ldc=u(a.ldc,b.ldc);r.nonic=u(a.nonic,b.nonic);r.decl=u(a.decl,b.decl);r.unk=u(a.unk,b.unk);
+ r.ldc=u(a.ldc,b.ldc);r.dist=a.dist&b.dist;r.nonic=u(a.nonic,b.nonic);r.decl=u(a.decl,b.decl);r.unk=u(a.unk,b.unk);
  return mkNorm(r);}
 
 /* ---- rendering ------------------------------------------------------------------------ */
@@ -2139,7 +2158,8 @@ function mkOut(m,form,ctx,pol){
     designation indicator. NARA lists them alphabetically in one category, and in a classified
     banner merges them into the dissemination category. */
  const ldc=MK_LDC.filter(([k])=>m.ldc.has(k)).map(([k,p])=>P&&!K?p:k);
- const ds=asCat?(NARA?dis.concat(ldc).sort(mkAlpha):dis):dis.concat(cuiInC?ldc:[]);
+ if(K&&m.dist!==31)ldc.push("DIST "+MK_DIST_OF[m.dist]);
+ const ds=asCat?(NARA?dis.concat(ldc).sort(mkAlpha):dis.concat(K?ldc:[])):dis.concat(cuiInC||K?ldc:[]);
  if(ds.length)seg.push(ds.join("/"));
  /* non-IC. In a classified banner an X NOFORN control shows as X: its NOFORN is in the IC
     category already. Legacy controls shown as CUI are not shown twice. */
@@ -2177,7 +2197,8 @@ function mkRank(key){const m=mkObj(key);if(!m)return [-2];
  const fd=m.fd==="X"?2-(2*(m.rel?m.rel.size:0)+(m.disp?m.disp.size:0)+(m.rido?1:0))/10000:{B:0,N:1,F:3}[m.fd];
  return [m.l,m.cui?1:0,sum(m.sci,t=>t.split(/[- ]/).length),m.sap.size,sum(m.aea,x=>x==="RD"?2:1),
    m.fgi?1+(m.fgi.c?100:m.fgi.s.size):0,fd,sum(m.d,x=>x==="ORCON"?2:1),
-   sum(m.nonic,x=>/NOFORN|NODIS/.test(x)?2:1),sum(m.ldc,x=>x==="FED ONLY"?3:1),m.cat.size,m.decl.size,m.unk.size];}
+   sum(m.nonic,x=>/NOFORN|NODIS/.test(x)?2:1),sum(m.ldc,x=>x==="FED ONLY"?3:1),5-[1,2,4,8,16].filter(b=>m.dist&b).length,
+   m.cat.size,m.decl.size,m.unk.size];}
 function mkCmp(a,b){const x=mkRank(a),y=mkRank(b);
  for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]??-1)-(y[i]??-1);if(d)return d;}
  return mkAlpha(a||"",b||"");}
@@ -2204,7 +2225,9 @@ const MK_CASES=[
  ["S//REL TO GBR, USA, AUS","SECRET//REL TO USA, AUS, GBR"],["S//REL TO USA/GBR","SECRET//REL TO USA, GBR"],["REL TO: USA, GBR//SECRET","SECRET//REL TO USA, GBR"],
  ["TOP SECRET//SI/TK//REL TO USA,GBR","TOP SECRET//SI/TK//REL TO USA, GBR"],["TOP SECRET//COMINT//ORCON,NOFORN","TOP SECRET//SI//ORCON/NOFORN"],
  ["(//DEU S)","SECRET//FGI DEU"],["SECRET//NOFORN//X1","SECRET//NOFORN"],["TS//SCI","TOP SECRET//SCI"],["CONTROLLED//SP-EXPT","CUI"],
- ["SECRET//USA/GBR EYES ONLY","SECRET//REL TO USA, GBR"],["CLASSIFIED","CLASSIFIED"]];
+ ["SECRET//USA/GBR EYES ONLY","SECRET//REL TO USA, GBR"],["CLASSIFIED","CLASSIFIED"],["FOUO","UNCLASSIFIED//FOUO"],
+ ["PII","CUI"],["ITAR","CUI"],["Unclassified - FOUO","UNCLASSIFIED//FOUO"],["S NF","SECRET//NOFORN"],["[SECRET]","SECRET"],
+ ["Classification: Top Secret // SI // NOFORN","TOP SECRET//SI//NOFORN"],["U//LIMITED OFFICIAL USE","UNCLASSIFIED//LIMITED OFFICIAL USE"]];
 /* [portions, DoD banner, NARA banner (if different)] */
 const MK_JOINS=[
  [["(U)","(U)"],"UNCLASSIFIED"],[["(U)","(C)","(S)"],"SECRET"],
@@ -2237,6 +2260,7 @@ const MK_JOINS=[
  [["(S//REL TO USA, FVEY)","(S//REL TO USA, GBR)"],"SECRET//NOFORN"],[["(S//REL TO USA, FVEY)","(S//REL TO USA, FVEY)"],"SECRET//REL TO USA, FVEY"],
  [["(S//FGI DEU)","(C//FGI)"],"SECRET//FGI"],[["(U//FOR TRAINING)","(S)"],"SECRET//FOR TRAINING"]];
 function mkSelfTest(n){
+ const distOf=k=>{const m=mkObj(k);return m?(MK_DIST_OF[m.dist]||""):"";};
  n=n||200;const fails=[];let checks=0;
  const DOD={profile:"DOD",legacy:"preserve"},NARA={profile:"NARA",legacy:"preserve"},CONV={profile:"DOD",legacy:"convert"};
  const ok=(c,msg)=>{checks++;if(!c&&fails.length<20)fails.push(msg);};
@@ -2246,6 +2270,9 @@ function mkSelfTest(n){
    ok(mkBanner(k,NARA)===(en||e),"NARA join "+ps.join(" ")+" -> "+mkBanner(k,NARA)+" (want "+(en||e)+")");});
  ok(mkKey("(S//REL)",{rel:["USA","AUS"]})===mkKey("S//REL TO USA, AUS"),"bare REL does not resolve against its banner");
  ok(mkBanner(mkKey("(U//FOUO)"),CONV)==="CUI","legacy FOUO is not shown as CUI under convert");
+ ok(distOf(mkJoin(mkKey("CUI//SP-CTI//DISTRIBUTION STATEMENT B"),mkKey("CUI//SP-CTI//DIST D")))==="E","distribution B with D is not E");
+ ok(distOf(mkJoin(mkKey("CUI//DIST C"),mkKey("CUI//DIST D")))==="D","distribution C with D is not D");
+ ok(mkParse("CUI//PRVCY").key===mkKey("CUI//PII"),"PII does not read as CUI//PRVCY");
  ok(!mkParse("(C) Microsoft Corporation").strict&&!mkParse("CLASSIFIED").strict,"free text read as a marking");
  let seed=0x2545F491;const rnd=k=>{seed=(Math.imul(seed^(seed>>>15),0x2C1B3C6D)+0x6D2B79F5)>>>0;return seed%k;};
  const pick=a=>a[rnd(a.length)];
@@ -2254,7 +2281,7 @@ function mkSelfTest(n){
   ["","","","FGI","FGI DEU","FGI GBR CAN","NATO SECRET"],["","","ORCON","OC-USGOV","IMCON","PROPIN","FISA","RSEN","FOUO"],
   ["","","","NOFORN","NF","REL TO USA, GBR","REL TO USA, AUS, GBR","REL TO USA, FVEY","REL TO USA, NATO, CAN","REL TO USA, CAN"],
   ["","","","RELIDO"],["","","","","DISPLAY ONLY AFG","DISPLAY ONLY AFG, IRQ"],["","","","LIMDIS","EXDIS","NODIS","SBU","SBU NOFORN","LES","LES-NF","SSI"],
-  ["","","","FEDCON","NOCON","FED ONLY","DL ONLY"],["","","","","FOR TRAINING","25X1"]];
+  ["","","","FEDCON","NOCON","FED ONLY","DL ONLY"],["","","","","FOR TRAINING","25X1"],["","","","DIST B","DIST C","DISTRIBUTION D","DIST E","OUO"]];
  const gen=()=>{const parts=POOL.map(pick).filter(Boolean);
    for(let i=parts.length-1;i>0;i--){const j=rnd(i+1);[parts[i],parts[j]]=[parts[j],parts[i]];}
    return parts.map((p,i)=>(i?pick(["//","/"," // "," - "]):"")+p).join("");};
@@ -2472,6 +2499,7 @@ function mkCab(M){
    if(s.mkCtrlOffice)L.push("Controlled by: "+s.mkCtrlOffice);
    L.push("CUI Category: "+(cats.length?cats.join(", "):"[category from the CUI Registry - tag the data or set a rule]"));
    L.push((MK_POLICY.profile==="DOD"?"Distribution/Dissemination Control: ":"Limited Dissemination Control: ")+(ldc.length?ldc.join(", "):"none stated"));
+   if(m.dist!==31)L.push("Distribution Statement "+MK_DIST_OF[m.dist]+" (DoDI 5230.24) applies");
    L.push("POC: "+(s.mkPoc||"[name and phone or e-mail - set on the Markings tab]"));}
  if(m.l>=1&&m.cui&&MK_POLICY.profile==="DOD")L.push(MK_COMMINGLED.replace("{L}",MK_LVL_B[m.l]));
  if(M.over)L.push("Marking note: "+(M.down?"LOWERED":"raised")+" by override from the derived "+mkBanner(M.derived)
@@ -2481,11 +2509,15 @@ function mkCab(M){
 /* A CSV is a list of rows. MK_B stands for a banner row; a {mk} cell (from D.row) for a portion
    mark. The authority block goes in front of the closing banner. */
 const MK_B=Object.freeze(["\u0000banner"]);
+/* A spreadsheet's Portion Marking cell is data, not print: it carries the lossless key form, so a
+   row read back in (by Palisade or anything else) keeps its categories, LDCs and distribution
+   statement even under a DoD profile whose printed portion marks leave them out. */
+function mkCell(key){return key?"("+key+")":"";}
 function mkCsv(D,rows){
  const M=D.M||mkSeal(D),cab=mkCab(M),out=[];let opened=false;
  rows.forEach(r=>{
    if(r===MK_B){if(opened&&cab.length){cab.forEach(c=>out.push([c]));out.push([]);}out.push([M.banner]);opened=true;return;}
-   out.push(r.map(c=>c&&typeof c==="object"&&"mk" in c?mkPortion(c.mk):c));});
+   out.push(r.map(c=>c&&typeof c==="object"&&"mk" in c?mkCell(c.mk):c));});
  return out.map(r=>r.map(csvq).join(",")).join("\n");}
 /* HTML banner and authority block for the downloadable reports (their own CSP: inline style only) */
 const MK_COLORS={u:["#007a33","#fff"],cui:["#502b85","#fff"],c:["#0033a0","#fff"],s:["#c8102e","#fff"],ts:["#ff8c00","#000"],tssci:["#fce83a","#000"],none:["#5b2ea6","#fff"]};
@@ -2511,7 +2543,7 @@ function mkWhole(v){const s=String(v??"").trim();if(!s||s.length>160)return null
    non-blank cell is the same strict marking, within the first or last 6 rows. A marking column
    is a header that names one. Returns {key, how, skip:Set(row indices), col}. */
 const MK_COL_HDR=/^(?:\(?[a-z]+\)?\s*)?(?:classification|classification level|security classification|data classification|marking|markings|portion marking|portion marks?|portion|banner|caveats?|dissemination controls?|control marking|handling|class)$/i;
-const MK_CAB_LINE=/^(?:Classified By|Derived From|Declassify On|Classification Reason|Reason|Controlled by|CUI Categor(?:y|ies)|Limited Dissemination Control|Distribution\/Dissemination Control|LDC|POC|Sources|Marking note|Marking review|CL BY|DRV FROM|DECL ON):|^This content is classified at /i;
+const MK_CAB_LINE=/^(?:Classified By|Derived From|Declassify On|Classification Reason|Reason|Controlled by|CUI Categor(?:y|ies)|Limited Dissemination Control|Distribution\/Dissemination Control|LDC|POC|Sources|Marking note|Marking review|CL BY|DRV FROM|DECL ON):|^This content is classified at |^Distribution Statement [A-F]\b/i;
 function mkSheet(rows,hdrIdx){
  const out={key:"",how:[],skip:new Set(),col:-1};const n=rows.length;
  const cand=[];for(let i=0;i<Math.min(6,n);i++)cand.push(i);for(let i=Math.max(0,n-6);i<n;i++)if(cand.indexOf(i)<0)cand.push(i);
@@ -2520,7 +2552,15 @@ function mkSheet(rows,hdrIdx){
    if(k){out.key=mkJoin(out.key,k);out.skip.add(i);out.how.push("banner row "+(i+1)+' "'+cells[0].slice(0,60)+'"');}});
  /* the authority block and marking notes Palisade writes above its closing banner are not data */
  for(let i=Math.max(0,n-24);i<n;i++){if(i<=hdrIdx)continue;const cells=(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
-   if(cells.length===1&&MK_CAB_LINE.test(cells[0])){out.skip.add(i);if(/^(?:Classified By|Derived From|Declassify On):/i.test(cells[0]))out.how.push(cells[0].slice(0,80));}}
+   if(cells.length===1&&MK_CAB_LINE.test(cells[0])){out.skip.add(i);const c0=cells[0];
+     if(/^(?:Classified By|Derived From|Declassify On):/i.test(c0))out.how.push(c0.slice(0,80));
+     /* the designation indicator carries what a DoD banner leaves out -- categories, LDCs, a
+        distribution statement -- so it is read back into the file's own marking */
+     const v=c0.replace(/^[^:]*:\s*/,"");let k="";
+     if(/^CUI Categor/i.test(c0)&&!/^\[/.test(v))k=mkKey("CUI//"+v.replace(/\s*,\s*/g,"/"));
+     else if(/^(?:Limited Dissemination Control|Distribution\/Dissemination Control|LDC):/i.test(c0)&&!/^none/i.test(v))k=mkKey("CUI//"+v.replace(/\s*,\s*(?![A-Z]{3,4}\b(?:,|$))/g,"/"));
+     else if(/^Distribution Statement [A-F]\b/i.test(c0))k=mkKey("CUI//DIST "+c0.match(/^Distribution Statement ([A-F])/i)[1].toUpperCase());
+     if(k){out.key=mkJoin(out.key,k);out.how.push("designation indicator: "+c0.slice(0,80));}}}
  if(hdrIdx>=0&&rows[hdrIdx])rows[hdrIdx].forEach((h,c)=>{if(out.col<0&&MK_COL_HDR.test(String(h??"").trim()))out.col=c;});
  return out;}
 /* one row's own marking: the marking column, else a leading portion mark on any cell */
