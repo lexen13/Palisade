@@ -474,7 +474,7 @@ repository or anything in it.
 reaching the network at all — the core claim in machine-checkable form:
 
 ```
-default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q=';
+default-src 'none'; script-src 'sha256-nl/LOgN8ndRe7CK4XhTvWUnP51eo5YcSZmUIgwE0fCg=';
 style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none';
 frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none';
 manifest-src 'none'; base-uri 'none'; form-action 'none'

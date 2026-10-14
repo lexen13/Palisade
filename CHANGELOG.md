@@ -6,8 +6,6 @@ below are ordered by content.*
 
 ## 2.9 — classification markings
 
-*Draft — version numbers are bumped once, at release.*
-
 Until 2.8 the marking was one line of text typed into Settings and stamped on everything,
 whatever it held. A SECRET row in an otherwise unclassified listing came out under the same
 banner as the rest; a file that said nothing about itself was treated as unclassified. 2.9 reads

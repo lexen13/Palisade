@@ -64,8 +64,8 @@ think is right. You do not owe silence to a project that did not answer you.
 
 | Version | Supported |
 |---|---|
-| 2.8 (current) | Yes |
-| 2.7 and earlier | No |
+| 2.9 (current) | Yes |
+| 2.8 and earlier | No |
 
 Only the current release is supported. There is no long-term-support branch and no backporting,
 because there is nothing to backport *to* — a release is one file, so upgrading is replacing it.
@@ -142,7 +142,7 @@ Two independent checks, and one of them needs no tooling at all.
 
 ```bash
 sha256sum palisade.html
-# fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97   (v2.8, 521,771 bytes)
+# 035ca5a506240190d6d9095d65e53ecf35d3bd7b3e65c6b47c78730436f0850c   (v2.9, 759,147 bytes)
 ```
 
 `MANIFEST.json` carries the same digest plus sha384, sha512 and the script-block hash;
@@ -174,5 +174,5 @@ or anywhere else — it is not that, and a reviewer who checks will be right to 
 
 ---
 
-*Palisade 2.8 · MIT · Gavin Lee Domingo Johnson, Jacob Keith ·
+*Palisade 2.9 · MIT · Gavin Lee Domingo Johnson, Jacob Keith ·
 <https://github.com/lexen13/Palisade>*

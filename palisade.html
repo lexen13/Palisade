@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Palisade v2.8 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
+<!-- Palisade v2.9 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,9 +15,9 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9bGzz8bXD/fYyYFCcgvTzW8G3q/AagDDCS+1N5r+a58='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-nl/LOgN8ndRe7CK4XhTvWUnP51eo5YcSZmUIgwE0fCg='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Palisade v2.8</title>
+<title>Palisade v2.9</title>
 <style>
   /* ================================================================
      Palisade — instrument console theme
@@ -456,7 +456,7 @@
         <path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <div class="t">
-      <h1>Palisade <span class="ver">v2.8</span>
+      <h1>Palisade <span class="ver">v2.9</span>
         <span class="badge"><span class="dot"></span>Offline</span></h1>
       <div class="sub">Turns Tenable / ACAS scan exports into audit-ready control evidence &mdash; all parsing local, no network calls</div>
     </div>
@@ -1841,7 +1841,7 @@ function patMatch(pattern,hay){
 let S = newState();
 function newState(){
  return {
-  meta:{tool:"Palisade", ver:"2.8", saved:null},
+  meta:{tool:"Palisade", ver:"2.9", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
             banner:"UNCLASSIFIED",      // the floor: the least anything here is marked
