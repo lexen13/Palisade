@@ -3925,23 +3925,45 @@ function renderIntel(){
         <td class="mono" style="font-size:12px">${w.cves.map(esc).join(", ")}</td></tr>`;}).join("")+`</table></div>`;
  } else wp.style.display="none";
 }
+/* ---- marking the CSV/TXT exports --------------------------------------------------------
+   Every export builds a product (mkDoc, pid = its file-name prefix), gives each data row the
+   resolution of exactly what that row shows (D.row -> the row's Portion Marking cell), adds
+   anything else it shows that came from data (D.add), and leaves the banner rows (MK_B) and the
+   authority block to mkCsv. These are the few resolutions the layer does not already hand out. */
+/* a "nothing to show" line: it says nothing, so it is marked at the floor, and is not a data row */
+function mkNone(){return {mk:mkFloor()};}
+/* A row that prints intel's tier or IAVM: the intel rows behind it are part of what it says
+   (remediationPlan() already folds them into its rows; vulnGroups() does not). */
+function mkWithIntel(R,cves){const t=S.intel&&S.intel.rows,xs=t?(cves||[]).filter(c=>mkOwn(t,c)):[];
+ return xs.length?mkR(R,xs.map(mkE.intel)):R;}
+/* One host's line for a record it shares with other hosts (a software title, a listening
+   port): this host, the record's own sources and any rule on the record -- not the other hosts
+   that share it, which are not in the line. (The fleet-wide row, mkE.sw / mkE.port, is the
+   join over all of them, which is right for a listing and an over-marking here.) */
+function mkHostSw(hk,r){
+ return mkFrom([mkE.host(hk)].concat(mkC(r)),"software",fld=>fld==="name"?[r.name,(r.name+" "+(r.version||"")).trim()]:fld==="vendor"?[r.vendor]:[]);}
+function mkHostPort(hk,p){const k=p.proto+"/"+p.port,r=mkOwn(S.ppsm,k);
+ return mkFrom([mkE.host(hk)].concat(mkC(r)),"port",fld=>fld==="port"?[k]:fld==="service"?[p.svc].concat(r?[r.svc,r.app]:[]):[]);}
 function exportIntel(){
- const fu=getIntelFusion();
- const rows=[[S.settings.banner],["Prioritized Vulnerability List (scan findings fused with threat intel)",today()],
+ const fu=getIntelFusion(), D=mkDoc("Prioritized_Vulnerabilities");
+ /* a sheet-driven score source is named after a column of the intel sheets themselves */
+ if(fu.scoreSource!=="blended") D.add(mkR(Object.keys(S.intel.rows).map(mkE.intel)),"score source");
+ const rows=[MK_B,["Prioritized Vulnerability List (scan findings fused with threat intel)",today()],
    [ctrlHeader("intel")],
    ["Score source: "+fu.scoreLabel+(fu.scoreNormalized?" (normalized to 0-100 for tiering; raw value in Raw Score column)":"")],
    ["P1 = weaponized + confirmed on network; P2/P3 by score ("+fu.weights.p2+"/"+fu.weights.p3+"); score weights in Detection Config"],[],
-   ["Tier","Score","Raw Score","On Network","CVE","IAVM","CVSS","RF Risk","RF Severity","Weaponized","Exploit DB","Actors","Countries",
+   [MK_PORTION_HDR,"Tier","Score","Raw Score","On Network","CVE","IAVM","CVSS","RF Risk","RF Severity","Weaponized","Exploit DB","Actors","Countries",
     "Attack Vector","Permissions Required","Reports","Total","Relate","CTO","Published","Products","Vendors",
     "Hosts Affected","Host List","Scan Findings","Description","Sources"]];
- fu.rows.forEach(r=>rows.push([r.tier||"","" +r.score,""+(r.raw??""),r.hosts.length?"YES":"no",r.cve,r.t.iavm.join("; "),
+ /* each row is the intel record and every scan finding it was joined to */
+ fu.rows.forEach(r=>rows.push([D.row(mkE.fusion(r),r.cve),r.tier||"","" +r.score,""+(r.raw??""),r.hosts.length?"YES":"no",r.cve,r.t.iavm.join("; "),
    r.cvss||"",r.t.rfScore||"",r.t.rfSev,r.weap?"YES":"no",r.t.expDb?"YES":"no",
    r.t.actors.join("; "),r.t.countries.join("; "),r.t.vector,r.t.perms,r.t.reports||"",r.t.total||"",r.t.relate||"",r.t.cto,
    r.t.published,r.t.products.join("; "),r.t.vendors.join("; "),
    r.hosts.length,r.hosts.join("; "),[...new Set(r.hits.map(x=>x.pname))].join("; "),r.t.desc,r.t.srcs.join("; ")]));
- if(!fu.rows.length) rows.push(["No intel loaded","","","","","","","","","","","","","","","","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Prioritized_Vulnerabilities_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!fu.rows.length) rows.push([mkNone(),"No intel loaded","","","","","","","","","","","","","","","","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Prioritized_Vulnerabilities_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${fu.rows.length} fused vulnerability record(s), ${fu.matched} confirmed on network.`);
 }
 
@@ -5443,14 +5465,16 @@ function exportTrend(){
   ["notReviewed","STIG Rules Not Reviewed"],["stigScore","STIG Compliance Score %"],
   ["eol","Unsupported Components"],["swUnreviewed","Software Not Reviewed"],
   ["dormantAccts","Dormant Accounts"],["ports","Registered Ports"]];
- const out=[[S.settings.banner],["Trend & Burndown",today()],[ctrlHeader("trend")],
+ const D=mkDoc("Trend_Burndown");
+ const out=[MK_B,["Trend & Burndown",today()],[ctrlHeader("trend")],
    ["One row per assessment cycle. Cycles are keyed by the newest scan date in each dataset."],[],
-   keys.map(k=>k[1])];
- pts.forEach(p=>out.push(keys.map(([k])=>k==="taken"?p.taken:k==="label"?(p.label||""):
-   (p.stats[k]===null||p.stats[k]===undefined?"":p.stats[k]))));
- if(!pts.length) out.push(keys.map(()=>""));
- out.push([]);out.push([S.settings.banner]);
- dl(`Trend_Burndown_${today()}.csv`,out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+   [MK_PORTION_HDR].concat(keys.map(k=>k[1]))];
+ /* a cycle carries the marking of the dataset it was counted from, kept when it was captured */
+ pts.forEach(p=>out.push([D.row(mkE.trend(p),p.taken)].concat(keys.map(([k])=>k==="taken"?p.taken:k==="label"?(p.label||""):
+   (p.stats[k]===null||p.stats[k]===undefined?"":p.stats[k])))));
+ if(!pts.length) out.push([mkNone()].concat(keys.map(()=>"")));
+ out.push([]);out.push(MK_B);
+ dl(`Trend_Burndown_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`Exported ${pts.length} cycle(s).`);
 }
 
@@ -5545,15 +5569,16 @@ function seedInventoryFromAssets(){
  status(`Seeded ${lines.length} asset(s) into the reconciliation list. Curate it, then treat it as authoritative.`);
 }
 function exportAssets(){
- const rows=[[S.settings.banner],["Asset Inventory",today()],[],
-   ASSET_COLS.map(c=>c[1]).concat(["Scan Detected","Source"])];
- rows.splice(2,0,[ctrlHeader("assets")]);
+ const D=mkDoc("Asset_Inventory");
+ /* header on row 4: the file re-ingests as a HW listing, which looks for it in the first 15 rows */
+ const rows=[MK_B,["Asset Inventory",today()],[ctrlHeader("assets")],[],
+   [MK_PORTION_HDR].concat(ASSET_COLS.map(c=>c[1]),["Scan Detected","Source"])];
  for(const k of assetKeys()){
    const a=S.assets[k];
-   rows.push(ASSET_COLS.map(c=>a[c[0]]).concat([a.fromScan?"Y":"N",assetSrcOf(a)]));
+   rows.push([D.row(mkE.asset(k),k)].concat(ASSET_COLS.map(c=>a[c[0]]),[a.fromScan?"Y":"N",assetSrcOf(a)]));
  }
- rows.push([]); rows.push([S.settings.banner]);
- dl(`Asset_Inventory_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ rows.push([]); rows.push(MK_B);
+ dl(`Asset_Inventory_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${assetKeys().length} asset(s).`);
 }
 
@@ -6008,26 +6033,30 @@ function renderSoftware(){
 }
 
 function exportSoftware(){
- const s=S.settings, rows=[];
- rows.push([s.banner]);
+ const s=S.settings, rows=[], D=mkDoc("Software_Listing");
+ rows.push(MK_B);
  rows.push([ctrlHeader("software")]);
  rows.push(["Date Exported:",today()]);
+ /* the header block is what the operator typed into Settings */
+ if([s.swExportedBy,s.swOffice,s.swOwner,s.swPocName,s.swReviewedDate,s.swSystemName,s.swPocPhone,s.swReviewedBy,s.swDitpr,s.swPocEmail]
+   .some(v=>String(v??"").trim())) D.add(mkE.typed(),"header block");
  rows.push(["Exported By:",s.swExportedBy,"","Office / Org:",s.swOffice]);
  rows.push(["Information System Owner:",s.swOwner,"","POC Name:",s.swPocName,"","Date Reviewed / Updated:",s.swReviewedDate]);
  rows.push(["System Name:",s.swSystemName,"","POC Phone:",s.swPocPhone,"","Reviewed / Updated By:",s.swReviewedBy]);
  rows.push(["DITPR ID:",s.swDitpr,"","POC E-Mail:",s.swPocEmail]);
  rows.push([]);
- rows.push(["#",...SW_COLS.map(c=>c[1]),...APPROVAL_COLS.map(c=>c[1]),"Support Status","Source","Hosts"]);
+ /* header stays on row 8: the listing re-ingests as a SW listing, header within the first 15 rows */
+ rows.push([MK_PORTION_HDR,"#",...SW_COLS.map(c=>c[1]),...APPROVAL_COLS.map(c=>c[1]),"Support Status","Source","Hosts"]);
  let n=0;
  for(const k of swKeysSorted()){
    const r=S.software[k]; if(!r.include) continue;
    const e=eolFor(r.name,r.version);
-   rows.push([++n,...SW_COLS.map(c=>r[c[0]]),...APPROVAL_COLS.map(c=>r[c[0]]),
+   rows.push([D.row(mkE.sw(k),r.name),++n,...SW_COLS.map(c=>r[c[0]]),...APPROVAL_COLS.map(c=>r[c[0]]),
      e?(e.state==="expired"?"UNSUPPORTED since "+e.date:e.state==="unknown"?"VERIFY":"supported to "+e.date):"",
      swSrcOf(r),r.hosts.length]);
  }
- rows.push([]); rows.push([s.banner]);
- dl(`Software_Listing_${today()}.csv`, rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ rows.push([]); rows.push(MK_B);
+ dl(`Software_Listing_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported Software Listing — ${n} product(s). Header block and manual columns come from Settings + your edits.`);
 }
 
@@ -6161,55 +6190,93 @@ function renderRecon(){
 }
 
 function exportDelta(){
- if(!S.delta){alert("No baseline loaded — nothing to diff.");return;}
- const d=S.delta, C=d.counts||{};
- const rows=[[S.settings.banner],
+ if(!S.delta){if(!MK_DRY)alert("No baseline loaded — nothing to diff.");return;}
+ const d=S.delta, C=d.counts||{}, D=mkDoc("Change_Record");
+ /* What was removed is known only from the baseline session, so it carries the baseline's
+    marking; what was added carries the current record's; a comparison that needs both sides
+    carries both. Anything that cannot be traced to a record carries the baseline and the whole
+    current workspace -- never less. */
+ const B=mkE.base(), cur=mkWorkspace(), both=r=>mkR(r,B), unknown=mkR(cur,B);
+ const hostIx=new Map();
+ for(const k in S.hosts){[k,S.hosts[k].name||k].forEach(n=>hostIx.set(n,mkR(hostIx.get(n),mkE.host(k))));}
+ const host=n=>hostIx.get(n)||unknown;
+ const sw=k=>mkOwn(S.software,k)?mkE.sw(k):unknown;
+ const port=t=>{const k=String(t).split(" ")[0];return mkOwn(S.ppsm,k)?mkE.port(k):unknown;};
+ /* software added: the current rows, plus the intel rows a "weaponized" assessment cites */
+ const swAdd=new Map();
+ d.swAdded.forEach(x=>{const t=x.name+(x.version?" "+x.version:""),wi=intelForProductName(x.name);
+   swAdd.set(t,mkR(swAdd.get(t),sw(x.k),wi&&wi.weap?wi.cves.filter(c=>mkOwn(S.intel.rows,c)).map(mkE.intel):[]));});
+ const itemR=i=>i.cat==="Software added"?swAdd.get(i.item)||unknown
+   :i.cat==="Software removed"||i.cat==="Port no longer listening"||i.cat==="Host no longer seen"?B
+   :i.cat==="Port newly listening"?port(i.item)
+   :i.cat==="Host added"?host(i.item)
+   :/^STIG applicability/.test(i.cat)?both(host(i.item))
+   :unknown;
+ const items=(d.items||[]).map(i=>({i,R:itemR(i)}));
+ D.add(B,"baseline");
+ if(items.length) D.add(mkR(items.map(x=>x.R)),"change counts");
+ const rows=[MK_B,
    ["Change Record / Unauthorized Change Detection"],[ctrlHeader("changes")],
    ["Baseline",(d.baselineTaken||"").slice(0,10),"Current",d.taken.slice(0,10)],
    ["Critical",C.critical||0,"Unauthorized",C.unauthorized||0,"Review",C.review||0,"Info",C.info||0],[],
-   ["Severity","Category","Item","Assessment"]];
- (d.items||[]).forEach(i=>rows.push([i.sev.toUpperCase(),i.cat,i.item,i.detail]));
+   [MK_PORTION_HDR,"Severity","Category","Item","Assessment"]];
+ items.forEach(({i,R})=>rows.push([D.row(R,i.item),i.sev.toUpperCase(),i.cat,i.item,i.detail]));
  rows.push([]);
  rows.push(["--- raw change detail ---"]);
- rows.push(["Category","Item","Detail"]);
- d.swAdded.forEach(x=>rows.push(["Software added",x.name+(x.version?" "+x.version:""),x.hosts+" host(s)"]));
- d.swRemoved.forEach(x=>rows.push(["Software removed",x.name+(x.version?" "+x.version:""),""]));
- d.swHostChange.forEach(x=>rows.push(["Software host count",x.name+" "+x.version,x.from+" -> "+x.to]));
- d.hostsAdded.forEach(x=>rows.push(["Host added",x,""]));
- d.hostsRemoved.forEach(x=>rows.push(["Host no longer seen",x,""]));
- d.portsAdded.forEach(x=>rows.push(["Port newly observed",x,""]));
- d.portsRemoved.forEach(x=>rows.push(["Port no longer observed",x,""]));
- d.colsAdded.forEach(x=>rows.push(["STIG column activated",x,""]));
- d.stigChanges.forEach(x=>rows.push(["STIG applicability changed",x.host,
+ rows.push([MK_PORTION_HDR,"Category","Item","Detail"]);
+ d.swAdded.forEach(x=>{const t=x.name+(x.version?" "+x.version:"");rows.push([D.row(sw(x.k),t),"Software added",t,x.hosts+" host(s)"]);});
+ d.swRemoved.forEach(x=>rows.push([D.row(B,x.name),"Software removed",x.name+(x.version?" "+x.version:""),""]));
+ d.swHostChange.forEach(x=>rows.push([D.row(both(sw(x.name+"|"+(x.version||""))),x.name),"Software host count",x.name+" "+x.version,x.from+" -> "+x.to]));
+ d.hostsAdded.forEach(x=>rows.push([D.row(host(x),x),"Host added",x,""]));
+ d.hostsRemoved.forEach(x=>rows.push([D.row(B,x),"Host no longer seen",x,""]));
+ d.portsAdded.forEach(x=>rows.push([D.row(port(x),x),"Port newly observed",x,""]));
+ d.portsRemoved.forEach(x=>rows.push([D.row(B,x),"Port no longer observed",x,""]));
+ /* a column is active because hosts here match it; it is "new" only against the baseline */
+ d.colsAdded.forEach(x=>rows.push([D.row(both(mkR(Object.keys(S.hosts).filter(k=>stigMark(k,x).on).map(mkE.host))),x),"STIG column activated",x,""]));
+ d.stigChanges.forEach(x=>rows.push([D.row(both(host(x.host)),x.host),"STIG applicability changed",x.host,
    (x.added.length?"+ "+x.added.join("; "):"")+(x.removed.length?"  - "+x.removed.join("; "):"")]));
- if(d.total===0)rows.push(["No changes","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Change_Record_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(d.total===0)rows.push([D.row(B),"No changes","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Change_Record_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported change record — ${d.total} change(s).`);
 }
 function exportRecon(){
- const r=reconcile();
- const rows=[[S.settings.banner],["Asset Reconciliation",today()],[ctrlHeader("recon")],[],
+ const r=reconcile(), D=mkDoc("Asset_Reconciliation");
+ /* The inventory side is what was pasted on the Assets tab, or -- with none pasted -- the asset
+    inventory itself (reconcile() falls back to it); the scan side is the hosts. */
+ const pasted=!!(S.inventory&&S.inventory.length);
+ /* A pasted line carries no provenance of its own -- and "seed from assets" fills the box from
+    the asset inventory -- so a line naming an asset also carries that asset's marking. */
+ const invR=i=>mkR(pasted?mkE.typed():null,mkOwn(S.assets,i.name)?mkE.asset(i.name):null);
+ const invList=pasted?S.inventory:assetKeys().filter(k=>S.assets[k].inScope!=="N").map(k=>({name:k}));
+ const hkOf=new Map(Object.keys(S.hosts).map(k=>[S.hosts[k],k]));
+ /* the summary counts every inventory entry and every scanned host */
+ D.add(mkR(invList.map(invR),Object.keys(S.hosts).map(mkE.host)),"summary counts");
+ const rows=[MK_B,["Asset Reconciliation",today()],[ctrlHeader("recon")],[],
    ["Summary","In inventory",r.inv,"Scanned",r.scanned,"Matched",r.matched],[],
-   ["Status","Asset","Type / IP","Note"]];
- r.notScanned.forEach(i=>rows.push(["In inventory, never scanned",i.name,i.type,i.note]));
- r.notInInv.forEach(h=>rows.push(["Scanned, not in inventory",h.name,h.ip,h.os]));
- S.inventory.filter(i=>Object.keys(S.hosts).includes(i.name)).forEach(i=>rows.push(["Matched",i.name,i.type,i.note]));
+   [MK_PORTION_HDR,"Status","Asset","Type / IP","Note"]];
+ r.notScanned.forEach(i=>rows.push([D.row(invR(i),i.name),"In inventory, never scanned",i.name,i.type,i.note]));
+ r.notInInv.forEach(h=>rows.push([D.row(hkOf.has(h)?mkE.host(hkOf.get(h)):mkE.hostByName(h.name),h.name),"Scanned, not in inventory",h.name,h.ip,h.os]));
+ /* a match is the inventory line and the scanned host it matched */
+ S.inventory.filter(i=>Object.keys(S.hosts).includes(i.name)).forEach(i=>rows.push([D.row(mkR(invR(i),mkE.host(i.name)),i.name),"Matched",i.name,i.type,i.note]));
  if(S.listings.files.length){
    const sr=swReconcile();
+   const all=[].concat(sr.matched,sr.scanOnly,sr.listingOnly,...sr.drift.map(d=>[d.scan].concat(d.listed)));
+   if(all.length) D.add(mkR(all.map(mkE.swRow)),"software summary counts");
    rows.push([]);
    rows.push(["--- software reconciliation (scan evidence vs HW/SW listing) ---"]);
    rows.push(["Summary","Matched",sr.matched.length,"Version drift",sr.drift.length,
      "Scan-only (not in listing)",sr.scanOnly.length,"Listing-only (not scan-confirmed)",sr.listingOnly.length]);
-   rows.push(["Status","Software","Installed Version(s)","Listed Version(s)","Hosts"]);
-   sr.drift.forEach(d=>rows.push(["VERSION DRIFT",d.scan.name,d.scan.version,
+   rows.push([MK_PORTION_HDR,"Status","Software","Installed Version(s)","Listed Version(s)","Hosts"]);
+   /* drift shows the installed row beside the listed rows it drifted from */
+   sr.drift.forEach(d=>rows.push([D.row(mkR(mkE.swRow(d.scan),d.listed.map(mkE.swRow)),d.scan.name),"VERSION DRIFT",d.scan.name,d.scan.version,
      d.listed.map(x=>x.version||"(none)").join("; "),d.scan.hosts.length]));
-   sr.scanOnly.forEach(x=>rows.push(["Detected, not in listing",x.name,x.version,"",x.hosts.length]));
-   sr.listingOnly.forEach(x=>rows.push(["In listing, not scan-confirmed",x.name,"",x.version,(x.listHosts||[]).length]));
-   sr.matched.forEach(x=>rows.push(["Matched",x.name,x.version,x.version,x.hosts.length]));
+   sr.scanOnly.forEach(x=>rows.push([D.row(mkE.swRow(x),x.name),"Detected, not in listing",x.name,x.version,"",x.hosts.length]));
+   sr.listingOnly.forEach(x=>rows.push([D.row(mkE.swRow(x),x.name),"In listing, not scan-confirmed",x.name,"",x.version,(x.listHosts||[]).length]));
+   sr.matched.forEach(x=>rows.push([D.row(mkE.swRow(x),x.name),"Matched",x.name,x.version,x.version,x.hosts.length]));
  }
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Asset_Reconciliation_${today()}.csv`,rows.map(x=>x.map(csvq).join(",")).join("\n"),"text/csv");
+ rows.push([]);rows.push(MK_B);
+ dl(`Asset_Reconciliation_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
 }
 /* eMASS Hardware/Software Baseline shaped export.
    Column names follow the common eMASS HW/SW baseline import layout. Verify against the
@@ -6218,22 +6285,26 @@ function exportRecon(){
 /* Round-trip: export a compact sheet for a reviewer to fill in Excel, then import it back.
    Matched by name+version, falling back to name so a version bump does not orphan a decision. */
 function exportApprovalSheet(){
- const rows=[[S.settings.banner],
+ const D=mkDoc("Approved_Software_Review");
+ /* importApprovals finds the header by its "Software Name" cell and reads by column name, so
+    the leading Portion Marking column and the authority block below the rows round-trip */
+ const rows=[MK_B,
    ["Approved Software List - for review"],[ctrlHeader("approved")],
    ["Fill Approval Status / Approved By / Approval Date / Approval Ref, then import back into the compiler."],
    ["Valid status values: "+APPROVAL_STATES.join(" | ")],[],
-   ["Software Name","Version","Vendor","Type","Hosts","Support Status",
+   [MK_PORTION_HDR,"Software Name","Version","Vendor","Type","Hosts","Support Status",
     "Approval Status","Approved By","Approval Date","Approval Ref","Notes"]];
+ let n=0;
  for(const k of swKeysSorted()){
    const r=S.software[k]; if(!r.include) continue;
-   const e=eolFor(r.name,r.version);
-   rows.push([r.name,r.version,r.vendor,r.type,r.hosts.length,
+   const e=eolFor(r.name,r.version); n++;
+   rows.push([D.row(mkE.sw(k),r.name),r.name,r.version,r.vendor,r.type,r.hosts.length,
      e?(e.state==="expired"?"UNSUPPORTED since "+e.date:e.state==="unknown"?"VERIFY":"supported to "+e.date):"",
      r.approval,r.approvedBy,r.approvalDate,r.approvalRef,r.deps||""]);
  }
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Approved_Software_Review_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
- status(`Review sheet exported (${rows.length-9} products). Have it filled in, then use Import approvals.`);
+ rows.push([]);rows.push(MK_B);
+ dl(`Approved_Software_Review_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
+ status(`Review sheet exported (${n} products). Have it filled in, then use Import approvals.`);
 }
 async function importApprovals(f){
  if(!f) return;
@@ -6284,8 +6355,11 @@ async function importApprovals(f){
  $("apprIn").value="";
 }
 
+/* The eMASS import shape has its header on line 1 and no room for banner rows or a marking
+   column, so each row's portion mark leads its own Comments cell -- the one free-text field --
+   and the file's derived marking travels with it (dl's M) to the release log and the package. */
 function exportEmassSoftware(){
- const s=S.settings;
+ const D=mkDoc("eMASS_Software_Baseline");
  const hdr=["Software Type","Software Vendor","Software Name","Software Version",
    "Parent System","Subsystem","Network","Hosting Environment","Software Dependencies",
    "Cryptographic Hash","In Service Date","IT Budget UII","Fiscal Year (FY)",
@@ -6299,14 +6373,16 @@ function exportEmassSoftware(){
      :`Detected on ${r.hosts.length} host(s) via Tenable/ACAS credentialed scan`;
    rows.push([r.type,r.vendor,r.name,r.version,r.parent,r.subsystem,r.network,r.hosting,
      r.deps,r.hash,r.inService,r.uii,r.fy,r.popEnd,r.license,r.term,
-     r.approval==="Not Reviewed"?"":r.approval,cm]);
+     r.approval==="Not Reviewed"?"":r.approval,mkPortion(D.row(mkE.sw(k),r.name).mk)+" "+cm]);
  }
- dl(`eMASS_Software_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
- status(`eMASS-shaped software baseline exported (${rows.length-1} rows, no banner row so the header is line 1).`);
+ const M=mkSeal(D);
+ dl(`eMASS_Software_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv",M);
+ status(`eMASS-shaped software baseline exported (${rows.length-1} rows, no banner row so the header is line 1; derived marking ${M.banner}, portion marks lead each Comments cell).`);
 }
 function exportEmassHardware(){
  // Draws from the merged Asset Inventory (scan + HW/SW listing + manual), so hardware
  // that never scans -- switches, standalone stations, spares -- still makes the baseline.
+ const D=mkDoc("eMASS_Hardware_Baseline");
  const hdr=["Component Type","Asset Name","IP Address","MAC Address","Operating System","OS Version",
    "Manufacturer","Model Number","Serial Number","Location","Facility",
    "Approval Status","Critical Asset","Last Scan Date","Comments"];
@@ -6322,10 +6398,11 @@ function exportEmassHardware(){
    notes.push("Source: "+assetSrcOf(a));
    rows.push([a.type||"",a.name,a.ip||"",a.mac||"",a.os||"","",
      a.make||"",a.model||"",a.serial||"",a.location||"",a.facility||"",
-     "",a.criticality||"",a.lastSeen||"",notes.join(" | ")]);
+     "",a.criticality||"",a.lastSeen||"",mkPortion(D.row(mkE.asset(k),k).mk)+" "+notes.join(" | ")]);
  }
- dl(`eMASS_Hardware_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
- status(`eMASS-shaped hardware baseline exported (${rows.length-1} assets, merged from scans + listings + manual entries).`);
+ const M=mkSeal(D);
+ dl(`eMASS_Hardware_Baseline_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv",M);
+ status(`eMASS-shaped hardware baseline exported (${rows.length-1} assets, merged from scans + listings + manual entries; derived marking ${M.banner}).`);
 }
 
 function exportAll(){
@@ -6376,14 +6453,14 @@ function renderEol(){
  $("eolBody").innerHTML=h+`</table></div>`;
 }
 function exportEol(){
- const f=eolFindings();
- const rows=[[S.settings.banner],["Unsupported System Components",today()],[ctrlHeader("eol")],[],
-   ["Status","Component","Version","End of Support","Hosts Affected","Host List","Note"]];
- f.forEach(x=>rows.push([x.eol.state==="expired"?"UNSUPPORTED":"VERIFY",x.row.name,x.row.version||"",
+ const f=eolFindings(), D=mkDoc("Unsupported_Components");
+ const rows=[MK_B,["Unsupported System Components",today()],[ctrlHeader("eol")],[],
+   [MK_PORTION_HDR,"Status","Component","Version","End of Support","Hosts Affected","Host List","Note"]];
+ f.forEach(x=>rows.push([D.row(x.mk,x.row.name),x.eol.state==="expired"?"UNSUPPORTED":"VERIFY",x.row.name,x.row.version||"",
    x.eol.date||"",x.row.hosts.length,x.row.hosts.join("; "),x.eol.note||""]));
- if(!f.length) rows.push(["None detected","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Unsupported_Components_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!f.length) rows.push([mkNone(),"None detected","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Unsupported_Components_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${f.length} unsupported/verify finding(s).`);
 }
 /* ---------------- scan health / credential verification ----------------
@@ -6794,68 +6871,69 @@ function renderStigCompliance(){
 
 /* ---- STIG compliance exports ---- */
 function exportStigCompliance(){
- const rows=stigResultRows();
- const out=[[S.settings.banner],["STIG Compliance Summary",today()],[ctrlHeader("stigcompliance")],
+ const rows=stigResultRows(), D=mkDoc("STIG_Compliance_Summary");
+ const out=[MK_B,["STIG Compliance Summary",today()],[ctrlHeader("stigcompliance")],
    ["Score = Not a Finding / (Not a Finding + Open). Not Applicable and Not Reviewed are excluded from the denominator."],[],
-   ["Host","STIG","Version","Release","Source","Assessed","Score %","CAT I Open","CAT II Open","CAT III Open",
+   [MK_PORTION_HDR,"Host","STIG","Version","Release","Source","Assessed","Score %","CAT I Open","CAT II Open","CAT III Open",
     "Open","Not a Finding","Not Applicable","Not Reviewed","Total Rules"]];
- rows.forEach(r=>out.push([r.host,r.rec.title,r.rec.version,r.rec.release,r.rec.source,r.rec.when||"",
+ rows.forEach(r=>out.push([D.row(r.mk,r.host),r.host,r.rec.title,r.rec.version,r.rec.release,r.rec.source,r.rec.when||"",
    r.score===null?"":r.score,r.c.catOpen.high,r.c.catOpen.medium,r.c.catOpen.low,
    r.c.Open,r.c.NotAFinding,r.c.Not_Applicable,r.c.Not_Reviewed,r.c.total]));
- if(!rows.length) out.push(["No STIG results loaded","","","","","","","","","","","","","",""]);
- out.push([]);out.push([S.settings.banner]);
- dl(`STIG_Compliance_Summary_${today()}.csv`,out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!rows.length) out.push([mkNone(),"No STIG results loaded","","","","","","","","","","","","","",""]);
+ out.push([]);out.push(MK_B);
+ dl(`STIG_Compliance_Summary_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`Exported ${rows.length} host/STIG summary row(s).`);
 }
 function exportStigOpenFindings(){
- const opens=stigOpenFindings();
- const out=[[S.settings.banner],["STIG Open Findings",today()],[ctrlHeader("stigcompliance")],[],
-   ["Severity","Host","STIG","Version","V-ID","STIG ID","Rule Title","CCI","Finding Details","Comments"]];
- opens.forEach(o=>out.push([CAT_LABEL[o.rule.severity],o.host,o.stig,
+ const opens=stigOpenFindings(), D=mkDoc("STIG_Open_Findings");
+ const out=[MK_B,["STIG Open Findings",today()],[ctrlHeader("stigcompliance")],[],
+   [MK_PORTION_HDR,"Severity","Host","STIG","Version","V-ID","STIG ID","Rule Title","CCI","Finding Details","Comments"]];
+ opens.forEach(o=>out.push([D.row(o.mk,o.host+" "+(o.rule.vid||"")),CAT_LABEL[o.rule.severity],o.host,o.stig,
    o.version+(o.release?" R"+o.release:""),o.rule.vid,o.rule.stigId,o.rule.title,
    (o.rule.ccis||[]).join("; "),o.rule.details||"",o.rule.comments||""]));
- if(!opens.length) out.push(["None open","","","","","","","","",""]);
- out.push([]);out.push([S.settings.banner]);
- dl(`STIG_Open_Findings_${today()}.csv`,out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!opens.length) out.push([mkNone(),"None open","","","","","","","","",""]);
+ out.push([]);out.push(MK_B);
+ dl(`STIG_Open_Findings_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`Exported ${opens.length} open STIG finding(s).`);
 }
 /* Open findings grouped by rule across hosts -- the POA&M shape, since a POA&M line item
    is a weakness, not one row per host. */
 function exportStigPoam(){
- const g={};
+ const g={}, D=mkDoc("POAM_Draft_STIG");
  stigOpenFindings().forEach(o=>{
    const k=o.rule.vid||o.rule.ruleId||o.rule.title;
    const t=g[k]||(g[k]={vid:o.rule.vid,stigId:o.rule.stigId,title:o.rule.title,
-     severity:o.rule.severity,ccis:new Set(),stigs:new Set(),hosts:new Set()});
+     severity:o.rule.severity,ccis:new Set(),stigs:new Set(),hosts:new Set(),A:mkAcc()});
    (o.rule.ccis||[]).forEach(c=>t.ccis.add(c));
    t.stigs.add(o.stig+(o.version?" "+o.version:"")); t.hosts.add(o.host);
+   t.A.add(o.mk);                       // a line item is every host/STIG result folded into it
  });
  const ord={high:0,medium:1,low:2};
  const items=Object.values(g).sort((a,b)=>ord[a.severity]-ord[b.severity]||b.hosts.size-a.hosts.size);
- const out=[[S.settings.banner],["POA&M Draft — STIG open findings",today()],[ctrlHeader("stigcompliance")],
+ const out=[MK_B,["POA&M Draft — STIG open findings",today()],[ctrlHeader("stigcompliance")],
    ["DRAFT: weakness rows are prefilled from assessment results; POC, resources, dates, milestones, and status decisions belong to the ISSM. CCI references are carried through for control traceability — eMASS maps CCI to the 800-53 control set."],[],
-   ["Item","Weakness / Deficiency Description","V-ID","STIG ID","CCI","Source STIG","Raw Severity",
+   [MK_PORTION_HDR,"Item","Weakness / Deficiency Description","V-ID","STIG ID","CCI","Source STIG","Raw Severity",
     "Affected Asset Count","Affected Assets","Point of Contact","Resources Required",
     "Scheduled Completion Date","Milestones with Dates","Status","Comments"]];
  let n=0;
- items.forEach(i=>out.push([++n,i.title,i.vid,i.stigId,[...i.ccis].join("; "),[...i.stigs].join("; "),
+ items.forEach(i=>out.push([D.row(i.A.r(),i.vid||i.title),++n,i.title,i.vid,i.stigId,[...i.ccis].join("; "),[...i.stigs].join("; "),
    CAT_LABEL[i.severity],i.hosts.size,[...i.hosts].sort().join("; "),"","","","","Ongoing",
    "Identified by "+( [...i.stigs].length>1?"STIG assessment":"SCC / STIG Viewer assessment")+", "+today()]));
- if(!items.length) out.push(["","No open STIG findings","","","","","","","","","","","","",""]);
- out.push([]);out.push([S.settings.banner]);
- dl(`POAM_Draft_STIG_${today()}.csv`,out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!items.length) out.push([mkNone(),"","No open STIG findings","","","","","","","","","","","","",""]);
+ out.push([]);out.push(MK_B);
+ dl(`POAM_Draft_STIG_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`STIG POA&M draft exported — ${n} weakness line item(s) across ${new Set(stigOpenFindings().map(o=>o.host)).size} host(s).`);
 }
 function exportStigCoverage(){
- const cov=stigCoverage();
- const out=[[S.settings.banner],["STIG Assessment Coverage — applicability vs results",today()],
-   [ctrlHeader("stigcompliance")],[],["Status","Host","STIG","Detail"]];
- cov.gaps.forEach(g=>out.push(["APPLICABLE, NOT ASSESSED",g.host,g.stig,"No SCC result or checklist covers this STIG on this host"]));
- cov.extra.forEach(g=>out.push(["ASSESSED, NOT MARKED APPLICABLE",g.host,g.title,"Results exist but the applicability matrix does not mark this STIG for this host"]));
- cov.covered.forEach(g=>out.push(["COVERED",g.host,g.stig,g.result.rec.title+" — score "+(g.result.score===null?"n/a":g.result.score+"%")]));
- if(!cov.gaps.length&&!cov.extra.length&&!cov.covered.length) out.push(["No data","","",""]);
- out.push([]);out.push([S.settings.banner]);
- dl(`STIG_Coverage_${today()}.csv`,out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ const cov=stigCoverage(), D=mkDoc("STIG_Coverage");
+ const out=[MK_B,["STIG Assessment Coverage — applicability vs results",today()],
+   [ctrlHeader("stigcompliance")],[],[MK_PORTION_HDR,"Status","Host","STIG","Detail"]];
+ cov.gaps.forEach(g=>out.push([D.row(g.mk,g.host),"APPLICABLE, NOT ASSESSED",g.host,g.stig,"No SCC result or checklist covers this STIG on this host"]));
+ cov.extra.forEach(g=>out.push([D.row(g.mk,g.host),"ASSESSED, NOT MARKED APPLICABLE",g.host,g.title,"Results exist but the applicability matrix does not mark this STIG for this host"]));
+ cov.covered.forEach(g=>out.push([D.row(g.mk,g.host),"COVERED",g.host,g.stig,g.result.rec.title+" — score "+(g.result.score===null?"n/a":g.result.score+"%")]));
+ if(!cov.gaps.length&&!cov.extra.length&&!cov.covered.length) out.push([mkNone(),"No data","","",""]);
+ out.push([]);out.push(MK_B);
+ dl(`STIG_Coverage_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`Exported coverage: ${cov.gaps.length} gap(s), ${cov.covered.length} covered, ${cov.extra.length} unmatched.`);
 }
 
@@ -6972,39 +7050,44 @@ function openHostDetail(hk){
 }
 function closeHostDetail(){$("hostDrawer").classList.remove("open");$("hostBackdrop").classList.remove("show");}
 function exportHostReport(hk){
- const d=hostDossier(hk); if(!d){alert("No data for that asset.");return;}
- const h=d.h, sc=h.scan||{};
- const out=[[S.settings.banner],["Asset Report — "+h.name,today()],
+ const d=hostDossier(hk); if(!d){if(!MK_DRY)alert("No data for that asset.");return;}
+ const h=d.h, sc=h.scan||{}, D=mkDoc("Asset_Report");
+ const H=mkE.host(hk), A=d.asset?mkE.asset(hk):H;
+ const kv=(R,k,v)=>[D.row(R,k),k,v], KV=[MK_PORTION_HDR,"Field","Value"];
+ D.add(H,h.name);                                  // the title names the host
+ const out=[MK_B,["Asset Report — "+h.name,today()],
    ["Consolidated view: identity, scan provenance, findings, STIG results, accounts, software, and ports for a single asset."],[],
-   ["IDENTITY"],["Host name",h.name],["IP address",h.ip||""],["MAC",h.mac||""],["FQDN",h.fqdn||""],
-   ["Operating system",h.os||""],["Device type",S.stig.device[hk]||""],["Last scanned",h.lastSeen||""]];
- if(d.asset) out.push(["Owner",d.asset.owner||""],["Location",d.asset.location||""],
-   ["Criticality",d.asset.criticality||""],["Serial",d.asset.serial||""],["Status",d.asset.status||""]);
- out.push([],["SCAN PROVENANCE"],["Credentialed checks",sc.credChecks||"not reported"],
-   ["Auth issue",sc.authIssue||""],["Scan policy",sc.policy||""],["Plugin feed",sc.feed||""],
-   ["Scan start",sc.start||""],["Duration",sc.duration||""]);
- out.push([],["VULNERABILITIES"],["Critical",d.c[4]],["High",d.c[3]],["Medium",d.c[2]],["Low",d.c[1]],
-   ["Total",d.c.total],["Exploitable",d.c.expl],["Past remediation window",d.c.overdue],[],
-   ["Severity","Finding","CVSS","Port(s)","Age (days)","Past window","CVEs"]);
- [...d.inst].sort((a,b)=>b.sev-a.sev||b.cvss-a.cvss).forEach(i=>out.push([SEV_NAME[i.sev],i.name,i.cvss||"",
+   ["IDENTITY"],KV,kv(H,"Host name",h.name),kv(H,"IP address",h.ip||""),kv(H,"MAC",h.mac||""),kv(H,"FQDN",h.fqdn||""),
+   kv(H,"Operating system",h.os||""),kv(H,"Device type",S.stig.device[hk]||""),kv(H,"Last scanned",h.lastSeen||"")];
+ if(d.asset) out.push(kv(A,"Owner",d.asset.owner||""),kv(A,"Location",d.asset.location||""),
+   kv(A,"Criticality",d.asset.criticality||""),kv(A,"Serial",d.asset.serial||""),kv(A,"Status",d.asset.status||""));
+ out.push([],["SCAN PROVENANCE"],KV,kv(H,"Credentialed checks",sc.credChecks||"not reported"),
+   kv(H,"Auth issue",sc.authIssue||""),kv(H,"Scan policy",sc.policy||""),kv(H,"Plugin feed",sc.feed||""),
+   kv(H,"Scan start",sc.start||""),kv(H,"Duration",sc.duration||""));
+ /* a count carries the marking of the findings it counts */
+ const cnt=p=>mkR(H,d.inst.filter(p).map(i=>i.mk));
+ out.push([],["VULNERABILITIES"],KV,kv(cnt(i=>i.sev===4),"Critical",d.c[4]),kv(cnt(i=>i.sev===3),"High",d.c[3]),
+   kv(cnt(i=>i.sev===2),"Medium",d.c[2]),kv(cnt(i=>i.sev===1),"Low",d.c[1]),
+   kv(cnt(()=>true),"Total",d.c.total),kv(cnt(i=>i.expl),"Exploitable",d.c.expl),kv(cnt(i=>i.overdue),"Past remediation window",d.c.overdue),[],
+   [MK_PORTION_HDR,"Severity","Finding","CVSS","Port(s)","Age (days)","Past window","CVEs"]);
+ [...d.inst].sort((a,b)=>b.sev-a.sev||b.cvss-a.cvss).forEach(i=>out.push([D.row(i.mk,i.name),SEV_NAME[i.sev],i.name,i.cvss||"",
    i.ports.join("; "),i.age===null?"":i.age,i.overdue?"YES":"",i.cves.join("; ")]));
- out.push([],["STIG RESULTS"],["STIG","Version","Score %","CAT I Open","Open","Not a Finding","Not Reviewed"]);
- d.stig.forEach(r=>out.push([r.rec.title,r.rec.version+(r.rec.release?" R"+r.rec.release:""),
+ out.push([],["STIG RESULTS"],[MK_PORTION_HDR,"STIG","Version","Score %","CAT I Open","Open","Not a Finding","Not Reviewed"]);
+ d.stig.forEach(r=>out.push([D.row(r.mk,r.rec.title),r.rec.title,r.rec.version+(r.rec.release?" R"+r.rec.release:""),
    r.score===null?"":r.score,r.c.catOpen.high,r.c.Open,r.c.NotAFinding,r.c.Not_Reviewed]));
- if(!d.stig.length) out.push(["No STIG results loaded for this asset","","","","","",""]);
- out.push(["Applicable per matrix",d.applicable.join("; ")]);
- out.push([],["ACCOUNTS"],["Account","Source","RID","Groups","Assessment"]);
- d.accts.forEach(r=>out.push([r.a.name,r.a.src||"",r.a.rid||"",r.a.groups.join("; "),acctAssess(r.a)]));
- if(!d.accts.length) out.push(["No account enumeration","","","",""]);
- out.push([],["SOFTWARE"],["Name","Version","Vendor","Type","Approval","Support status"]);
+ if(!d.stig.length) out.push([D.row(H),"No STIG results loaded for this asset","","","","","",""]);
+ out.push([D.row(H,"applicability"),"Applicable per matrix",d.applicable.join("; ")]);
+ out.push([],["ACCOUNTS"],[MK_PORTION_HDR,"Account","Source","RID","Groups","Assessment"]);
+ d.accts.forEach(r=>out.push([D.row(r.mk,r.a.name),r.a.name,r.a.src||"",r.a.rid||"",r.a.groups.join("; "),acctAssess(r.a)]));
+ if(!d.accts.length) out.push([D.row(H),"No account enumeration","","","",""]);
+ out.push([],["SOFTWARE"],[MK_PORTION_HDR,"Name","Version","Vendor","Type","Approval","Support status"]);
  d.sw.forEach(r=>{const e=eolFor(r.name,r.version);
-   out.push([r.name,r.version,r.vendor,r.type,r.approval,
+   out.push([D.row(mkHostSw(hk,r),r.name),r.name,r.version,r.vendor,r.type,r.approval,
      e?(e.state==="expired"?"UNSUPPORTED since "+e.date:e.state==="unknown"?"VERIFY":"supported to "+e.date):""]);});
- out.push([],["LISTENING PORTS"],["Protocol","Port","Service"]);
- d.ports.forEach(p=>out.push([p.proto.toUpperCase(),p.port,p.svc||""]));
- out.push([]);out.push([S.settings.banner]);
- dl(`Asset_Report_${h.name.replace(/[^A-Za-z0-9_-]/g,"_")}_${today()}.csv`,
-    out.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ out.push([],["LISTENING PORTS"],[MK_PORTION_HDR,"Protocol","Port","Service"]);
+ d.ports.forEach(p=>out.push([D.row(mkHostPort(hk,p),p.proto+"/"+p.port),p.proto.toUpperCase(),p.port,p.svc||""]));
+ out.push([]);out.push(MK_B);
+ dl(`Asset_Report_${h.name.replace(/[^A-Za-z0-9_-]/g,"_")}_${today()}.csv`,mkCsv(D,out),"text/csv",D.M);
  status(`Asset report exported for ${h.name}.`);
 }
 
@@ -7109,15 +7192,15 @@ function renderScanHealth(){
  $("shBody").innerHTML=h+'</table></div><p style="color:var(--dim);font-size:12px;margin-top:8px">Hosts reporting <b>Credentialed checks : no</b> produce OS-inference findings only &mdash; their software inventory, account data, and STIG marks are incomplete regardless of how clean the results look. Fix the credential before treating those rows as evidence.</p>';
 }
 function exportScanHealth(){
- const hks=Object.keys(S.hosts).sort();
- const rows=[[S.settings.banner],["Scan Coverage & Credential Verification",today()],[ctrlHeader("scanhealth")],[],
-   ["Host","IP","Credentialed Checks","Auth Issue Reported","Scan Policy","Plugin Feed","Feed Age (days)","Scan Start","Duration","Nessus Version"]];
+ const hks=Object.keys(S.hosts).sort(), D=mkDoc("Scan_Coverage");
+ const rows=[MK_B,["Scan Coverage & Credential Verification",today()],[ctrlHeader("scanhealth")],[],
+   [MK_PORTION_HDR,"Host","IP","Credentialed Checks","Auth Issue Reported","Scan Policy","Plugin Feed","Feed Age (days)","Scan Start","Duration","Nessus Version"]];
  hks.forEach(k=>{const h=S.hosts[k], sc=h.scan||{}, fa=feedAgeDays(sc.feed);
-   rows.push([h.name,h.ip||"",sc.credChecks||"not reported",sc.authIssue||"",sc.policy||"",
+   rows.push([D.row(mkE.host(k),h.name),h.name,h.ip||"",sc.credChecks||"not reported",sc.authIssue||"",sc.policy||"",
      sc.feed||"",fa===null?"":fa,sc.start||"",sc.duration||"",sc.version||""]);});
- if(!hks.length) rows.push(["No scans loaded","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Scan_Coverage_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!hks.length) rows.push([mkNone(),"No scans loaded","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Scan_Coverage_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported scan coverage for ${hks.length} host(s).`);
 }
 
@@ -7690,79 +7773,81 @@ function renderVulns(){
 /* Ranked patch plan: what to do, in what order, and what each action buys.
    Honours the filters active on the tab, the same as the detail export. */
 function exportRemediationPlan(){
- const F=vulnFilterState();
+ const F=vulnFilterState(), D=mkDoc("Remediation_Plan");
+ /* built from the filtered instances only: the product is marked over what it emits */
  const plan=remediationPlan(vulnInstances().filter(i=>passInstance(i,F)));
- const rows=[[S.settings.banner],["Remediation Plan — ranked by risk retired",today()],[ctrlHeader("vulns")],
+ const rows=[MK_B,["Remediation Plan — ranked by risk retired",today()],[ctrlHeader("vulns")],
    ["Findings grouped into the actions that close them. \"Risk retired\" is severity-weighted and boosted for public exploits, overdue findings, and threat-intel tier (Detection Config → remedyWeights). Reflects the filters active when exported."],
    ["Rows marked Unparsed carry no patch identifier or version threshold in the scan data and are deliberately NOT merged with any other action — verify those individually."],[],
-   ["Rank","Remediation Action","Product","Action Type","Fix Identifier(s)","Target Version",
+   [MK_PORTION_HDR,"Rank","Remediation Action","Product","Action Type","Fix Identifier(s)","Target Version",
     "Critical","High","Medium","Low","Finding Instances","Distinct Plugins","Hosts Affected",
     "Exploitable","Past Remediation Window","Intel Tier","IAVM","CVE Count","Oldest Finding (days)",
     "Risk Retired","Grouping Confidence","Host List","CVEs"]];
  let n=0;
- plan.forEach(p=>rows.push([++n,p.action,p.product,REMEDY_KIND[p.kind]||p.kind,p.advisories.join("; "),p.target||"",
+ plan.forEach(p=>rows.push([D.row(p.mk,p.action),++n,p.action,p.product,REMEDY_KIND[p.kind]||p.kind,p.advisories.join("; "),p.target||"",
    p.c[4],p.c[3],p.c[2],p.c[1],p.c.total,p.plugins,p.hostCount,p.c.expl,p.c.overdue,p.tier,
    p.iavm.join("; "),p.cves.length,p.age===null?"":p.age,p.score,
    p.confidence==="low"?"Unparsed — not merged":p.confidence,
    p.hosts.join("; "),p.cves.join("; ")]));
- if(!plan.length) rows.push(["","No findings match the current filter","","","","","","","","","","","","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Remediation_Plan_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!plan.length) rows.push([mkNone(),"","No findings match the current filter","","","","","","","","","","","","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Remediation_Plan_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported remediation plan — ${plan.length} action(s) covering ${plan.reduce((s,p)=>s+p.c.total,0)} finding instance(s).`);
 }
 function exportVulns(){
- const groups=vulnGroups();
- const rows=[[S.settings.banner],["Vulnerability Report",today()],[ctrlHeader("vulns")],[],
-   ["Severity","Finding","Product","Recommended Fix","Max CVSS","Exploit Available","Intel Tier","IAVM","CVEs","Hosts Affected","Host List"]];
+ const groups=vulnGroups(), D=mkDoc("Vulnerability_Report");
+ const rows=[MK_B,["Vulnerability Report",today()],[ctrlHeader("vulns")],[],
+   [MK_PORTION_HDR,"Severity","Finding","Product","Recommended Fix","Max CVSS","Exploit Available","Intel Tier","IAVM","CVEs","Hosts Affected","Host List"]];
  groups.forEach(g=>{const ii=vulnIntelInfo(g.cves);
-   rows.push([SEV_NAME[g.sev]||g.sev,g.name,g.product||"",g.fix||"",g.cvss||"",g.expl?"YES":"no",ii.tier,
+   rows.push([D.row(mkWithIntel(g.mk,g.cves),g.name),SEV_NAME[g.sev]||g.sev,g.name,g.product||"",g.fix||"",g.cvss||"",g.expl?"YES":"no",ii.tier,
      ii.iavm.join("; "),g.cves.join("; "),g.hosts.length,g.hosts.join("; ")]);});
- if(!groups.length) rows.push(["No findings","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Vulnerability_Report_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!groups.length) rows.push([mkNone(),"No findings","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Vulnerability_Report_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${groups.length} finding group(s).`);
 }
 function exportVulnDetail(){
- const F=vulnFilterState();
+ const F=vulnFilterState(), D=mkDoc("Vulnerability_Detail");
+ /* the filtered set only: the product is marked over the rows it emits */
  const inst=vulnInstances().filter(i=>passInstance(i,F));
- const rows=[[S.settings.banner],["Vulnerability Detail List",today()],[ctrlHeader("vulns")],
+ const rows=[MK_B,["Vulnerability Detail List",today()],[ctrlHeader("vulns")],
    ["One row per host x finding. Reflects the filters active when exported."],[],
-   ["Severity","Host","IP Address","Operating System","Port(s)","Plugin ID","Finding","Plugin Family",
+   [MK_PORTION_HDR,"Severity","Host","IP Address","Operating System","Port(s)","Plugin ID","Finding","Plugin Family",
     "Product","Recommended Fix","CVSS","CVEs","Exploit Available","Patch Published","Age (days)","Remediation Window (days)","Past Window","Solution"]];
  inst.forEach(i=>{const r=i.remedy||remedyOf(i);
-   rows.push([SEV_NAME[i.sev]||i.sev,i.host,i.ip,i.os,i.ports.join("; "),i.pid,i.name,i.family,
+   rows.push([D.row(i.mk,i.host+" "+i.pid),SEV_NAME[i.sev]||i.sev,i.host,i.ip,i.os,i.ports.join("; "),i.pid,i.name,i.family,
    r.product,r.fixLabel+(r.target?" to "+r.target+" or later":""),
    i.cvss||"",i.cves.join("; "),i.expl?"YES":"no",i.patchPub||"",i.age===null?"":i.age,
    slaDaysFor(i.sev)||"",i.overdue?"YES ("+i.overdue.over+" days past)":"",i.solution||""]);});
- if(!inst.length) rows.push(["No findings match the current filter","","","","","","","","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Vulnerability_Detail_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!inst.length) rows.push([mkNone(),"No findings match the current filter","","","","","","","","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`Vulnerability_Detail_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${inst.length} finding instance(s).`);
 }
 function exportIpSummary(){
- const rows0=vulnByHost();
- const rows=[[S.settings.banner],["IP Summary — vulnerability posture by asset",today()],[ctrlHeader("vulns")],[],
-   ["Host","IP Address","Operating System","Critical","High","Medium","Low","Total",
+ const rows0=vulnByHost(), D=mkDoc("IP_Summary");
+ const rows=[MK_B,["IP Summary — vulnerability posture by asset",today()],[ctrlHeader("vulns")],[],
+   [MK_PORTION_HDR,"Host","IP Address","Operating System","Critical","High","Medium","Low","Total",
     "Exploitable","Past Remediation Window","Credentialed Scan"]];
  rows0.forEach(r=>{const h=S.hosts[r.hk];
-   rows.push([r.host,r.ip,r.os,r.c[4],r.c[3],r.c[2],r.c[1],r.c.total,r.c.expl,r.c.overdue,
+   rows.push([D.row(r.mk,r.host),r.host,r.ip,r.os,r.c[4],r.c[3],r.c[2],r.c[1],r.c.total,r.c.expl,r.c.overdue,
      h?(scanCredOk(h)?"yes":((h.scan&&h.scan.credChecks)?"no":"not reported")):""]);});
- if(!rows0.length) rows.push(["No hosts","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`IP_Summary_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!rows0.length) rows.push([mkNone(),"No hosts","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`IP_Summary_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported IP summary for ${rows0.length} asset(s).`);
 }
 function exportPoam(){
- const groups=vulnGroups();
- const rows=[[S.settings.banner],["POA&M Draft — generated from scan findings",today()],[ctrlHeader("vulns")],
+ const groups=vulnGroups(), D=mkDoc("POAM_Draft");
+ const rows=[MK_B,["POA&M Draft — generated from scan findings",today()],[ctrlHeader("vulns")],
    ["DRAFT: weakness rows are prefilled from scan evidence; POC, resources, dates, milestones, and status decisions belong to the ISSM. Verify column layout against your eMASS POA&M template before import."],[],
-   ["Item","Weakness / Deficiency Description","Security Controls","Source Identifying the Weakness",
+   [MK_PORTION_HDR,"Item","Weakness / Deficiency Description","Security Controls","Source Identifying the Weakness",
     "Raw Severity","Affected Asset Count","Affected Assets","CVE(s)","IAVM","Detected Age (days)",
     "Past Remediation Window","Point of Contact","Resources Required","Scheduled Completion Date",
     "Milestones with Dates","Status","Comments"]];
  let n=0;
  groups.forEach(g=>{const ii=vulnIntelInfo(g.cves);
-   rows.push([++n,g.name+(g.cvss?` (max CVSS ${g.cvss.toFixed(1)})`:""),"RA-5; SI-2",
+   rows.push([D.row(mkWithIntel(g.mk,g.cves),g.name),++n,g.name+(g.cvss?` (max CVSS ${g.cvss.toFixed(1)})`:""),"RA-5; SI-2",
      "Tenable/ACAS credentialed scan, "+today(),SEV_NAME[g.sev]||g.sev,g.hosts.length,g.hosts.join("; "),
      g.cves.join("; "),ii.iavm.join("; "),g.age===null?"":g.age,g.overdue?"YES":"",
      "","","","","Ongoing",
@@ -7770,9 +7855,9 @@ function exportPoam(){
      (g.expl?"Public exploit available. ":"")+(ii.tier?("Threat-intel tier "+ii.tier+". "):"")
      +(g.overdue?"Past the configured remediation window. ":"")
      +(g.fix?("Remediation: "+g.fix+". "):"")]);});
- if(!groups.length) rows.push(["","No open findings","","","","","","","","","","","","","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`POAM_Draft_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(!groups.length) rows.push([mkNone(),"","No open findings","","","","","","","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`POAM_Draft_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`POA&M draft exported — ${n} line item(s), decision fields left blank for the ISSM.`);
 }
 
@@ -7869,23 +7954,24 @@ function renderAccountAudit(){
   <p style="color:var(--dim);font-size:12px;margin-top:8px">Flags reflect the moment of scan. Reconcile against the Account Management Plan: privileged rows should each map to an authorized privileged user, and dormant enabled accounts are the AC-2(3) exceptions to disable or justify.</p>`;
 }
 function exportAccountAudit(){
- const rows0=acctRows();
- const rows=[[S.settings.banner],["Account Audit — scan-enumerated accounts",today()],[ctrlHeader("accounts")],[],
-   ["Host","Account","Last Logon","Days Since Logon","Source","RID","Groups","Privileged","Disabled","Never Logged On",
+ const rows0=acctRows(), D=mkDoc("Account_Audit");
+ const rows=[MK_B,["Account Audit — scan-enumerated accounts",today()],[ctrlHeader("accounts")],[],
+   [MK_PORTION_HDR,"Host","Account","Last Logon","Days Since Logon","Source","RID","Groups","Privileged","Disabled","Never Logged On",
     "Password Never Expires","Password Never Changed","Assessment"]];
  rows0.forEach(r=>{const a=r.a; const g=logonAgeDays(a.lastLogon);
-   rows.push([r.host,a.name,a.lastLogon||"",g===null?"":g,a.src||"",a.rid||"",a.groups.join("; "),
+   rows.push([D.row(r.mk,r.host+"\\"+a.name),r.host,a.name,a.lastLogon||"",g===null?"":g,a.src||"",a.rid||"",a.groups.join("; "),
      (a.flags.admin||a.flags.builtin500)?"YES":"",
      (a.flags.disabled||a.flags.autoDisabled)?"YES":"",
      a.flags.neverLoggedOn?"YES":"",a.flags.pwNeverExpires?"YES":"",
      a.flags.stalePassword?"YES":"",acctAssess(a)]);});
- if(!rows0.length) rows.push(["No account enumeration in loaded scans","","","","","","","","","","","",""]);
+ if(!rows0.length) rows.push([mkNone(),"No account enumeration in loaded scans","","","","","","","","","","","",""]);
  rows.push([]);rows.push(["--- by user: which machines each account appears on ---"]);
- rows.push(["Account","Machines","Machine List","Most Recent Logon","Where","Privileged","Enabled"]);
- accountUsers().forEach(u=>rows.push([u.name,u.hosts.length,u.hosts.map(x=>x.host).join("; "),
+ rows.push([MK_PORTION_HDR,"Account","Machines","Machine List","Most Recent Logon","Where","Privileged","Enabled"]);
+ /* a user row folds that account on every machine it appears on */
+ accountUsers().forEach(u=>rows.push([D.row(u.mk,u.name),u.name,u.hosts.length,u.hosts.map(x=>x.host).join("; "),
    u.lastLogon||"",u.lastHost||"",u.privileged?"YES":"",u.enabled?"YES":""]));
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Account_Audit_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ rows.push([]);rows.push(MK_B);
+ dl(`Account_Audit_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${rows0.length} account row(s).`);
 }
 
@@ -7905,28 +7991,31 @@ function renderControls(){
  }).join("");
 }
 function exportControlMap(){
- const rows=[[S.settings.banner],["Artifact to Control Mapping",today()],[],
-   ["Artifact","Controls","What it demonstrates"]];
+ /* tool-authored text, no scan data: marked at the floor and nothing else */
+ const D=mkDoc("Control_Mapping");
+ const rows=[MK_B,["Artifact to Control Mapping",today()],[],
+   [MK_PORTION_HDR,"Artifact","Controls","What it demonstrates"]];
  [["STIG Applicability Matrix","stig"],["Software Listing","software"],["Approved Software List","approved"],
   ["Asset Inventory","assets"],["Asset Reconciliation","recon"],["Change Record","changes"],
   ["PPSM Matrix","ppsm"],["Unsupported Components","eol"],["Prioritized Vulnerability List","intel"],
   ["Vulnerability Report / POA&M","vulns"],["Account Audit","accounts"],
   ["STIG Compliance Results","stigcompliance"],["Trend & Burndown","trend"],
   ["Scan Coverage & Credential Verification","scanhealth"]].forEach(([t,k])=>
-   rows.push([t,CONTROL_MAP[k].controls.join("; "),CONTROL_MAP[k].why]));
- rows.push([]);rows.push([S.settings.banner]);
- dl(`Control_Mapping_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+   rows.push([D.row(mkE.floor(),t),t,CONTROL_MAP[k].controls.join("; "),CONTROL_MAP[k].why]));
+ rows.push([]);rows.push(MK_B);
+ dl(`Control_Mapping_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
 }
 function exportOsPackages(){
- const rows=[[S.settings.banner],["OS Package Manifest",today()],
+ const D=mkDoc("OS_Package_Manifest");
+ const rows=[MK_B,["OS Package Manifest",today()],
    ["Provenance record for Linux hosts. Not part of the software baseline; retained so component-level questions can be answered if asked."],[],
-   ["Package","Version","Hosts","Host List"]];
+   [MK_PORTION_HDR,"Package","Version","Hosts","Host List"]];
  let n=0;
  for(const k of swKeysSorted()){const r=S.software[k]; if(!r.rpm) continue;
-   rows.push([r.name,r.version,r.hosts.length,r.hosts.join("; ")]); n++;}
- if(!n) rows.push(["No OS packages detected","","",""]);
- rows.push([]);rows.push([S.settings.banner]);
- dl(`OS_Package_Manifest_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+   rows.push([D.row(mkE.sw(k),r.name),r.name,r.version,r.hosts.length,r.hosts.join("; ")]); n++;}
+ if(!n) rows.push([mkNone(),"No OS packages detected","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`OS_Package_Manifest_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported ${n} OS package(s).`);
 }
 
@@ -7986,41 +8075,60 @@ function resetConfig(){S.config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));inval
 const CSV_TRIGGER=/^[=@\t\r]/, CSV_SIGNED_TEXT=/^[+-](?!\s*$)(?![\d.,\s]+%?$)/;
 function csvNeutral(v){v=String(v??"");return (CSV_TRIGGER.test(v)||CSV_SIGNED_TEXT.test(v))?"'"+v:v;}
 function tsvSafe(v){return csvNeutral(v).replace(/[\t\r\n]+/g," ");}
+/* The DoD IS Registration Form paste format: its column order is the contract, so there is no
+   marking column and no authority block -- only the banner as the first and last line. The
+   derived marking still rides with the file (dl's M) to the release log and the package. */
 function exportPPSM(){
- const s=S.settings;
+ const s=S.settings, D=mkDoc("PPSM_Registry");
  const lines=[PPSM_HEADERS.join("\t")];
  const keys=Object.keys(S.ppsm).sort((a,b)=>{const A=S.ppsm[a],B=S.ppsm[b];
    return A.proto===B.proto?A.port-B.port:A.proto.localeCompare(B.proto);});
  for(const k of keys){
    const r=S.ppsm[k]; if(!r.include) continue;
+   D.row(mkE.port(k),k);
    lines.push([s.isName,s.version,s.description,s.netEnv,s.ipAddress,s.perimeterIp,s.macLevel,
      s.conf,s.integ,s.avail,s.atd,s.ditpr,r.app,r.proto.toUpperCase(),r.svc,r.port,r.port,
      ...r.boundaries.map(b=>b||""),r.srcIp,r.dstIp].map(tsvSafe).join("\t"));
  }
- dl(`PPSM_Registry_${today()}.txt`, S.settings.banner+"\n"+lines.join("\n")+"\n"+S.settings.banner,"text/plain");
+ /* columns 1-12 on every row are the system's registration details, typed into Settings */
+ if(lines.length>1&&[s.isName,s.version,s.description,s.netEnv,s.ipAddress,s.perimeterIp,s.macLevel,s.conf,s.integ,s.avail,s.atd,s.ditpr]
+   .some(v=>String(v??"").trim())) D.add(mkE.typed(),"registration details");
+ const M=mkSeal(D), b=tsvSafe(M.banner);
+ dl(`PPSM_Registry_${today()}.txt`, b+"\n"+lines.join("\n")+"\n"+b,"text/plain",M);
  status(`Exported ${lines.length-1} PPSM row(s) — tab-delimited, DoD IS Registration Form v8.0 column order.`);
 }
 function csvq(v){v=csvNeutral(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportPPSMcsv(){
- const rows=[["Include","Protocol","Port","Service","Application","Hosts","Source IP","Destination IP","Boundaries set","Notes"]];
+ /* not for submission, so it takes the normal marked shape */
+ const D=mkDoc("PPSM_WorkingCopy");
+ const rows=[MK_B,["PPSM Working Copy - not for submission",today()],[ctrlHeader("ppsm")],[],
+   [MK_PORTION_HDR,"Include","Protocol","Port","Service","Application","Hosts","Source IP","Destination IP","Boundaries set","Notes"]];
  for(const k of Object.keys(S.ppsm).sort()){const r=S.ppsm[k];
-   rows.push([r.include?"Y":"N",r.proto.toUpperCase(),r.port,r.svc,r.app,r.hosts.join("; "),
+   rows.push([D.row(mkE.port(k),k),r.include?"Y":"N",r.proto.toUpperCase(),r.port,r.svc,r.app,r.hosts.join("; "),
      r.srcIp,r.dstIp,r.boundaries.filter(x=>x&&x.trim()).length,r.notes]);}
- dl(`PPSM_WorkingCopy_${today()}.csv`, rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ if(rows.length===5) rows.push([mkNone(),"No ports observed","","","","","","","","",""]);
+ rows.push([]);rows.push(MK_B);
+ dl(`PPSM_WorkingCopy_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
 }
+/* The STIG Testing Matrix layout is positional (version row, product row, one row per host), so
+   there is no marking column: as in the eMASS files, each host row's portion mark leads its
+   free-text Comments cell. The banner lines are proper CSV cells, and the authority block goes
+   below the host rows, where a positional reader has already stopped. */
 function exportSTIG(){
- const cols=activeCols();
- const rows=[];
+ const cols=activeCols(), D=mkDoc("STIG_Applicability");
+ const rows=[MK_B,[ctrlHeader("stig")]];
  rows.push(["","","",...cols.map(c=>c.ver||""),""]);
  rows.push(["Device","Host Name","Last SCAP/ACAS Scan",...cols.map(c=>c.name),"Comments"]);
  for(const hk of Object.keys(S.hosts).sort()){
    const h=S.hosts[hk];
    rows.push([S.stig.device[hk]||"",h.name,h.lastSeen||"",
      ...cols.map(c=>stigMark(hk,c.name).on?"x":""),
-     (S.stig.comments[hk]||"")+(h.cred?"":" [no credentialed software data]")]);
+     [mkPortion(D.row(mkE.host(hk),h.name).mk),S.stig.comments[hk]||"",h.cred?"":"[no credentialed software data]"].filter(Boolean).join(" ")]);
  }
- dl(`STIG_Applicability_${today()}.csv`,
-    S.settings.banner+"\n"+ctrlHeader("stig")+"\n"+rows.map(r=>r.map(csvq).join(",")).join("\n")+"\n"+S.settings.banner,"text/csv");
+ /* an unmarked-at-U matrix keeps its old shape exactly: closing banner right after the hosts */
+ if(mkCab(mkSeal(D)).length) rows.push([]);
+ rows.push(MK_B);
+ dl(`STIG_Applicability_${today()}.csv`,mkCsv(D,rows),"text/csv",D.M);
  status(`Exported STIG matrix — ${Object.keys(S.hosts).length} host(s) × ${cols.length} STIG column(s).`);
 }
 
