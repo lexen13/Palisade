@@ -301,7 +301,8 @@ such as `FOR OFFICIAL USE ONLY` and `USA/GBR EYES ONLY`, and one-letter misspell
 (`SECERT//NOFRON`). A word the engine does not recognise is kept verbatim inside the marking
 and flagged for review — nothing a source says is dropped. `(C) Microsoft` is a copyright sign,
 not CONFIDENTIAL: a lone `(C)` counts only inside a source already marked classified, and a
-corporate label such as "Confidential" is recorded, never applied as a US classification.
+workbook's sensitivity label such as "Confidential" is carried as a company label, never applied
+as a US classification.
 
 **The floor.** Settings holds the classification floor: the least anything here is marked. A
 source that says nothing about itself is marked at the floor — never assumed unclassified —
@@ -332,6 +333,31 @@ restrictive reading wins, on purpose:
 The combination is commutative, associative and idempotent, so a banner never depends on the
 order files were loaded in, or on whether the data passed through a session file on the way.
 
+**Other schemes.** Markings that are not US classification are read, carried and rolled up
+beside it, and never change the US banner; each prints on its own line under it.
+
+- **Company labels.** "Highly Confidential", "Company Confidential", "Trade Secret",
+  "Proprietary", "Internal Use Only" and the like are company labels: never US CONFIDENTIAL or
+  SECRET, and "Proprietary" is never the IC's PROPIN. Products print them as a *Company label*
+  line. A bare "Confidential" with nothing else around it still reads as US CONFIDENTIAL, the
+  safe side, and the source's evidence says so; mark the source if it is a company tier.
+- **TLP 2.0 and PAP.** Read from banner lines, titles and TLP or PAP columns, in any common
+  spelling (TLP 1.0 WHITE reads as CLEAR). They roll up to the most restrictive value, which is
+  Palisade's own rule (FIRST defines none), and a row's own value outranks its file's, as a
+  portion mark does. Products print them right-justified in the FIRST colours, with a note that
+  they are advisory and govern only the portions that came with them. TLP:RED and
+  TLP:AMBER+STRICT stop the AI package for a decision.
+- **Foreign caveats.** `AUSTEO`, `AGAO`, `CABINET` and `UK EYES ONLY` make the material the
+  originating country's: `SECRET//AUSTEO//CABINET` is `SECRET//FGI AUS//AUSTEO/CABINET`, not
+  US SECRET, and the authority block holds the eyes-only caveat for review.
+- **Law enforcement and the ISM.** LES and LES NOFORN follow the ODNI rules (in a classified
+  banner, LES NOFORN becomes NOFORN plus LES); the law-enforcement CUI categories (CHRI, JURY,
+  INV, INF, LEI and the rest of the group) are known; "CJI" and grand-jury material read as
+  `CUI//SP-CHRI` and `CUI//SP-JURY`; products carrying LES, SSI, DSEN or FISA information say
+  that the originator's notice must go with them. The ISM second banner line (attorney-client
+  privileged, deliberative process, US person information, handle via channels, source
+  selection sensitive), RAWFISA and WAIVED are read and kept.
+
 **Tags and overrides.** Tag what the files do not mark — a host, a subnet (`10.1.0.0/16`), a
 software title, a port, a finding, a CVE, a listing row, an asset, a whole source file — or open
 any host and use **Mark this host**. Overrides apply to everything, to one product, or to one
@@ -353,9 +379,10 @@ real download is logged with the marking it left under; the log travels in the s
 examples of the marking rules under both profiles, then generated markings to confirm that
 reading does not depend on order, that every key and banner reads back to itself, that the
 roll-up is a true semilattice, and that sorting never ranks a marking above one that dominates
-it — about 2,500 checks. A failure is a console error, which the release gate treats as a broken
-build. The result is on the Markings tab, with a button to run it again, and the **Marking
-checker** there shows how any marking you paste is read, and how several roll up.
+it, across every scheme above — about 2,600 checks. A failure is a console error, which the
+release gate treats as a broken build. The result is on the Markings tab, with a button to run
+it again, and the **Marking checker** there shows how any marking you paste is read, and how
+several roll up.
 
 Palisade derives markings from what the files say and what you tag. It is not a classification
 authority; a derivative classifier reviews the result before release.

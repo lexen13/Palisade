@@ -24,7 +24,7 @@ and marks every product from what it actually contains.
 - **A self-test at every page open.** The worked examples of the marking rules, plus generated
   markings checking that reading is order-independent, that keys and banners read back to
   themselves, that the roll-up is a semilattice and that sorting never inverts dominance —
-  about 2,500 checks. A failure is a console error, so the release gate refuses the build.
+  about 2,600 checks. A failure is a console error, so the release gate refuses the build.
 - **The floor replaces the banner field.** Settings now holds a classification floor: the least
   anything here is marked. A source that says nothing is marked at the floor, never as
   unclassified. The floor is stored canonical, in a form that keeps CUI categories; a blank or
@@ -58,6 +58,21 @@ and marks every product from what it actually contains.
 - **Sessions and profiles.** Older sessions load unchanged and take the floor from their old
   banner. Tags travel in the environment profile; sources, overrides and the release log
   travel in the session.
+- **Other marking schemes, never mistaken for US classification.** Company labels ("Highly
+  Confidential", "Trade Secret", "Proprietary", a workbook's sensitivity label) are carried as
+  company labels; TLP 2.0 and PAP are read from banners, titles and columns and roll up most
+  restrictive; AUSTEO, AGAO, CABINET and UK EYES ONLY make material the originator's FGI; the
+  law-enforcement CUI categories, CJI and grand-jury material, the ISM second banner line,
+  RAWFISA and WAIVED are read. Each prints on its own line under the US banner, which they never
+  change. Before this, "Highly Confidential" read as US CONFIDENTIAL and
+  `SECRET//AUSTEO//CABINET` as US SECRET.
+- **Provenance that follows the data.** Raising a source, or tagging it, raises every row that
+  came from it; a host tagged after a trend cycle or baseline was captured raises that cycle;
+  STIG results kept under an address follow the host it was folded into; pasted inventory items
+  keep their own portion marks. The authority block lists each source at the most sensitive row
+  it contributed, cites the tags that marked the product and every source marked below what it
+  says, and a DoD CUI product read back in recovers its categories from the designation
+  indicator.
 
 ## 2.8 — security hardening
 
