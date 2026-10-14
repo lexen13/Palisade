@@ -66,6 +66,20 @@ and marks every product from what it actually contains.
   RAWFISA and WAIVED are read. Each prints on its own line under the US banner, which they never
   change. Before this, "Highly Confidential" read as US CONFIDENTIAL and
   `SECRET//AUSTEO//CABINET` as US SECRET.
+- **Site markings.** A site defines the marking words it uses that no register knows (a program
+  name, a local caveat, a company label): the kind of marking, its portion form and other
+  spellings, and the least marking it implies. Defined from the Markings tab, which lists every
+  unrecognised word in what is loaded, or in Detection Config (`siteMarkings`), so the list
+  travels in the environment profile. A site word can never redefine a word Palisade already
+  reads, and an implication only ever raises.
+- **Hardened by an adversarial review.** Five reviewers each reproduced what they found and a
+  skeptic per area tried to refute it; all 49 confirmed findings are fixed, each with a
+  regression check. Among them: a release list no longer swallows the words of a title after it
+  (`REL TO USA, GBR ISR NETWORK SCAN` never releases to Israel); a profile or session can no
+  longer lower anything without a reason, and a profile adds its tags to yours and asks before
+  lowering the floor; an *exactly* tag or a lowered source marks every product LOWERED with its
+  reason; TLP and company-label lines repeat on every printed page; and hostile input can no
+  longer hang the page.
 - **Provenance that follows the data.** Raising a source, or tagging it, raises every row that
   came from it; a host tagged after a trend cycle or baseline was captured raises that cycle;
   STIG results kept under an address follow the host it was folded into; pasted inventory items

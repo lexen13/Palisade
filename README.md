@@ -358,6 +358,19 @@ beside it, and never change the US banner; each prints on its own line under it.
   privileged, deliberative process, US person information, handle via channels, source
   selection sensitive), RAWFISA and WAIVED are read and kept.
 
+**Your site's own markings.** A word no register knows (a program name, a local caveat, a
+company's own label) is never dropped: it is kept in the marking and held for review on every
+product it reaches. The Markings tab lists every such word in what is loaded, with a one-click
+**Define**: say what kind of marking it is (a dissemination control, an SCI control system, a
+special access program, a CUI category or dissemination control, another agency's control, a
+company label, or a foreign caveat and its country), its portion form and other spellings, and
+optionally the least marking it implies, such as `ORCHID` implies at least `SECRET//NOFORN`. It
+is then read as a real marking everywhere, in its place in the banner, and data already loaded
+is re-read with its meaning at once. The list lives in Detection Config (`siteMarkings`), so it
+travels in the environment profile. A site marking can only define a word Palisade does not
+already read: levels, controls, country codes and one-letter misspellings of them are refused,
+so no site list can change how a built-in marking reads, and an implication only ever raises.
+
 **Tags and overrides.** Tag what the files do not mark — a host, a subnet (`10.1.0.0/16`), a
 software title, a port, a finding, a CVE, a listing row, an asset, a whole source file — or open
 any host and use **Mark this host**. Overrides apply to everything, to one product, or to one

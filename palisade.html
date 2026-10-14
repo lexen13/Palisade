@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MlQAB6HtJ47BHgKExxVkflUMt4MW896Qi+Tf3VRy788='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-9bGzz8bXD/fYyYFCcgvTzW8G3q/AagDDCS+1N5r+a58='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -1996,7 +1996,7 @@ const MK_ISO3=new Set(("ABW AFG AGO AIA ALA ALB AND ARE ARG ARM ASM ATA ATF ATG 
  +"SXM SYC SYR TCA TCD TGO THA TJK TKL TKM TLS TON TTO TUN TUR TUV TWN TZA UGA UKR UMI URY USA UZB VAT VCT VEN VGB VIR VNM VUT "
  +"WLF WSM XKS YEM ZAF ZMB ZWE FVEY ACGU NATO").split(" "));
 /* CUI Registry category abbreviations a scan-to-evidence tool meets, basic form; any SP- token
-   is a specified category. Detection Config adds a site's own. A word not in the table is never
+   is a specified category. A site adds its own through siteMarkings in Detection Config. A word not in the table is never
    guessed into a category from where it sits: it stays an unknown token, held for review. */
 const MK_CUI_CATS=new Set(["ISVI","OPSEC","PRVCY","PHYS","PHYSEC","DCRIT","CRIT","HLTH","PERS","MIL","CTI","EXPT","EXPTR","NNPI",
  "PCII","CEII","CVI","TAX","LEI","INV","PRIVILEGE","BUDG","PROCURE","GENETIC","INTEL","GEO","WHSTL",
@@ -10093,6 +10093,12 @@ const GLOSSARY=[
  ["Authority block","Classified By / Derived From / Declassify On","The lines a derivatively classified product must carry, and for CUI the designation indicator (Controlled by, CUI Category, dissemination control, POC). Set them on the Markings tab; Palisade never invents a name and prints a bracketed instruction for anything unset."],
  ["Derivative classification","Classifying from existing sources","Marking new material from the markings of what it was made from rather than by an original decision. Every Palisade product is derivative: its banner comes from its sources, and Derived From names them."],
  ["Override","An operator-set marking","A marking a person sets on the Markings tab for everything, one product, or one source file. At least only adds; exactly replaces and needs a written reason, which the product prints (as LOWERED when it is below what the data says). Every download is logged with the marking it left under."],
+ ["TLP","Traffic Light Protocol (FIRST TLP 2.0)","A sharing label on threat intelligence: TLP:CLEAR, GREEN, AMBER, AMBER+STRICT, RED. Not a US control marking and not legally binding. Palisade reads it, rolls it up to the most restrictive value (its own rule; FIRST defines none), prints it right-justified on its own line under the banner, and never lets it change the US banner. TLP:RED and AMBER+STRICT stop the AI package for a decision."],
+ ["PAP","Permissible Actions Protocol","A label on what you may do with intelligence, from PAP:RED (passive checks only) to PAP:CLEAR (anything). Read and rolled up like TLP, on its own line."],
+ ["Company label","Private-sector sensitivity label","\u201cHighly Confidential\u201d, \u201cTrade Secret\u201d, \u201cProprietary\u201d, a workbook's sensitivity label: a company's handling instruction, never US classification. Palisade carries it on its own line under the banner of every product made from that data. A bare \u201cConfidential\u201d with nothing else around it is read as US CONFIDENTIAL to be safe, with a note; mark the source if it is a company tier."],
+ ["FGI","Foreign government information","Information a foreign government provided, held at its level, e.g. SECRET//FGI GBR. A foreign caveat such as AUSTEO or UK EYES ONLY makes the material that country's FGI, and an eyes-only caveat is held for review: a US holder is outside it."],
+ ["Site marking","A marking word your site defines","A program name, a local caveat or a company label that no built-in register knows. Palisade keeps any such word and holds it for review; define it (Markings tab, or siteMarkings in Detection Config) and it is read as a real marking, in its place in the banner, raising anything that carries it to at least what it implies. A site marking can only define a new word, never change one Palisade already reads."],
+ ["LES","Law Enforcement Sensitive","A legacy non-IC control. LES NOFORN absorbs LES, and in a classified banner LES NOFORN becomes NOFORN plus LES. A product that carries LES, SSI, DSEN or FISA information says the originator's notice must go with it."],
  ["DITPR","DoD IT Portfolio Repository","A system registry ID. Appears on the registration form and software header; fill it in Settings if your system has one."],
  ["UII","Unique Investment Identifier","A budget/investment ID tied to a system. A software-listing column a scan can't provide — fill it manually."],
  ["MAC Level","Mission Assurance Category","A system's mission-criticality tier (I/II/III). A required registration-form field, set in Settings."],
