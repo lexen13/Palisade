@@ -2622,8 +2622,214 @@ const drop=$("drop");
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
 drop.addEventListener("drop",e=>ingestFiles(e.dataTransfer.files));
 
+/* ---- what each input says about its own marking ------------------------------------------
+   Every input is registered as a source (mkSource) with the evidence for what it said about
+   itself -- or with "no marking found in file", and then it is marked at the floor, never
+   assumed unclassified. Records remember the source they came from (mkTouch).
+   Text is read at one of three bars, so that nothing free-form is ever taken for a marking:
+   DECLARED  a field whose job is to hold a marking (CKL <MARKING>, a Classification column, a
+             checklist classification): read as the engine reads anything. Text there that is
+             not a marking but talks of classification ("CLASSIFIED") is kept for review.
+   BANNER    a value standing alone where a banner sits (a whole sheet row, a print header or
+             footer line, a line outside the XML): a marking and nothing else, every word exact
+             (or, written in capitals, exact after a one-letter repair, which is noted). After a
+             stated level, a whole "//" category the engine does not know is kept for review
+             ("TOP SECRET//SCI"), never ignored; a title that opens with a marking ("SECRET//
+             NOFORN WEEKLY SCAN") gives just the marking. A bare one- or two-letter code is not
+             a banner: a lone "S" or "c" in a sheet is a size or a grade.
+   LEAD      free text that may open with a marking (a scan or report name, an XML comment): a
+             portion mark, or an exact marking in capitals ended by " - ", "|", ":" or the end.
+   Nothing else is read. Free text is never spelling-repaired into a marking, and "(C)
+   Microsoft" or "Copyright (C)" is never CONFIDENTIAL. */
+const MK_TYPED_SRC="(typed or pasted by the operator)";
+const ING_CLASSY=/CLASSIF|SECRET|CONFIDENTIAL|CONTROLLED|\bCUI\b|NOFORN|\bFOUO\b|RESTRICTED/i;
+const ING_BATCH=[];           // source lists of the ingest batches in progress, for their status lines
+const ingHasLvl=k=>{const m=mkObj(k);return !!(m&&(m.l>=0||m.cui));};
+function ingWhole(v,mode){
+ const s=String(v??"").replace(/\s+/g," ").trim();if(!s||s.length>200)return "";
+ const up=!/[a-z]/.test(s.replace(/^(?:classification|marking|banner)\s*[:=]\s*/i,""));
+ if(mode!=="declared"){
+   const core=s.replace(/^[(\[]\s*|\s*[)\]]$/g,"");
+   if(/^[A-Za-z]{1,2}$/.test(core)&&(core===s||!up||core.toUpperCase()==="C"))return "";
+   if(mode==="lead"&&!up)return "";}
+ const p=mkParse(s,{strict:true});
+ if(p.strict)return p.key;
+ if(mode==="lead"||!p.key)return "";
+ const m=mkObj(p.key);
+ /* every word known, no level stated: a caveat banner ("FOR OFFICIAL USE ONLY") */
+ if(m&&!m.unk.size&&(mode==="declared"||/[\s\/]/.test(s)))return p.key;
+ if(mode==="declared"){const r=mkParse(s);return r.key&&(ingHasLvl(r.key)||!mkObj(r.key).unk.size||ING_CLASSY.test(s))?r.key:"";}
+ /* a misspelt banner in capitals, every word known once repaired ("SECERT//NOFORN"): missing it
+    would leave a SECRET file at the floor (the repair is noted in the evidence) */
+ if(up){const r=mkParse(s);if(ingHasLvl(r.key)&&!mkObj(r.key).unk.size)return r.key;}
+ /* "CLASSIFIED" as a banner states a level without naming it: held for review, never the floor */
+ if(s==="CLASSIFIED")return p.key;
+ /* A level first, then whole "//" categories the engine does not know -- "TOP SECRET//SCI",
+    "SECRET//WIDGET": a banner, the unknown part held for review, never dropped. But words run
+    on after a known one ("SECRET//NOFORN WEEKLY SCAN") are a title: only its marking is read. */
+ const segs=s.split("//"),pure=x=>{const k=mkParse(x,{strict:true}).key,q=mkObj(k);
+   return !q||!q.unk.size||k===[...q.unk].sort(mkAlpha).join("/");};
+ if(up&&segs.length>1&&mkParse(segs[0],{strict:true}).strict&&segs.slice(1).every(pure))return p.key;
+ return ingLead(s,null,true);}
+/* a portion mark opening a cell -- but "(S)FTP" is a word, not a portion mark */
+function ingLeadCell(v,ctx){const s=String(v??"");return /^\s*\([^)]{1,92}\)[^\s)]/.test(s)?null:mkLead(s,ctx);}
+function ingStrip(v,ctx){const l=ingLeadCell(v,ctx);return l?l.rest:v;}
+/* noPortion: a whole sheet cell "(CUI) WKSTN-9" is a marked value, not a title -- only text that
+   opens with a banner-form marking counts there */
+function ingLead(v,ctx,noPortion){
+ const s=String(v??"").replace(/\s+/g," ").trim();if(!s||s.length>400)return "";
+ const l=noPortion?null:ingLeadCell(s,ctx);if(l)return l.key;
+ const t=s.replace(/^(?:classification|marking|banner)\s*[:=]\s*/i,""),cut=new Set([t.length]);
+ for(const m of t.matchAll(/\s+[-\u2013\u2014|]+\s+|\s*\|\s*|:\s/g))cut.add(m.index);
+ /* "SECRET//NOFORN weekly scan": after a "//" the marking may end at a space */
+ const dd=t.indexOf("//");if(dd>0)for(const m of t.matchAll(/\s/g))if(m.index>dd)cut.add(m.index);
+ for(const c of [...cut].sort((a,b)=>b-a)){const k=ingWhole(t.slice(0,c),"lead");if(k)return k;}
+ return "";}
+/* The evidence for one source, gathered while it is read. Nothing is registered until the input
+   is known to be what it claims (open), so a file that is refused leaves no source behind; once
+   open, every piece is registered as it is found, so a file that fails part-way keeps it. */
+function ingSrc(id,type){
+ const E={id:String(id||"(unnamed source)"),type,key:"",how:[],what:"",opened:false,nk:0,nn:0,more:0};
+ const put=(k,how)=>{if(how&&E.how.indexOf(how)<0){E.how.push(how);if(E.opened)mkSource(E.id,type,k,how);}
+   else if(k&&E.opened)mkSource(E.id,type,k);};
+ E.add=(k,how,what,raw)=>{
+   /* evidence that raises the marking is always listed; the rest is capped, so a long file never
+      pushes the evidence that matters out of the source's list (it keeps twelve lines) */
+   const raises=!!k&&(!E.key||!mkDominates(E.key,k));
+   if(raises)E.what=what||String(how||"").replace(/\s*".*$/,"");
+   if(k)E.key=mkJoin(E.key,k);
+   if(how&&E.how.indexOf(how)<0&&!raises&&(k?E.nk++>=3:E.nn++>=5)){E.more++;how="";}
+   put(k,how);
+   /* what the engine had to decide while reading it, so the reading can be checked */
+   if(k&&raw){const nt=mkParse(raw).notes.filter(x=>!/^(?:read "|UNCLASSIFIED with CUI|FOUO is superseded)/.test(x));
+     if(nt.length)E.add("","note on \""+String(raw).slice(0,40)+"\": "+nt.join("; "));}
+   return k;};
+ E.open=()=>{if(!E.opened){E.opened=true;mkSource(E.id,type);E.how.forEach(h=>mkSource(E.id,type,"",h));if(E.key)mkSource(E.id,type,E.key);}return E;};
+ E.done=(n,none)=>{E.open();
+   if(E.more)put("","and "+E.more+" more piece(s) of evidence, not listed");E.more=0;
+   if(!E.key)put("",none||"no marking found in file");
+   const f=mkOwn(S.marking.files,E.id);if(f&&n!==undefined)f.rows=n;
+   const top=ING_BATCH[ING_BATCH.length-1];if(top&&top.indexOf(E)<0)top.push(E);return E;};
+ return E;}
+/* a source that failed part-way keeps what it gave, and says so */
+function ingNote(id,err){if(mkOwn(S.marking.files,id))mkSource(id,"","","not fully read: "+String(err&&err.message||err).slice(0,160));}
+/* how rows of a source are read: its effective marking decides whether a bare "(C)" can be
+   CONFIDENTIAL (only in a classified source) and what a bare "(S//REL)" releases to */
+function ingCtx(id){const m=mkObj(mkFileKey(id));
+ return {rel:m&&m.fd==="X"&&m.rel?[...m.rel]:null,allowC:!!(m&&m.l>=1)};}
+/* A sheet's own marking. A row that is one marking and nothing else is a banner wherever it sits
+   (top, bottom, or repeated at a page break) and is never data -- a bottom banner is never an
+   asset. Palisade's own authority-block lines are not data either (mkSheet finds them). A column
+   headed Classification / Marking / Portion Marking holds each row's marking -- once its cells
+   are seen to be markings, so a "Class" column of "Server" and "Workstation" stays data.
+   corp: corporate sensitivity-label names whose visual marking is not a US banner. */
+function ingSheet(rows,hdrIdx,E,where,corp){
+ where=where||"";rows=rows||[];
+ const sh=mkSheet(rows,hdrIdx),skip=new Set(),n=rows.length,ban=new Map();
+ const cellsOf=i=>(rows[i]||[]).map(c=>String(c??"").trim()).filter(Boolean);
+ /* the row's one value -- or, when an unquoted "SECRET//REL TO USA, GBR" was split at its comma
+    into "SECRET//REL TO USA" and "GBR", the banner put back together */
+ const lone=i=>{const c=cellsOf(i);if(!c.length)return "";if(c.every(x=>x===c[0]))return c[0];
+   return c.length<8&&/\/\/.*\b(?:REL(?: TO)?|DISPLAY ONLY|EYES)\b/i.test(c[0])&&c.slice(1).every(x=>/^[A-Z]{3,4}(?:\s*\/\/.*)?$/.test(x))?c.join(", "):"";};
+ sh.skip.forEach(i=>{if(!mkWhole(lone(i)))skip.add(i);});
+ /* Palisade's authority block, from a hand-saved copy whose "Classified By: J. Smith, ISSM" was
+    split at its comma: still not data (mkSheet looks at one-cell rows) */
+ for(let i=Math.max(hdrIdx+1,n-24);i<n;i++){const c=cellsOf(i);
+   if(c.length>1&&c.length<4&&MK_CAB_LINE.test(c[0])&&!skip.has(i)){skip.add(i);
+     if(/^(?:Classified By|Derived From|Declassify On):/i.test(c[0]))E.add("",where+c.join(", ").slice(0,80));}}
+ for(let i=0;i<n;i++){if(i===hdrIdx)continue;const c=lone(i);if(!c||c.length>200)continue;
+   if(corp&&corp.has(c.replace(/^(?:sensitivity|classification|label)\s*[:=]\s*/i,"").toUpperCase())){skip.add(i);
+     E.add("",where+'row '+(i+1)+' "'+c.slice(0,60)+'" repeats the corporate sensitivity label - not a US marking');continue;}
+   const k=ingWhole(c,"banner");if(!k)continue;
+   skip.add(i);const b=ban.get(c)||{k,at:[]};b.at.push(i+1);ban.set(c,b);}
+ ban.forEach((b,c)=>E.add(b.k,where+"banner row"+(b.at.length>1?"s ":" ")
+   +(b.at.length>4?b.at.slice(0,3).join(", ")+" and "+(b.at.length-3)+" more":b.at.join(", "))+' "'+c.slice(0,60)+'"',"",c));
+ sh.how.filter(h=>!/^banner row /.test(h)).forEach(h=>E.add("",where+h));
+ let col=sh.col;
+ if(col>=0){const hdr=String((rows[hdrIdx]||[])[col]??"").trim();let nb=0,ok=0,eg="";
+   for(let i=hdrIdx+1;i<n&&nb<200;i++){if(skip.has(i))continue;const v=String((rows[i]||[])[col]??"").trim();if(!v||!mkKey(v))continue;
+     nb++;if(ingHasLvl(mkKey(v))||ING_CLASSY.test(v))ok++;else if(!eg)eg=v;}
+   if(nb&&ok<nb*0.6){E.add("",where+'column "'+hdr+'" is not read as markings: its cells are not markings (e.g. "'+eg.slice(0,30)+'")');col=-1;}
+   else E.add("",where+'marking column "'+hdr+'"');}
+ return {skip,col};}
+/* One row's own marking: its marking-column cell, else the portion marks opening its cells.
+   weak: the mark cannot stand in for the file's -- it states no level ("FOUO", "CLASSIFIED"),
+   or it is a lone "(C)" that may be a copyright sign -- so it adds to the file's, never lowers it. */
+function ingRowKey(row,sh,ctx){
+ const out={k:"",weak:false,bad:""};if(!row)return out;
+ if(sh&&sh.col>=0){const v=String(row[sh.col]??"").trim();
+   if(v){const p=mkParse(v,{rel:ctx&&ctx.rel}),m=mkObj(p.key);
+     if(p.key&&ingHasLvl(p.key))return Object.assign(out,{k:p.key});
+     if(m&&(!m.unk.size||ING_CLASSY.test(v)))return Object.assign(out,{k:p.key,weak:true});
+     if(p.key)out.bad=v;}}
+ let kc="";
+ for(const c of row){const l=ingLeadCell(c,ctx);if(!l)continue;
+   if(/^\s*\(\s*C\s*\)/.test(String(c)))kc=mkJoin(kc,l.key);else out.k=mkJoin(out.k,l.key);}
+ if(kc&&!mkDominates(out.k,kc)){out.k=mkJoin(out.k,kc);out.weak=true;}
+ return out;}
+/* record that obj came from source id, row r (from ingRowKey) */
+function ingTouch(obj,id,r){if(!r||!r.k||r.weak)mkTouch(obj,id,"");if(r&&r.k)mkTouch(obj,id,r.k);}
+/* Row marks of one source. The source's own marking is the join of its banner and every
+   portion in it -- the banner of anything is the join of its portions -- so a row left unmarked
+   in a sheet that marks another row SECRET is read as SECRET, never as the floor. */
+function ingRowMarks(E,sh,ctx){
+ const st={n:0,own:0,max:"",bad:[],banner:E.key};
+ return {
+  get n(){return st.n;},
+  key(row){st.n++;const r=ingRowKey(row,sh,ctx);
+   if(r.k){st.own++;st.max=mkJoin(st.max,r.k);}else if(r.bad&&st.bad.length<3&&st.bad.indexOf(r.bad)<0)st.bad.push(r.bad);
+   return r;},
+  done(){
+   if(st.own){const above=st.banner&&!mkDominates(st.banner,st.max);
+     E.add(st.max,"portion marks on "+st.own+" of "+st.n+" row(s), highest ("+st.max+")"
+       +(above?" - above the banner, so the source is read at the higher marking":""),"row portion marks");
+     if(st.own<st.n)E.add("",(st.n-st.own)+" row(s) carry no portion mark and take the source's marking");}
+   if(st.bad.length)E.add("","marking cells that are not markings, kept as text: "+st.bad.map(x=>'"'+x.slice(0,30)+'"').join(", "));}};}
+/* An export with a banner typed above its first tag (or below its last) is still the export:
+   those lines are its banner, and the parser must not see them. */
+function ingDataPrep(text,E){
+ let s=String(text??"");if(s.charCodeAt(0)===0xFEFF)s=s.slice(1);
+ let cut=false;
+ for(let i=0;i<8;i++){let a=0;while(a<s.length&&/\s/.test(s[a]))a++;if(/[<{\[]/.test(s[a]||"<"))break;
+   let b=s.indexOf("\n",a);if(b<0)break;const line=s.slice(a,b).trim(),k=ingWhole(line,"banner");if(!k)break;
+   if(E)E.add(k,'banner line above the data "'+line.slice(0,60)+'"',"",line);s=s.slice(b+1);cut=true;}
+ for(let i=0;i<8;i++){let e=s.length;while(e>0&&/\s/.test(s[e-1]))e--;if(/[>}\]]/.test(s[e-1]||">"))break;
+   const b=s.lastIndexOf("\n",e-1);if(b<0)break;const line=s.slice(b+1,e).trim(),k=ingWhole(line,"banner");if(!k)break;
+   if(E)E.add(k,'banner line below the data "'+line.slice(0,60)+'"',"",line);s=s.slice(0,b);cut=true;}
+ return cut?s.replace(/^\s+/,""):s;}
+/* XML comments at the head and tail of a file: "<!-- SECRET//NOFORN -->" */
+function ingXmlComments(text,E){
+ const s=String(text??""),parts=s.length>16384?[s.slice(0,8192),s.slice(-8192)]:[s];
+ parts.forEach(p=>{for(const m of p.matchAll(/<!--([\s\S]*?)-->/g))m[1].split(/\r?\n/).forEach(line=>{
+   const t=line.trim(),k=ingLead(t);if(k)E.add(k,'XML comment "'+t.slice(0,60)+'"');});});}
+/* any element or attribute whose name says it holds a marking (XCCDF has no standard one) */
+function ingXmlMarks(doc,E,what){
+ const RE=/^(?:marking|markings|classification|classification[-_]?marking|security[-_]?classification|banner)$/i;
+ const all=doc.getElementsByTagName("*"),seen=new Set();
+ const chk=(where,t)=>{t=String(t||"").trim();if(!t||seen.has(where+"\u0001"+t))return;seen.add(where+"\u0001"+t);
+   const k=ingWhole(t,"banner");E.add(k,what+" "+where+' "'+t.slice(0,60)+'"'+(k?"":" - not a marking, kept as evidence only"),"",t);};
+ for(let i=0;i<all.length;i++){const el=all[i],ln=(el.localName||el.nodeName||"").replace(/^.*:/,"");
+   if(RE.test(ln)&&!el.children.length)chk("<"+ln+">",el.textContent);
+   for(const a of el.attributes||[]){const an=(a.localName||a.name||"").replace(/^.*:/,"");if(RE.test(an))chk("@"+an,a.value);}}}
+/* a declared marking field: read, or kept as evidence when it is not a marking */
+function ingDeclared(E,v,label,count,unit){
+ v=String(v??"").trim();if(!v)return "";const k=ingWhole(v,"declared");
+ E.add(k,label+' "'+v.slice(0,60)+'"'+(count>1?" ("+count+" "+(unit||"places")+")":"")+(k?"":" - not a marking, kept as evidence only"),label,v);
+ return k;}
+/* Which ingester a sheet belongs to, judged on its best header row in the first 15 (banner,
+   title and authority rows sit above it): threat intel needs a CVE column, a listing needs an
+   identity column, intel wins a tie as it always has. A Tenable export is neither. */
+function sheetRoute(rows,tenable){
+ let intel=0,list=0;
+ for(const row of (rows||[]).slice(0,15)){
+   if(tenable&&(row||[]).some(c=>{const h=normHdr(ingStrip(c));return h==="plugin id"||h==="plugin output"||h==="plugin name";}))return "";
+   const m=mapIntelHeaders(row||[]);if(Object.values(m.assign).includes("cve"))intel=Math.max(intel,m.matched.length);
+   const sc=scoreListingHeader(row);if(sc.ok)list=Math.max(list,sc.score);}
+ return intel&&intel>=list?"intel":list?"listing":"";}
+
 async function ingestFiles(list){
  const warns=[]; let intelNew=0, stigNew=0, listNew={hw:0,sw:0};
+ const seen=[]; ING_BATCH.push(seen);
  for(const f of list){
    try{
      checkFileSize(f);
@@ -2636,27 +2842,30 @@ async function ingestFiles(list){
        let n=0;
        for(const nm of z.names){
          if(!/\.(xml|ckl|cklb)$/i.test(nm)) continue;
-         try{ n+=ingestStigResultText(await z.read(nm), nm.split("/").pop(), warns); }
-         catch(err){ warns.push(nm+": "+err.message); }
+         /* each entry is a source of its own, named for the archive it came in */
+         const id=f.name+"/"+nm;
+         try{ n+=ingestStigResultText(await z.read(nm), nm.split("/").pop(), warns, id); }
+         catch(err){ warns.push(nm+": "+err.message); ingNote(id,err); }
        }
        if(n) S.filesLoaded.push({name:f.name,type:"stig",hosts:n});
        else warns.push(f.name+": zip contained no readable XCCDF results or checklists");
        stigNew+=n; continue;
      }
-     const text=await f.text();
-     if(/\.nessus$/i.test(f.name)||/^\s*<\?xml/.test(text.slice(0,200))&&text.includes("<NessusClientData")){
+     const text=await f.text(), peek=ingDataPrep(text);   // a banner line above <?xml must not hide the format
+     if(/\.nessus$/i.test(f.name)||/^\s*<\?xml/.test(peek.slice(0,200))&&peek.includes("<NessusClientData")){
        const n=parseNessus(text,f.name); S.filesLoaded.push({name:f.name,type:"nessus",hosts:n});
-     }else if(/\.(ckl|cklb)$/i.test(f.name)||looksLikeXccdf(text)||looksLikeCkl(text)||(/\.json$/i.test(f.name)&&looksLikeCklb(text))){
-       const n=ingestStigResultText(text,f.name,warns);
+     }else if(/\.(ckl|cklb)$/i.test(f.name)||looksLikeXccdf(peek)||looksLikeCkl(peek)||(/\.json$/i.test(f.name)&&looksLikeCklb(peek))){
+       const n=ingestStigResultText(text,f.name,warns,f.name);
        S.filesLoaded.push({name:f.name,type:"stig",hosts:n}); stigNew+=n;
      }else if(/\.(csv|tsv)$/i.test(f.name)){
-       const sep=/\.tsv$/i.test(f.name)?"\t":",";
-       if(sniffIntelSheet(text,sep)){ intelNew+=ingestIntelRows(f.name,csvRows(text,sep),warns); }
-       else if(sniffListingSheet(text,sep)){ const r=ingestListingRows(f.name,csvRows(text,sep),warns); listNew.hw+=r.hw; listNew.sw+=r.sw; }
-       else { const n=parseTenableCSV(text,warns); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
+       const sep=/\.tsv$/i.test(f.name)?"\t":",", rows=csvRows(text,sep), route=sheetRoute(rows,true);
+       if(route==="intel"){ intelNew+=ingestIntelRows(f.name,rows,warns); }
+       else if(route==="listing"){ const r=ingestListingRows(f.name,rows,warns); listNew.hw+=r.hw; listNew.sw+=r.sw; }
+       else { const n=parseTenableCSV(text,warns,f.name,sep,rows); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
      }else{ warns.push(f.name+": unrecognized format (expected .nessus, .csv, or .xlsx threat-intel sheet)"); }
-   }catch(err){ warns.push(f.name+": parse error — "+err.message); }
+   }catch(err){ warns.push(f.name+": parse error — "+err.message); ingNote(f.name,err); }
  }
+ ING_BATCH.splice(ING_BATCH.indexOf(seen),1);
  $("fileIn").value=""; if($("intelIn"))$("intelIn").value=""; if($("listIn"))$("listIn").value="";
  invalidateFusion();
  mergeHostsByIp(); rebuildPPSMFromHosts(); const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
@@ -2667,8 +2876,17 @@ async function ingestFiles(list){
  if(listNew.hw||listNew.sw) msg+=` HW/SW listing: +${listNew.hw} hardware, +${listNew.sw} software row(s) ingested — see Assets and Software tabs.`;
  if(stigNew) msg+=` STIG compliance: ${stigNew} rule result(s) ingested.`;
  if(added.length) msg+=` Auto-added STIG columns: ${added.join(", ")} — set versions in Detection Config.`;
+ msg+=ingMarkSummary(seen);
  status(msg);
 }
+/* what the status line says about markings: what each file said, and how many said nothing */
+function ingMarkSummary(seen,noun){
+ if(!seen||!seen.length)return "";
+ const det=seen.filter(E=>E.key),none=seen.length-det.length;let m="";
+ if(det.length)m+=" Markings: "+det.slice(0,4).map(E=>E.id+": "+mkBanner(mkJoin(E.key,mkFloor()))+" ("+E.what+")").join("; ")
+   +(det.length>4?"; and "+(det.length-4)+" more on the Markings tab":"")+".";
+ if(none)m+=` ${noun||none+" file(s)"} carried no marking — marked at the floor (${mkBanner(mkFloor())}).`;
+ return m;}
 
 /* Host key: prefer NetBIOS/FQDN short name; fall back to IP (never split an IP on dots). */
 function hostKeyFrom(name,ip){
@@ -2694,7 +2912,9 @@ function mergeHostsByIp(){
    for(const fk in (src.findings||{})){
      const sf=src.findings[fk];
      addFinding(dst,sf.id,sf.name,sf.sev,sf.cvss,sf.cves,sf.expl);
+     if(sf.mkc&&dst.findings[sf.id]) mkTouchAll(dst.findings[sf.id],sf);
    }
+   mkTouchAll(dst,src);                 // the folded host's sources, and so its marking, come along
    dst.blob+="\n"+src.blob;
    (dst.src=dst.src||[]).push(...(src.src||[]));
    dst.cred=dst.cred||src.cred;
@@ -2821,9 +3041,25 @@ function addPort(h,proto,port,svc,evid){
 }
 
 /* ---- .nessus v2 ---- */
+/* What a .nessus says about its own marking: a banner line outside the XML, a comment at its
+   head or tail, the scan's name (<Report name>, and "Scan name" in plugin 19506) and its policy
+   name -- each only when it OPENS with a marking ("SECRET//NOFORN - weekly", "(U) Q3 ACAS").
+   Plugin output is free text written by the scanned host, and is never read for one. */
+function ingScanInfoMarks(text,E){
+ for(const raw of String(text||"").split("\n")){
+   const m=raw.match(/^\s*(scan name|scan policy used)\s*:\s*(.+?)\s*$/i);if(!m)continue;
+   const k=ingLead(m[2]);if(k)E.add(k,m[1].toLowerCase()+' "'+m[2].slice(0,60)+'" (plugin 19506)');}}
 function parseNessus(text,srcName){
+ const E=ingSrc(srcName||"(nessus file)","nessus");
+ text=ingDataPrep(text,E);
  const doc=new DOMParser().parseFromString(text,"text/xml");
  if(doc.querySelector("parsererror")) throw new Error("invalid XML");
+ E.open(); const sid=E.id;
+ ingXmlComments(text,E);
+ doc.querySelectorAll("Report").forEach(r=>{const nm=r.getAttribute("name")||"",k=ingLead(nm);
+   if(k)E.add(k,'report name "'+nm.slice(0,60)+'"');});
+ doc.querySelectorAll("Policy > policyName").forEach(p=>{const nm=p.textContent.trim(),k=ingLead(nm);
+   if(k)E.add(k,'policy name "'+nm.slice(0,60)+'"');});
  let count=0;
  doc.querySelectorAll("ReportHost").forEach(rh=>{
    count++;
@@ -2831,6 +3067,7 @@ function parseNessus(text,srcName){
    rh.querySelectorAll("HostProperties > tag").forEach(t=>props[t.getAttribute("name")]=t.textContent);
    const key=hostKeyFrom(props["netbios-name"]||props["host-fqdn"]||"", props["host-ip"]||rh.getAttribute("name")||"");
    const h=getHost(key);
+   mkTouch(h,sid,"");
    h.ip=props["host-ip"]||h.ip;
    if(!h.name||h.name===h.key) h.name=key;
    h.mac   = h.mac   || (props["mac-address"]||"").split(/\r?\n/)[0].trim();
@@ -2866,7 +3103,7 @@ function parseNessus(text,srcName){
      }
      const cves=[...ri.querySelectorAll("cve")].map(c=>c.textContent.trim().toUpperCase()).filter(x=>/^CVE-\d{4}-\d{4,7}$/.test(x));
      const sev=parseInt(ri.getAttribute("severity"),10)||0;
-     if(pid==="19506"){const out=ri.querySelector("plugin_output"); if(out) scanInfoIngest(h,out.textContent);}
+     if(pid==="19506"){const out=ri.querySelector("plugin_output"); if(out){scanInfoIngest(h,out.textContent);ingScanInfoMarks(out.textContent,E);}}
      if(acctAuthFailure(pname)) (h.scan=h.scan||{}).authIssue=pname;
      if(cves.length||sev>0){
        const c3=ri.querySelector("cvss3_base_score"), c2=ri.querySelector("cvss_base_score");
@@ -2882,12 +3119,14 @@ function parseNessus(text,srcName){
    });
    h.blob+="\n"+[...names].join("\n");
  });
+ E.done(count);
  return count;
 }
 
 /* ---- Tenable CSV (fallback) ---- */
 function csvRows(t,sep){
  sep=sep||",";
+ t=String(t??""); if(t.charCodeAt(0)===0xFEFF) t=t.slice(1);   // a BOM must not hide a banner on line 1
  const rows=[];let row=[],f="",q=false;
  for(let i=0;i<t.length;i++){const c=t[i];
    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
@@ -2898,10 +3137,16 @@ function csvRows(t,sep){
  if(f!==""||row.length){row.push(f);rows.push(row);}
  return rows;
 }
-function parseTenableCSV(text,warns){
- const rows=csvRows(text);
+function parseTenableCSV(text,warns,name,sep,rows){
+ name=name||"(Tenable CSV)";
+ rows=rows||csvRows(text,sep||",");
  if(rows.length<2) throw new Error("empty CSV");
- const hdr=rows[0].map(x=>x.trim().toLowerCase());
+ /* the header is the first of the first 10 rows that names a host column -- banner and title
+    rows can sit above it; a portion-marked header cell "(U) IP Address" still names it */
+ const lc=r=>(r||[]).map(x=>String(ingStrip(x)??"").trim().toLowerCase());
+ const HOSTCOL=["ip address","ip","host","dns name","netbios name","fqdn"];
+ let hi=0; for(let i=0;i<Math.min(10,rows.length);i++) if(lc(rows[i]).some(h=>HOSTCOL.includes(h))){hi=i;break;}
+ const hdr=lc(rows[hi]);
  const col=n=>hdr.indexOf(n);
  const iPid=[col("plugin id"),col("plugin"),col("pluginid")].find(x=>x>=0)??-1;
  const iIp=[col("ip address"),col("ip"),col("host")].find(x=>x>=0)??-1;
@@ -2915,18 +3160,22 @@ function parseTenableCSV(text,warns){
        iCvss=[col("cvss v3.0 base score"),col("cvss v3 base score"),col("cvss3 base score"),col("cvss v2.0 base score"),col("cvss base score")].find(x=>x>=0)??-1;
  if(iIp<0&&iDns<0) throw new Error("no host column (need IP Address or DNS Name)");
  if(iOut<0) warns.push("CSV has no Plugin Output column — software detection will be OS-inference only");
+ const E=ingSrc(name,"csv").open(), sh=ingSheet(rows,hi,E), ctx=ingCtx(E.id), RK=ingRowMarks(E,sh,ctx);
  const seen=new Set();
- for(let r=1;r<rows.length;r++){
-   const row=rows[r]; if(row.length<2) continue;
+ for(let r=hi+1;r<rows.length;r++){
+   if(sh.skip.has(r)) continue;                  // banner and authority rows are not findings
+   const raw=rows[r]; if(raw.length<2) continue;
+   const rk=RK.key(raw), row=raw.map(c=>ingStrip(c,ctx));
    let key=hostKeyFrom(iDns>=0?row[iDns]:"", iIp>=0?row[iIp]:"");
    if(!key) continue;
-   const h=getHost(key); seen.add(key);
+   const h=getHost(key); seen.add(key); ingTouch(h,E.id,rk);
    if(iIp>=0&&row[iIp]) h.ip=row[iIp];
    if(iSeen>=0&&row[iSeen]){const d=new Date(row[iSeen]); if(!isNaN(d)) h.lastSeen=d.toISOString().slice(0,10);}
    const pname=iName>=0?row[iName]:"";
    if(iPort>=0) addPort(h,iProto>=0?row[iProto]:"tcp",row[iPort],"",pname);
    const pid=iPid>=0?String(row[iPid]).trim():"";
    if(SOFTWARE_PLUGINS.has(pid)&&iOut>=0){addSoftware(h,row[iOut]);}
+   if(pid==="19506"&&iOut>=0) ingScanInfoMarks(row[iOut],E);   // the scan's name, as in a .nessus
    if(iOut>=0&&pname&&acctPluginFor(pname)) acctIngest(h,pname,row[iOut]||"");
    {
      const cves=iCve>=0?cvesIn(row[iCve]):[];
@@ -2940,6 +3189,7 @@ function parseTenableCSV(text,warns){
    }
    if(pname) h.blob+="\n"+pname;
  }
+ RK.done(); E.done(RK.n);
  return seen.size;
 }
 
@@ -3144,6 +3394,7 @@ function consolidateSoftware(){
        if(r.fromListing){t.fromListing=true;t.listHosts=t.listHosts||[];
          (r.listHosts||[]).forEach(h=>{if(!t.listHosts.includes(h))t.listHosts.push(h);});
          if(r.listNote&&!t.listNote)t.listNote=r.listNote;}
+       mkTouchAll(t,r);                  // and its sources: the fold must not drop a marking
        // preserve any manual field entries the blank row happened to have
        ["vendor","type","parent","subsystem","network","hosting","deps","hash",
         "inService","uii","fy","popEnd","license","term"].forEach(f=>{if(!t[f]&&r[f])t[f]=r[f];});
@@ -3312,7 +3563,7 @@ function mapHeadersWith(A,hdrRow){
  for(const fld in A) A[fld].forEach(al=>pairs.push([fld,normHdr(al)]));
  pairs.sort((a,b)=>b[1].length-a[1].length);
  hdrRow.forEach((raw,i)=>{
-   const h=normHdr(raw);
+   const h=normHdr(ingStrip(raw));          // a portion-marked header "(U) CVE" still names its column
    if(!h){ignored.push(String(raw||"(blank)"));return;}
    let hit=pairs.find(p=>p[1]===h);                       // exact match first
    if(!hit) hit=pairs.find(p=>p[1].length>=4&&h.includes(p[1])); // then longest contained phrase
@@ -3323,12 +3574,11 @@ function mapHeadersWith(A,hdrRow){
 }
 function mapIntelHeaders(hdrRow){return mapHeadersWith(S.config.intelAliases||DEFAULT_CONFIG.intelAliases,hdrRow);}
 function mapListingHeaders(hdrRow){return mapHeadersWith(S.config.listingAliases||DEFAULT_CONFIG.listingAliases,hdrRow);}
+/* Scored over the first rows, as the ingester does: a banner or title line above the header
+   (Palisade's own Prioritized_Vulnerabilities export has six) is not a reason to mistake an
+   intel sheet for a Tenable export. */
 function sniffIntelSheet(text,sep){
- const first=text.slice(0,text.indexOf("\n")>0?text.indexOf("\n"):text.length);
- const hdr=csvRows(first,sep)[0]||[];
- const n=hdr.map(normHdr);
- if(n.some(h=>h==="plugin id"||h==="plugin output"||h==="plugin name")) return false; // Tenable export
- return n.some(h=>mapIntelHeaders([h]).assign[0]==="cve");
+ return sheetRoute(csvRows(String(text).slice(0,32768),sep).slice(0,15),true)==="intel";
 }
 
 /* ---- value coercion ---- */
@@ -3344,26 +3594,37 @@ function splitMulti(v){return String(v??"").split(/[;,|\n]+/).map(x=>x.trim())
  .filter(x=>x&&x!=="-"&&!/^(none|n\/a|null)$/i.test(x));}
 
 /* ---- row ingestion (shared by xlsx and csv/tsv paths) ---- */
-function ingestIntelRows(name,rows,warns){
- // The header row is not always row 1 (SASR-E sheets often carry a title row);
- // score the first 10 rows and take the one that maps the most columns.
+/* src (optional): {E, where, corp} when the rows are one sheet of a workbook -- the workbook is
+   the source, and the sheet's banner rows are evidence for it. Otherwise `name` is the source. */
+function ingestIntelRows(name,rows,warns,src){
+ // The header row is not always row 1 (SASR-E sheets often carry a title row, Palisade's own
+ // export a banner and five preamble rows); score the first 15 rows -- the window the sheet
+ // router uses -- and take the one that maps the most columns.
  let hdrIdx=-1, map=null, best=0;
- for(let i=0;i<Math.min(rows.length,10);i++){
+ for(let i=0;i<Math.min(rows.length,15);i++){
    const m=mapIntelHeaders(rows[i]);
    const hasCve=Object.values(m.assign).includes("cve");
    if(hasCve&&m.matched.length>best){best=m.matched.length;hdrIdx=i;map=m;}
  }
  if(hdrIdx<0) throw new Error("no CVE column recognized — if the sheet names it differently, add that header to intelAliases in Detection Config");
+ const E=(src&&src.E||ingSrc(name,"intel")).open(), id=E.id;
+ const sh=ingSheet(rows,hdrIdx,E,src&&src.where,src&&src.corp), ctx=ingCtx(id), RK=ingRowMarks(E,sh,ctx);
+ if(sh.col>=0){delete map.assign[sh.col];map.matched.push([String(rows[hdrIdx][sh.col]),"portion marking"]);
+   map.ignored=map.ignored.filter(h=>h!==String(rows[hdrIdx][sh.col]));}
  const cols=Object.keys(map.assign).map(Number);
  let nRows=0,nCve=0,noCve=0;
  for(let r=hdrIdx+1;r<rows.length;r++){
-   const row=rows[r];
-   if(!row||!row.some(c=>String(c??"").trim())) continue;
+   if(sh.skip.has(r)) continue;                  // a banner or authority-block row is not a record
+   const raw=rows[r];
+   if(!raw||!raw.some(c=>String(c??"").trim())) continue;
    nRows++;
    let cves=[];
-   for(const i of cols) if(map.assign[i]==="cve") cves=cves.concat(cvesIn(row[i]));
+   for(const i of cols) if(map.assign[i]==="cve") cves=cves.concat(cvesIn(raw[i]));
    cves=[...new Set(cves)];
    if(!cves.length){noCve++;continue;}
+   /* the row's own portion mark goes with every record it feeds; the values lose it, so
+      "(U) Yes" is still a yes and "(U) Chrome" still the product Chrome */
+   const rk=RK.key(raw), row=raw.map(c=>ingStrip(c,ctx));
    for(const cve of cves){
      const t=S.intel.rows[cve]||(S.intel.rows[cve]={cve,vendors:[],products:[],desc:"",published:"",
        cvss:0,rfScore:0,rfSev:"",weap:false,expDb:false,vector:"",perms:"",reports:0,
@@ -3394,15 +3655,19 @@ function ingestIntelRows(name,rows,warns){
        }
      }
      // passthrough: keep a bounded sample of unmapped columns so nothing is lost silently
-     rows[hdrIdx].forEach((hdr,i)=>{
-       if(map.assign[i]!==undefined) return;
+     // (the marking column is not one of them: it is the row's marking, kept in t.mkc)
+     rows[hdrIdx].forEach((hdr0,i)=>{
+       if(map.assign[i]!==undefined||i===sh.col) return;
        const v=row[i]; if(v==null||String(v).trim()==="") return;
-       if(Object.keys(t.extra).length<10&&!(hdr in t.extra)) t.extra[hdr]=String(v).slice(0,240);
+       const hdr=String(ingStrip(hdr0)??"");
+       if(Object.keys(t.extra).length<10&&hdr!=="__proto__"&&!Object.prototype.hasOwnProperty.call(t.extra,hdr)) t.extra[hdr]=String(v).slice(0,240);
      });
      if(!t.srcs.includes(name)) t.srcs.push(name);
+     ingTouch(t,id,rk);
      nCve++;
    }
  }
+ RK.done(); if(!src) E.done(nRows);
  S.intel.files.push({name,rows:nRows,cveRows:nCve,noCve,
    matched:map.matched,ignored:map.ignored.filter(h=>h&&h!=="(blank)")});
  if(noCve) warns.push(`${name}: ${noCve} data row(s) had no parsable CVE and were skipped`);
@@ -3496,35 +3761,104 @@ async function readXlsxSheets(buf){
    }
    return out;
  }
- const sheets=[];
- for(const sf of sheetFiles.slice(0,8)){
-   const doc=xml(await unzip(sf));
-   /* Row cap bounds array growth only -- the DOM is already built by parseXmlStrict above;
-      B2's inflate cap is the control that bounds THAT. */
-   sheets.push({name:"sheet "+sf.match(/\d+/)[0],rows:extractRows(doc,LIMITS.SHEET_ROWS)});
+ const sheets=[],hf=[];
+ for(let i=0;i<sheetFiles.length;i++){
+   const sf=sheetFiles[i],name="sheet "+sf.match(/\d+/)[0];
+   if(i<8){
+     const raw=await unzip(sf),doc=xml(raw);
+     /* Row cap bounds array growth only -- the DOM is already built by parseXmlStrict above;
+        B2's inflate cap is the control that bounds THAT. */
+     sheets.push({name,rows:extractRows(doc,LIMITS.SHEET_ROWS)});
+     hf.push({sheet:name,lines:xlHeaderFooter(raw)});
+   }else{
+     /* sheets past the 8th are not ingested, but they are part of the document: their print
+        headers and footers still count toward its marking */
+     try{hf.push({sheet:name,lines:xlHeaderFooter(await unzip(sf)),unread:true});}
+     catch(e){hf.push({sheet:name,lines:[],err:e.message});}
+   }
  }
  if(!sheets.length) throw new Error("workbook has no worksheets");
+ sheets.hf=hf;
+ sheets.labels=await xlLabels(unzip);
  return sheets;
 }
+/* A worksheet's print header and footer, as the lines a reader sees: "&C&\"Arial,Bold\"&12SECRET"
+   is the centre section "SECRET". Codes: &L &C &R start a section, &"font,style", &nn size,
+   &K colour, one-letter fields (&P page, &D date, &A sheet ...) print nothing a marking needs. */
+function xlHeaderFooter(raw){
+ const s=String(raw||"");let a=s.length>262144?s.slice(-262144).search(/<(?:\w+:)?headerFooter[\s>\/]/):-1;
+ a=a>=0?s.length-262144+a:s.search(/<(?:\w+:)?headerFooter[\s>\/]/);if(a<0)return [];
+ const seg=s.slice(a,a+65536),out=[];
+ const unesc=t=>t.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi,(m,e)=>e[0]==="#"?
+   String.fromCodePoint(Math.min(0x10FFFF,parseInt(e[1]==="x"||e[1]==="X"?e.slice(2):e.slice(1),e[1]==="x"||e[1]==="X"?16:10)||32))
+   :{lt:"<",gt:">",amp:"&",quot:'"',apos:"'"}[e.toLowerCase()]);
+ for(const m of seg.matchAll(/<(?:\w+:)?(odd|even|first)(Header|Footer)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1\2>/g)){
+   const t=unesc(m[3]),secs=[];let cur="";
+   for(let i=0;i<t.length;i++){const c=t[i];if(c!=="&"){cur+=c;continue;}const n=t[i+1]||"";
+     if(n==="&"){cur+="&";i++;}
+     else if(n==="L"||n==="C"||n==="R"){secs.push(cur);cur="";i++;}
+     else if(n==='"'){const j=t.indexOf('"',i+2);i=j<0?t.length:j;}
+     else if(n==="K"){i+=/^(?:[0-9A-Fa-f]{6}|\d\d[+-]\d{3})/.test(t.slice(i+2,i+8))?7:1;}
+     else if(/\d/.test(n)){let j=i+1;while(/\d/.test(t[j]||""))j++;i=j-1;}
+     else i++;}
+   secs.push(cur);
+   secs.forEach(x=>x.split(/\r?\n/).forEach(l=>{l=l.replace(/\s+/g," ").trim();if(l)out.push([m[1]+m[2],l]);}));}
+ return out;}
+/* Sensitivity labels in docProps/custom.xml (MSIP_Label_<id>_Name), and the older labelling
+   tools' plain "Classification" property. Names are read by a Map: they are the file's text. */
+async function xlLabels(unzip){
+ /* a label that could not be read is said so, not taken as "no label" */
+ let raw=null,doc;try{raw=await unzip("docProps/custom.xml");}catch(e){return [{err:e.message}];}
+ if(!raw)return [];
+ try{doc=parseXmlStrict(raw,"document properties");}catch(e){return [{err:e.message}];}
+ const P=new Map();
+ for(const p of doc.getElementsByTagNameNS("*","property"))P.set(String(p.getAttribute("name")||""),(p.textContent||"").trim());
+ const out=[];
+ P.forEach((v,n)=>{if(!v)return;const m=n.match(/^MSIP_Label_(.+)_Name$/i);
+   if(m)out.push({name:v,src:"sensitivity label",off:/^false$/i.test(P.get("MSIP_Label_"+m[1]+"_Enabled")||"")});
+   else if(/^(?:classification|classification[ _-]?marking|security[ _-]?classification|marking|banner)$/i.test(n))
+     out.push({name:v,src:'document property "'+n.slice(0,40)+'"',off:false});});
+ return out;}
+/* A label is applied only when it is unmistakably a US marking: it carries "//", or it is
+   UNCLASSIFIED, CUI, CONTROLLED (UNCLASSIFIED INFORMATION), SECRET or TOP SECRET exactly.
+   "Confidential", "General", "Highly Confidential" are corporate labels, not the CONFIDENTIAL
+   classification -- reading them as one would mark a business spreadsheet as classified. */
+function ingUsLabel(name){const s=String(name||"").trim();
+ if(!/\/\//.test(s)&&!/^(?:CUI|CONTROLLED|CONTROLLED UNCLASSIFIED INFORMATION|UNCLASSIFIED|SECRET|TOP SECRET)$/i.test(s))return "";
+ const p=mkParse(s,{strict:true});return p.strict?p.key:"";}
 /* Route each worksheet of a workbook to the right ingester: threat-intel sheets and
    HW/SW listings are recognized independently per sheet, so a workbook carrying both
-   (or a listing behind a cover sheet) lands correctly. */
+   (or a listing behind a cover sheet) lands correctly. The workbook is one document and one
+   source: its labels, every sheet's print header and footer, and every sheet's banner rows --
+   routed or not, a cover sheet often carries the banner -- are its marking. */
 async function ingestWorkbook(f,warns){
  const sheets=await readXlsxSheets(await f.arrayBuffer());
+ const E=ingSrc(f.name,"xlsx"), corp=new Set(), multi=sheets.length>1;   // opened once a sheet is taken
+ sheets.labels.forEach(L=>{
+   if(L.err){E.add("","sensitivity labels (docProps/custom.xml) could not be read: "+L.err);return;}
+   if(L.off){E.add("",L.src+' "'+L.name.slice(0,60)+'" is not enabled - not applied');return;}
+   const k=ingUsLabel(L.name);
+   if(k)E.add(k,L.src+' "'+L.name.slice(0,60)+'"',"",L.name);
+   else{corp.add(L.name.toUpperCase());E.add("",L.src+' "'+L.name.slice(0,60)+'" is not a US classification marking - recorded, not applied');}});
+ let unread=0;
+ sheets.hf.forEach(h=>{
+   if(h.err){E.add("",h.sheet+": print header/footer not read for markings ("+h.err+")");return;}
+   if(h.unread)unread++;
+   h.lines.forEach(([part,t])=>{const where="Excel print "+(/Footer/.test(part)?"footer":"header")+(multi?" ("+h.sheet+")":"");
+     if(corp.has(t.replace(/^(?:sensitivity|classification|label)\s*[:=]\s*/i,"").toUpperCase())){
+       E.add("",where+' "'+t.slice(0,60)+'" repeats the corporate sensitivity label - not applied');return;}
+     const k=ingWhole(t,"banner");if(k)E.add(k,where+' "'+t.slice(0,60)+'"',"",t);});});
+ if(unread)E.add("",unread+" sheet(s) past the 8th not ingested; their print headers and footers were read");
+ sheets.forEach(sh=>ingSheet(sh.rows,-1,E,multi?sh.name+" ":"",corp));
  let intel=0,hw=0,sw=0,routed=0;
  for(const sh of sheets){
-   const label=f.name+(sheets.length>1?" ["+sh.name+"]":"");
-   let intelScore=0,listScore=0;
-   for(const row of sh.rows.slice(0,15)){
-     const m=mapIntelHeaders(row);
-     if(Object.values(m.assign).includes("cve")) intelScore=Math.max(intelScore,m.matched.length);
-     const sc=scoreListingHeader(row);
-     if(sc.ok) listScore=Math.max(listScore,sc.score);
-   }
-   if(intelScore&&intelScore>=listScore){intel+=ingestIntelRows(label,sh.rows,warns);routed++;}
-   else if(listScore){const r=ingestListingRows(label,sh.rows,warns);hw+=r.hw;sw+=r.sw;routed++;}
+   const label=f.name+(multi?" ["+sh.name+"]":""), src={E,where:multi?sh.name+" ":"",corp};
+   const route=sheetRoute(sh.rows,false);
+   if(route==="intel"){intel+=ingestIntelRows(label,sh.rows,warns,src);routed++;}
+   else if(route==="listing"){const r=ingestListingRows(label,sh.rows,warns,src);hw+=r.hw;sw+=r.sw;routed++;}
  }
  if(!routed) throw new Error("no worksheet looked like a threat-intel sheet or a HW/SW listing — check the headers, or extend intelAliases / listingAliases in Detection Config");
+ E.done(intel+hw+sw);
  return {intel,hw,sw};
 }
 function clearIntel(){
@@ -3555,22 +3889,18 @@ function scoreListingHeader(row){
  return {map:m,score:m.matched.length,ok};
 }
 function sniffListingSheet(text,sep){
- const rows=csvRows(String(text).slice(0,32768),sep).slice(0,15);
- for(const r of rows){
-   const n=(r||[]).map(normHdr);
-   if(n.some(h=>h==="plugin id"||h==="plugin output"||h==="plugin name")) return false; // Tenable export
- }
- return rows.some(r=>scoreListingHeader(r).ok);
+ return sheetRoute(csvRows(String(text).slice(0,32768),sep).slice(0,15),true)==="listing";
 }
 /* Normalize a kind-column value: "HW", "h/w", "Hardware" -> HW; "SW", "Software",
    "FW", "OS" -> SW (firmware and OS entries belong in the software baseline). */
 function listingKindOf(v){
- const n=normHdr(v);
+ const n=normHdr(ingStrip(v));
  if(n==="hw"||n==="h w"||n==="hardware") return "HW";
  if(n==="sw"||n==="s w"||n==="software"||n==="fw"||n==="firmware"||n==="os"||n==="operating system") return "SW";
  return "";
 }
-function ingestListingRows(name,rows,warns){
+/* src (optional): {E, where, corp}, as for ingestIntelRows. */
+function ingestListingRows(name,rows,warns,src){
  // the header row is not always row 1 (title banners are common) -- score and pick the best
  let hdrIdx=-1, map=null, best=0;
  for(let i=0;i<Math.min(rows.length,15);i++){
@@ -3578,6 +3908,10 @@ function ingestListingRows(name,rows,warns){
    if(sc.ok&&sc.score>best){best=sc.score;hdrIdx=i;map=sc.map;}
  }
  if(hdrIdx<0) throw new Error("no recognizable HW/SW listing header — if your listing names columns differently, add them to listingAliases in Detection Config");
+ const E=(src&&src.E||ingSrc(name,"listing")).open(), id=E.id;
+ const sh=ingSheet(rows,hdrIdx,E,src&&src.where,src&&src.corp), ctx=ingCtx(id), RK=ingRowMarks(E,sh,ctx);
+ if(sh.col>=0){delete map.assign[sh.col];map.matched.push([String(rows[hdrIdx][sh.col]),"portion marking"]);
+   map.ignored=map.ignored.filter(h=>h!==String(rows[hdrIdx][sh.col]));}
  const F={}; for(const i in map.assign)(F[map.assign[i]]=F[map.assign[i]]||[]).push(Number(i));
  const val=(row,fld)=>{                    // duplicate headers (two "Description" columns) merge
    const parts=(F[fld]||[]).map(i=>String(row[i]??"").trim()).filter(Boolean);
@@ -3590,9 +3924,10 @@ function ingestListingRows(name,rows,warns){
  if(kindCol===undefined){
    const width=Math.max(0,...rows.slice(hdrIdx,hdrIdx+50).map(r=>(r||[]).length));
    for(let c=0;c<width&&kindCol===undefined;c++){
-     if(map.assign[c]!==undefined) continue;
+     if(map.assign[c]!==undefined||c===sh.col) continue;
      let nb=0,hit=0;
      for(let r=hdrIdx+1;r<Math.min(rows.length,hdrIdx+200);r++){
+       if(sh.skip.has(r)) continue;
        const v=String((rows[r]||[])[c]??"").trim(); if(!v) continue;
        nb++; if(listingKindOf(v)) hit++;
      }
@@ -3601,11 +3936,17 @@ function ingestListingRows(name,rows,warns){
  }
  if(kindCol===undefined) kindSource="per-row heuristic (no HW/SW column found)";
  let nHw=0,nSw=0,skipped=0,nRows=0;
- const hwSeen=new Set(S.listings.hw.map(x=>x.dk)), swListSeen=new Set(S.listings.sw.map(x=>x.dk));
+ /* dedupe by identity across files, first-loaded wins the values -- but a later file holding
+    the same row still marks it: dropping its (possibly higher) marking would under-mark */
+ const hwSeen=new Map(S.listings.hw.map(x=>[x.dk,x])), swListSeen=new Map(S.listings.sw.map(x=>[x.dk,x]));
  for(let r=hdrIdx+1;r<rows.length;r++){
-   const row=rows[r];
-   if(!row||!row.some(c=>String(c??"").trim())) continue;
+   if(sh.skip.has(r)) continue;                  // a bottom banner is not an asset
+   const raw=rows[r];
+   if(!raw||!raw.some(c=>String(c??"").trim())) continue;
    nRows++;
+   /* the row's own portion mark goes with the record; identity values lose it, so
+      "(CUI) WKSTN-001" is the asset WKSTN-001 and joins the scanned host */
+   const rk=RK.key(raw), row=raw.map(c=>ingStrip(c,ctx));
    const g=f=>val(row,f);
    const rec={host:g("hostname"),name:g("name"),version:g("version"),vendor:g("vendor"),
      model:g("model"),serial:g("serial"),location:g("location"),facility:g("facility"),
@@ -3620,13 +3961,18 @@ function ingestListingRows(name,rows,warns){
    if(kind==="HW"){
      if(!(rec.host||rec.serial||rec.model||rec.desc)){skipped++;continue;}
      rec.dk=[rec.host,rec.serial,rec.model,rec.desc].join("|").toUpperCase();
-     if(!hwSeen.has(rec.dk)){hwSeen.add(rec.dk);S.listings.hw.push(rec);nHw++;}
+     const had=hwSeen.get(rec.dk);
+     if(had) ingTouch(ingRecMk(had),id,rk);
+     else{ingTouch(rec,id,rk);hwSeen.set(rec.dk,rec);S.listings.hw.push(rec);nHw++;}
    }else if(kind==="SW"){
      if(!rec.name){skipped++;continue;}
      rec.dk=[rec.name,rec.version,rec.host].join("|").toUpperCase();
-     if(!swListSeen.has(rec.dk)){swListSeen.add(rec.dk);S.listings.sw.push(rec);nSw++;}
+     const had=swListSeen.get(rec.dk);
+     if(had) ingTouch(ingRecMk(had),id,rk);
+     else{ingTouch(rec,id,rk);swListSeen.set(rec.dk,rec);S.listings.sw.push(rec);nSw++;}
    }else skipped++;
  }
+ RK.done(); if(!src) E.done(nRows);
  S.listings.files=S.listings.files.filter(x=>x.name!==name);   // re-load replaces the report
  S.listings.files.push({name,rows:nRows,hw:nHw,sw:nSw,skipped,kindSource,
    matched:map.matched,ignored:map.ignored.filter(h=>h&&h!=="(blank)")});
@@ -3652,7 +3998,7 @@ function listingDeviceType(rec){
    asset) -> serial (matching an existing asset's serial first, so a hostname-less listing
    row still lands on the right machine) -> a slug of description/model as last resort. */
 function listingAssetKey(rec){
- if(rec.host) return hostKeyFrom(rec.host,"");
+ if(rec.host) return hostKeyFrom(ingStrip(rec.host),"");   // a record from an older session may still carry "(U) "
  if(rec.serial){
    const ser=rec.serial.trim().toUpperCase();
    const bySerial=Object.keys(S.assets).find(k=>(S.assets[k].serial||"").trim().toUpperCase()===ser);
@@ -3664,6 +4010,8 @@ function listingAssetKey(rec){
 /* Merge policy: listings FILL what scans cannot see and never overwrite scan evidence
    or manual edits; disagreements are recorded as conflicts and surfaced, not resolved
    silently. Idempotent -- runs on every ingest cycle regardless of load order. */
+/* a listing record's sources (a record from an older session has only rec.src) */
+function ingRecMk(rec){if(rec&&!rec.mkc&&rec.src)mkTouch(rec,rec.src,"");return rec;}
 function applyListings(){
  if(!S.listings.hw.length&&!S.listings.sw.length){S.listings.conflicts=[];return;}
  const conflicts=[];
@@ -3675,6 +4023,7 @@ function applyListings(){
      drawing:"",diagram:"",owner:"",status:rec.status||"Active",criticality:"",inScope:"Y",
      lastSeen:"",notes:"",fromScan:false,fromListing:true};
    const a=S.assets[key]; a.fromListing=true;
+   mkTouchAll(a,ingRecMk(rec));          // the asset now shows the record: it carries its marking (idempotent)
    [["make",rec.vendor],["model",rec.model],["serial",rec.serial],["location",rec.location],
     ["facility",rec.facility],["ci",rec.ci],["drawing",rec.drawing],["diagram",rec.diagram],
     ["owner",rec.owner],["criticality",rec.criticality],["os",rec.os],["ip",rec.ip],
@@ -3714,6 +4063,7 @@ function applyListings(){
      };
    }
    row.fromListing=true; row.listHosts=row.listHosts||[];
+   mkTouchAll(row,ingRecMk(rec));
    if(!row.vendor&&rec.vendor) row.vendor=rec.vendor;
    if(rec.host){const hn=hostKeyFrom(rec.host,""); if(!row.listHosts.includes(hn)) row.listHosts.push(hn);}
    if(rec.desc&&!row.listNote) row.listNote=rec.desc;
@@ -3762,12 +4112,15 @@ function swReconcile(){
 function clearListings(){
  if(!S.listings.files.length){status("No HW/SW listings loaded.");return;}
  if(!confirm("Remove all ingested HW/SW listing data?\n\nListing-only assets and software rows are removed; scan evidence, manual assets, and your edits stay.")) return;
+ /* what stays loses the listing files' contributions too: their marking leaves with their data */
+ const ids=new Set();S.listings.hw.concat(S.listings.sw).forEach(r=>{(r.mkc||[]).forEach(([f])=>ids.add(f));if(r.src)ids.add(r.src);});
+ const unmark=o=>{if(o&&o.mkc){o.mkc=o.mkc.filter(([f])=>!ids.has(f));if(!o.mkc.length)delete o.mkc;}};
  for(const k of Object.keys(S.assets)){const a=S.assets[k];
    if(!a.fromListing) continue;
-   if(a.fromScan) a.fromListing=false; else delete S.assets[k];}
+   if(a.fromScan){a.fromListing=false;unmark(a);} else delete S.assets[k];}
  for(const k of Object.keys(S.software)){const r=S.software[k];
    if(!r.fromListing) continue;
-   if(r.hosts.length){r.fromListing=false;r.listHosts=[];delete r.listNote;}
+   if(r.hosts.length){r.fromListing=false;r.listHosts=[];delete r.listNote;unmark(r);}
    else delete S.software[k];}
  S.listings=emptyListings(); invalidateFusion(); consolidateSoftware(); renderAll();
  status("HW/SW listing data cleared. Scan-derived evidence untouched.");
@@ -5578,8 +5931,10 @@ function addManualAsset(){
 }
 function seedInventoryFromAssets(){
  if(!Object.keys(S.assets).length){alert("No assets yet - load scans first.");return;}
- const lines=assetKeys().map(k=>{const a=S.assets[k];
-   return [a.name,a.type,a.notes||(a.fromScan?"seeded from scan":"")].filter(Boolean).join(", ");});
+ /* an asset above the floor keeps its marking in the list, as a portion mark the list reads back */
+ const keys=assetKeys(), fl=mkFloor(), mks=keys.map(k=>mkE.asset(k).k), lead=mks.some(k=>!mkDominates(fl,k));
+ const lines=keys.map((k,i)=>{const a=S.assets[k];
+   return [(lead?mkPortion(mks[i])+" ":"")+a.name,a.type,a.notes||(a.fromScan?"seeded from scan":"")].filter(Boolean).join(", ");});
  $("invBox").value=lines.join("\n");
  applyInventory();
  status(`Seeded ${lines.length} asset(s) into the reconciliation list. Curate it, then treat it as authoritative.`);
@@ -5598,15 +5953,26 @@ function exportAssets(){
 }
 
 /* ---------------- asset reconciliation ---------------- */
+/* A pasted list is marked like a sheet: a line that is a marking and nothing else is a banner,
+   never an asset; a line's leading portion mark is that item's own marking (item.mk) and is not
+   part of its name, so "(U) WKSTN-001" is the host WKSTN-001. rows.mk carries what was found. */
 function parseInventory(text){
- const rows=[];
- text.split(/\r?\n/).forEach(line=>{
-   if(!line.trim())return;
-   const parts=line.split(/[,\t]/).map(x=>x.trim().replace(/^"|"$/g,""));
+ const rows=[], lines=String(text||"").split(/\r?\n/), ban=[], split=l=>l.split(/[,\t]/).map(x=>x.trim().replace(/^"|"$/g,""));
+ /* a banner line is read whole first: "SECRET//REL TO USA, GBR" has a comma in it */
+ lines.forEach((line,i)=>{const w=line.trim().replace(/^"|"$/g,"").replace(/[,\t\s]+$/,""),t=split(line).filter(Boolean);
+   const k=w&&ingWhole(w,"banner")||(t.length&&t.every(x=>x===t[0])?ingWhole(t[0],"banner"):"");if(k)ban.push({i,k,t:w});});
+ const bk=mkJoinAll(ban.map(b=>b.k)),bm=mkObj(mkJoin(bk,mkFileKey(MK_TYPED_SRC)));
+ const ctx={rel:bm&&bm.fd==="X"&&bm.rel?[...bm.rel]:null,allowC:!!(bm&&bm.l>=1)};
+ const isBan=new Set(ban.map(b=>b.i)),items=[];
+ lines.forEach((line,i)=>{
+   if(!line.trim()||isBan.has(i))return;
+   const raw=split(line), r=ingRowKey(raw,null,ctx), parts=raw.map(c=>String(ingStrip(c,ctx)??"").trim());
    const name=(parts[0]||"").toUpperCase();
    if(!name||/^(host\s*name|hostname|asset|name|device)$/i.test(parts[0]))return;
-   rows.push({name:name.split(".")[0],type:parts[1]||"",note:parts[2]||""});
+   rows.push({name:name.split(".")[0],type:parts[1]||"",note:parts[2]||"",mk:r.k&&!r.weak?r.k:r.k?mkJoin(r.k,bk):""});
+   items.push(r);
  });
+ Object.defineProperty(rows,"mk",{value:{ban,items},enumerable:false});
  return rows;
 }
 function reconcile(){
@@ -5813,7 +6179,7 @@ if(window.ResizeObserver){
 function renderAll(){mkDirty();renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
  computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
  if(S.inventory&&S.inventory.length&&!$("invBox").value)
-   $("invBox").value=S.inventory.map(i=>[i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
+   $("invBox").value=S.inventory.map(i=>[(i.mk?mkPortion(i.mk)+" ":"")+i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
 
 function renderStats(){
  const hosts=Object.keys(S.hosts).length, ports=Object.keys(S.ppsm).length,
@@ -6161,9 +6527,20 @@ function renderAssets(){
 }
 
 function applyInventory(){
- S.inventory=parseInventory($("invBox").value);
- renderRecon(); renderReadiness();
- status(`Inventory applied: ${S.inventory.length} asset(s).`);
+ const inv=parseInventory($("invBox").value), info=inv.mk;
+ S.inventory=inv.slice();
+ /* the pasted text is a source: the operator's, and marked like any other */
+ let E=null;
+ if(inv.length||info.ban.length){
+   E=ingSrc(MK_TYPED_SRC,"typed").open();
+   info.ban.forEach(b=>E.add(b.k,'pasted inventory line '+(b.i+1)+' "'+b.t.slice(0,60)+'"',"inventory banner line",b.t));
+   const own=info.items.filter(r=>r.k);
+   if(own.length){const max=mkJoinAll(own.map(r=>r.k));
+     E.add(max,"portion marks on "+own.length+" of "+info.items.length+" pasted item(s), highest ("+max+")","item portion marks");}
+   E.done(inv.length,"no marking found in the pasted text");
+ }
+ mkDirty(); renderRecon(); renderReadiness(); applyBanner();
+ status(`Inventory applied: ${S.inventory.length} asset(s).`+(E?ingMarkSummary([E],"The pasted text"):""));
 }
 function renderRecon(){
  let h="";
@@ -6280,46 +6657,59 @@ async function importApprovals(f){
  try{
    checkFileSize(f,true);
    const rows=csvRows(await f.text());
+   /* a header cell may carry a portion mark: "(U) Software Name" */
+   const hc=c=>String(ingStrip(c)??"").trim().toLowerCase();
    let hdr=-1;
    for(let i=0;i<rows.length;i++){
-     if(rows[i].some(c=>/^software name$/i.test((c||"").trim()))){hdr=i;break;}
+     if(rows[i].some(c=>hc(c)==="software name")){hdr=i;break;}
    }
    if(hdr<0) throw new Error("could not find a 'Software Name' header row");
-   const H=rows[hdr].map(c=>(c||"").trim().toLowerCase());
+   const H=rows[hdr].map(hc);
    const ix=n=>H.indexOf(n);
    const iN=ix("software name"), iV=ix("version"), iS=ix("approval status"),
          iB=ix("approved by"), iD=ix("approval date"), iR=ix("approval ref");
    if(iN<0||iS<0) throw new Error("sheet needs at least 'Software Name' and 'Approval Status' columns");
+   /* The returned sheet is a source like any other: its banner rows and Portion Marking column
+      are read, and every software row a decision lands on carries that row's marking -- the
+      approval text is now part of the row. */
+   const E=ingSrc(f.name,"approvals").open(), sh=ingSheet(rows,hdr,E), ctx=ingCtx(E.id), RK=ingRowMarks(E,sh,ctx);
    // index current rows by name|version and by name
-   const byNV={}, byN={};
+   const byNV=new Map(), byN=new Map();
    for(const k of Object.keys(S.software)){
-     const r=S.software[k];
-     byNV[(r.name+"|"+r.version).toLowerCase()]=k;
-     (byN[r.name.toLowerCase()]=byN[r.name.toLowerCase()]||[]).push(k);
+     const r=S.software[k], n=r.name.toLowerCase();
+     byNV.set((r.name+"|"+r.version).toLowerCase(),k);
+     if(!byN.has(n)) byN.set(n,[]); byN.get(n).push(k);
    }
    let applied=0, unmatched=[];
    for(let i=hdr+1;i<rows.length;i++){
-     const row=rows[i]; if(!row||!row[iN]||!row[iN].trim()) continue;
-     const nm=row[iN].trim(), vr=(iV>=0?row[iV]||"":"").trim();
-     const st=(row[iS]||"").trim();
+     if(sh.skip.has(i)) continue;
+     const raw=rows[i]; if(!raw) continue;
+     const row=raw.map(c=>ingStrip(c,ctx));
+     if(!row[iN]||!String(row[iN]).trim()) continue;
+     const nm=String(row[iN]).trim(), vr=String(iV>=0?row[iV]||"":"").trim();
+     const st=String(row[iS]||"").trim();
      if(!st) continue;
      let keys=[];
-     const exact=byNV[(nm+"|"+vr).toLowerCase()];
+     const exact=byNV.get((nm+"|"+vr).toLowerCase());
      if(exact) keys=[exact];
-     else if(byN[nm.toLowerCase()]) keys=byN[nm.toLowerCase()];
+     else if(byN.has(nm.toLowerCase())) keys=byN.get(nm.toLowerCase());
      if(!keys.length){unmatched.push(nm+(vr?" "+vr:""));continue;}
+     const rk=RK.key(raw);
      for(const k of keys){
        const r=S.software[k];
        const canon=APPROVAL_STATES.find(x=>x.toLowerCase()===st.toLowerCase());
        r.approval=canon||st;
-       if(iB>=0&&row[iB]) r.approvedBy=row[iB].trim();
-       if(iD>=0&&row[iD]) r.approvalDate=row[iD].trim();
-       if(iR>=0&&row[iR]) r.approvalRef=row[iR].trim();
+       if(iB>=0&&row[iB]) r.approvedBy=String(row[iB]).trim();
+       if(iD>=0&&row[iD]) r.approvalDate=String(row[iD]).trim();
+       if(iR>=0&&row[iR]) r.approvalRef=String(row[iR]).trim();
+       ingTouch(r,E.id,rk);
        applied++;
      }
    }
-   renderSoftware(); renderDelta(); renderReadiness();
-   status(`Applied ${applied} approval decision(s).`+(unmatched.length?` ${unmatched.length} row(s) matched nothing: ${unmatched.slice(0,5).join(", ")}${unmatched.length>5?"…":""}`:""));
+   RK.done(); E.done(applied);
+   mkDirty(); renderSoftware(); renderDelta(); renderReadiness(); applyBanner();
+   status(`Applied ${applied} approval decision(s).`+(unmatched.length?` ${unmatched.length} row(s) matched nothing: ${unmatched.slice(0,5).join(", ")}${unmatched.length>5?"…":""}`:"")
+     +ingMarkSummary([E],"The sheet"));
  }catch(e){alert("Approval import failed: "+e.message);}
  $("apprIn").value="";
 }
@@ -6518,12 +6908,15 @@ function vidFrom(str){const m=String(str||"").match(/\bV-\d{4,7}\b/i);return m?m
 function stigKeyOf(title,version,release){
  return (String(title||"unknown STIG").trim()+"|"+(version||"")+(release?"r"+release:"")).slice(0,180);
 }
-function ensureStigResult(hostKey,key,meta){
+/* src: the source the results came from. A record that merges rules from several files keeps
+   every one of them (rec.source names only the first), so its marking is theirs joined. */
+function ensureStigResult(hostKey,key,meta,src){
  S.stigResults=S.stigResults||{};
  const perHost=S.stigResults[hostKey]||(S.stigResults[hostKey]={});
  if(!perHost[key]) perHost[key]=Object.assign({title:"",version:"",release:"",source:"",when:"",
    benchmarkId:"",rules:[]},meta||{});
  else Object.keys(meta||{}).forEach(k=>{if(meta[k]&&!perHost[key][k])perHost[key][k]=meta[k];});
+ if(src) mkTouch(perHost[key],src,"");
  return perHost[key];
 }
 
@@ -6531,8 +6924,15 @@ function ensureStigResult(hostKey,key,meta){
 function looksLikeXccdf(text){
  return /<[\w:]*TestResult\b/i.test(text)||(/<[\w:]*Benchmark\b/i.test(text)&&/<[\w:]*rule-result\b/i.test(text));
 }
-function parseXccdfResults(text,fileName){
+/* srcId: the source these results are registered under ("<zip>/<entry>" for an archive entry);
+   fileName stays what the record's source text names. XCCDF has no standard marking element, so
+   a banner line outside the XML, a comment at its head or tail, or any element or attribute
+   named for a marking is what it says about itself. */
+function parseXccdfResults(text,fileName,srcId){
+ const E=ingSrc(srcId||fileName||"(XCCDF results)","stig");
+ text=ingDataPrep(text,E);
  const doc=parseXmlStrict(text,"XCCDF results");
+ ingXmlComments(text,E); ingXmlMarks(doc,E,"XCCDF");
  // rule metadata from the embedded Benchmark, when present
  const ruleMeta={};
  elsByLocal(doc,"Rule").forEach(r=>{
@@ -6548,6 +6948,7 @@ function parseXccdfResults(text,fileName){
  });
  const results=elsByLocal(doc,"TestResult");
  if(!results.length) throw new Error("no XCCDF TestResult element found");
+ E.open(); const sid=E.id;
  let added=0;
  results.forEach(tr=>{
    const bmEl=tr.parentNode&&/benchmark/i.test((tr.parentNode.localName||tr.parentNode.nodeName||"") .replace(/^.*:/,""))?tr.parentNode:doc;
@@ -6563,12 +6964,12 @@ function parseXccdfResults(text,fileName){
    const ip=(elsByLocal(tr,"target-address").map(e=>e.textContent.trim())
      .find(a=>/^\d{1,3}(\.\d{1,3}){3}$/.test(a)&&a!=="127.0.0.1"))||"";
    const hostKey=hostKeyFrom(host,ip);
-   const h=getHost(hostKey);
+   const h=getHost(hostKey); mkTouch(h,sid,"");
    if(ip&&!h.ip) h.ip=ip;
    if(!h.name||h.name===h.key) h.name=hostKey;
    const key=stigKeyOf(benchTitle,version,release);
    const rec=ensureStigResult(hostKey,key,{title:benchTitle,version,release,benchmarkId:benchId,
-     source:"SCC / XCCDF"+(fileName?" ("+fileName+")":""),when:(tr.getAttribute("end-time")||tr.getAttribute("start-time")||"").slice(0,10)});
+     source:"SCC / XCCDF"+(fileName?" ("+fileName+")":""),when:(tr.getAttribute("end-time")||tr.getAttribute("start-time")||"").slice(0,10)},sid);
    const seen=new Set(rec.rules.map(r=>r.ruleId));
    elsByLocal(tr,"rule-result").forEach(rr=>{
      const idref=rr.getAttribute("idref")||"";
@@ -6583,35 +6984,47 @@ function parseXccdfResults(text,fileName){
      added++;
    });
  });
+ E.done(added);
  return added;
 }
 
 /* ---- STIG Viewer checklist (.ckl, XML) ---- */
 function looksLikeCkl(text){return /<CHECKLIST\b/i.test(text)&&/<VULN\b/i.test(text);}
-function parseCkl(text,fileName){
+/* A checklist says what it is in three declared places, all read: the checklist's own marking
+   (<ASSET><MARKING>, STIG Viewer 2.x), each STIG's classification (SI_DATA), and each rule's Class
+   (STIG_DATA). The checklist is one document for one host: the join is its marking, and the
+   host and every result in it carry it. */
+function parseCkl(text,fileName,srcId){
+ const E=ingSrc(srcId||fileName||"(checklist)","stig");
+ text=ingDataPrep(text,E);
  const doc=parseXmlStrict(text,"checklist");
+ E.open(); const sid=E.id;
+ ingXmlComments(text,E);
  const asset=firstByLocal(doc,"ASSET");
+ if(asset){const mk=firstByLocal(asset,"MARKING");if(mk)ingDeclared(E,mk.textContent,"CKL <MARKING>");}
  const hostName=asset?txtLocal(asset,"HOST_NAME"):"";
  const hostIp=asset?txtLocal(asset,"HOST_IP"):"";
  const hostKey=hostKeyFrom(hostName,hostIp);
- const h=getHost(hostKey);
+ const h=getHost(hostKey); mkTouch(h,sid,"");
  if(hostIp&&!h.ip) h.ip=hostIp;
  if(asset){const mac=txtLocal(asset,"HOST_MAC"); if(mac&&!h.mac)h.mac=mac;}
  if(!h.name||h.name===h.key) h.name=hostKey;
  let added=0;
+ const cls=new Map();                       // each rule's Class, counted: "Unclass" x 240
  elsByLocal(doc,"iSTIG").forEach(ist=>{
    const si={};
    elsByLocal(ist,"SI_DATA").forEach(d=>{
      const k=txtLocal(d,"SID_NAME").toLowerCase(), v=txtLocal(d,"SID_DATA");
      if(k) si[k]=v;
    });
+   if(si["classification"]) ingDeclared(E,si["classification"],"CKL STIG_INFO classification");
    const title=si["title"]||si["stigid"]||"Unknown STIG";
    const version=si["version"]||"";
    let release=""; const rm=(si["releaseinfo"]||"").match(/Release:\s*([\d.]+)/i); if(rm) release=rm[1];
    const key=stigKeyOf(title,version,release);
    const rec=ensureStigResult(hostKey,key,{title,version,release,
      source:"STIG Viewer checklist"+(fileName?" ("+fileName+")":""),
-     when:((si["releaseinfo"]||"").match(/\d{1,2}\s+\w+\s+\d{4}/)||[""])[0]});
+     when:((si["releaseinfo"]||"").match(/\d{1,2}\s+\w+\s+\d{4}/)||[""])[0]},sid);
    const seen=new Set(rec.rules.map(r=>r.vid+"|"+r.ruleId));
    elsByLocal(ist,"VULN").forEach(v=>{
      const d={};
@@ -6620,6 +7033,7 @@ function parseCkl(text,fileName){
        if(!k) return;
        if(k==="cci_ref"){(d.ccis=d.ccis||[]).push(val);} else d[k]=val;
      });
+     if(d["class"]) cls.set(d["class"],(cls.get(d["class"])||0)+1);
      const vid=(d["vuln_num"]||"").toUpperCase();
      const ruleId=d["rule_id"]||"";
      const kk=vid+"|"+ruleId;
@@ -6632,6 +7046,8 @@ function parseCkl(text,fileName){
      added++;
    });
  });
+ cls.forEach((n,v)=>ingDeclared(E,v,"CKL rule Class",n,"rules"));
+ E.done(added);
  return added;
 }
 
@@ -6639,23 +7055,39 @@ function parseCkl(text,fileName){
 function looksLikeCklb(text){
  try{const o=safeParse(text);return !!(o&&Array.isArray(o.stigs));}catch(e){return false;}
 }
-function parseCklb(text,fileName){
+/* A .cklb names its marking under keys that vary by STIG Viewer version: any "classification"
+   or "marking" key at the top level, in target_data, on a STIG or on a rule is read (declared). */
+function parseCklb(text,fileName,srcId){
+ const E=ingSrc(srcId||fileName||"(checklist)","stig");
+ text=ingDataPrep(text,E);
  const o=safeParse(text);
+ if(!o||typeof o!=="object") throw new Error("not a checklist");
+ E.open(); const sid=E.id;
+ const KEYS=/^(?:classification|marking|markings|classification[_ ]?marking|banner)$/i, seenMk=new Map();
+ const probe=(obj,where)=>{if(!obj||typeof obj!=="object")return;
+   for(const k of Object.keys(obj))if(KEYS.test(k)&&typeof obj[k]==="string"&&obj[k].trim()){
+     const id=where+" "+k+"\u0001"+obj[k].trim();seenMk.set(id,(seenMk.get(id)||0)+1);}};
+ probe(o,"CKLB");
  const ta=o.target_data||{};
+ probe(ta,"CKLB target_data");
  const hostKey=hostKeyFrom(ta.host_name||o.title||"",ta.ip_address||"");
- const h=getHost(hostKey);
+ const h=getHost(hostKey); mkTouch(h,sid,"");
  if(ta.ip_address&&!h.ip) h.ip=ta.ip_address;
  if(ta.mac_address&&!h.mac) h.mac=ta.mac_address;
  if(!h.name||h.name===h.key) h.name=hostKey;
  let added=0;
- (o.stigs||[]).forEach(st=>{
+ (Array.isArray(o.stigs)?o.stigs:[]).forEach(st=>{
+   if(!st||typeof st!=="object") return;
+   probe(st,"CKLB STIG");
    let release=""; const rm=String(st.release_info||"").match(/Release:\s*([\d.]+)/i); if(rm) release=rm[1];
    const key=stigKeyOf(st.display_name||st.stig_name||"Unknown STIG",st.version||"",release);
    const rec=ensureStigResult(hostKey,key,{title:st.display_name||st.stig_name||"Unknown STIG",
      version:String(st.version||""),release,
-     source:"STIG Viewer checklist (cklb)"+(fileName?" ("+fileName+")":"")});
+     source:"STIG Viewer checklist (cklb)"+(fileName?" ("+fileName+")":"")},sid);
    const seen=new Set(rec.rules.map(r=>r.vid+"|"+r.ruleId));
-   (st.rules||[]).forEach(r=>{
+   (Array.isArray(st.rules)?st.rules:[]).forEach(r=>{
+     if(!r||typeof r!=="object") return;
+     probe(r,"CKLB rule");
      const vid=String(r.group_id||r.group_id_src||"").toUpperCase();
      const kk=vid+"|"+(r.rule_id||"");
      if(seen.has(kk)) return; seen.add(kk);
@@ -6668,15 +7100,19 @@ function parseCklb(text,fileName){
      added++;
    });
  });
+ seenMk.forEach((n,id)=>{const [where,v]=id.split("\u0001");ingDeclared(E,v,where,n,/rule/.test(where)?"rules":"");});
+ E.done(added);
  return added;
 }
 
 /* ---- format dispatch ---- */
-function ingestStigResultText(text,fileName,warns){
+/* srcId: the source the results are registered under -- the file, or "<zip>/<entry>" */
+function ingestStigResultText(text,fileName,warns,srcId){
  if(text==null) return 0;
- if(looksLikeXccdf(text)) return parseXccdfResults(text,fileName);
- if(looksLikeCkl(text))   return parseCkl(text,fileName);
- if(looksLikeCklb(text))  return parseCklb(text,fileName);
+ const peek=ingDataPrep(text);             // a banner line above the data must not hide the format
+ if(looksLikeXccdf(peek)) return parseXccdfResults(text,fileName,srcId);
+ if(looksLikeCkl(peek))   return parseCkl(text,fileName,srcId);
+ if(looksLikeCklb(peek))  return parseCklb(text,fileName,srcId);
  if(warns) warns.push((fileName||"file")+": not a recognized XCCDF result, .ckl, or .cklb");
  return 0;
 }
@@ -8484,8 +8920,12 @@ function loadDemoData(){
        "postgresql-13.10-1.el8|(none) "+R,"kernel-4.18.0-513.el8|(none) "+R],
    ports:[["tcp",22,"ssh"],["tcp",111,"sunrpc"],["tcp",443,"https"],["tcp",5432,"postgresql"]]}
  ];
+ /* The demo's three pseudo-sources are registered like files. Two state no marking and sit at the
+    floor, as a scan export usually does; the listing carries banner rows, as a real one does. */
+ const DEMO_NONE="built-in demo data (fictional; RFC 5737 addresses); it states no marking";
+ const DE=ingSrc("(demo dataset)","demo").open();
  for(const d of DEMO){
-   const h=getHost(d.key);
+   const h=getHost(d.key); mkTouch(h,DE.id,"");
    h.name=d.key; h.ip=d.ip; h.mac=d.mac; h.os=d.os; h.lastSeen=d.seen;
    for(const p of d.ports) addPort(h,p[0],p[1],p[2]||"","demo: "+(p[2]||"port "+p[1]));
    if(d.cred && d.sw.length) addSoftware(h, d.sw.join("\n"));
@@ -8535,19 +8975,23 @@ function loadDemoData(){
      {family:fam||"General",port:port||"",patchPub:pp||""}));
  // a small threat-intel feed, run through the real SASR-E-shaped ingestion path
  if(!Object.keys(S.intel.rows).length){
-   ingestIntelRows("(demo threat intel)",[
+   const IE=ingSrc("(demo threat intel)","demo");
+   ingestIntelRows(IE.id,[
     ["CVE","Vendors","Products","CVE Description","CVE Published","CVSS 3.1","RF Risk Score","RF Severity","Weaponized","Attack Vector","Permissions Required","Actor","Country","IAVM","Total for Scoring"],
     ["CVE-2024-4671","Google","Chrome","Use-after-free in Visuals allowing remote code execution via crafted page.","2024-05-09","9.8","99","Very Critical","Yes","Network","None","","","2024-A-0263","94"],
     ["CVE-2024-31497","Simon Tatham","PuTTY","Biased ECDSA nonces allow NIST P-521 private key recovery from signatures.","2024-04-15","8.1","89","High","Yes","Network","None","","","2024-A-0244","83"],
     ["CVE-2019-0708","Microsoft","Remote Desktop Services","BlueKeep: pre-authentication remote code execution in Remote Desktop Services.","2019-05-14","9.8","99","Very Critical","Yes","Network","None","APT28; Kimsuky","RU; KP","2019-A-0166","97"],
     ["CVE-2023-25690","Apache","HTTP Server","mod_proxy HTTP request smuggling enabling access-control bypass.","2023-03-07","9.8","72","High","No","Network","None","","","2023-A-0122","64"],
     ["CVE-2023-0286","OpenSSL","OpenSSL","X.400 address type confusion in X.509 GeneralName processing.","2023-02-08","7.4","55","Medium","No","Network","None","","","","41"],
-    ["CVE-2024-21068","Oracle","Java SE","Difficult-to-exploit vulnerability in the Java SE Hotspot component.","2024-04-16","7.5","31","Low","No","Network","None","","","","22"]],[]);
+    ["CVE-2024-21068","Oracle","Java SE","Difficult-to-exploit vulnerability in the Java SE Hotspot component.","2024-04-16","7.5","31","Low","No","Network","None","","","","22"]],[],{E:IE});
+   IE.done(6,DEMO_NONE);
  }
  // a small combined HW/SW baseline listing, run through the real ingestion path
  // (unnamed HW/SW column A, duplicate Description headers -- the shapes real listings have)
  if(!S.listings.files.length){
-   ingestListingRows("(demo HW/SW listing)",[
+   const LE=ingSrc("(demo HW/SW listing)","demo");
+   ingestListingRows(LE.id,[
+    ["UNCLASSIFIED"],                       // banner rows, top and bottom: read as the listing's marking, never as rows
     ["","Facility","Description","CI (Rack)","Drawing","Description","Interconnect Diagrams","Location (Room)","Software","Version","Manufacturer","Model Number","Serial Number","Operating System","Approval Status","Hostname"],
     ["HW","HQ Bldg 2","Engineering workstation","R1","DWG-1001","Dell Precision 3660","ICD-01","Rm 214","","","Dell Technologies","Precision 3660","7Q2XYZ1","","","WKSTN-001"],
     ["HW","HQ Bldg 2","Engineering workstation","R1","DWG-1001","Dell Precision 3660","ICD-01","Rm 214","","","Dell Technologies","Precision 3660","7Q2XYZ2","","","WKSTN-002"],
@@ -8564,8 +9008,11 @@ function loadDemoData(){
     ["SW","HQ Bldg 2","Archive utility","","","","","","7-Zip","22.01","Igor Pavlov","","","","Approved","WKSTN-001"],
     ["SW","HQ Bldg 2","PDF reader","","","","","","Adobe Acrobat Reader DC","24.002.20933","Adobe Inc.","","","","Approved",""],
     ["SW","HQ Annex","CAD package on the standalone media station","","","","","","AutoCAD","2024.1","Autodesk, Inc.","","","","Approved",""],
-    ["SW","HQ Bldg 2","Packet analyzer - approval revoked, pending removal","","","","","","Wireshark","4.2.5","Wireshark Foundation","","","","Denied","WKSTN-002"]],[]);
+    ["SW","HQ Bldg 2","Packet analyzer - approval revoked, pending removal","","","","","","Wireshark","4.2.5","Wireshark Foundation","","","","Denied","WKSTN-002"],
+    [],["UNCLASSIFIED"]],[],{E:LE});
+   LE.done(13,DEMO_NONE);
  }
+ DE.done(DEMO.length,DEMO_NONE);
  invalidateFusion();
  mergeHostsByIp(); rebuildPPSMFromHosts();
  const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
