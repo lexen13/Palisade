@@ -4,6 +4,61 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.9 — classification markings
+
+*Draft — version numbers are bumped once, at release.*
+
+Until 2.8 the marking was one line of text typed into Settings and stamped on everything,
+whatever it held. A SECRET row in an otherwise unclassified listing came out under the same
+banner as the rest; a file that said nothing about itself was treated as unclassified. 2.9 reads
+the marking of every input, keeps each row's own portion mark through every merge and session,
+and marks every product from what it actually contains.
+
+- **One marking engine.** Reads a marking in any form it arrives in — banner or portion, words
+  or abbreviations, any order or separator, legacy FOUO and EYES ONLY, one-letter misspellings —
+  into one canonical value, and rolls portions up as a true high-water mark: country-by-country
+  foreign release, NOFORN over REL TO, REL TO lists intersected, SCI/SAP/AEA/FGI and dissemination
+  controls accumulated, CUI categories and limited dissemination controls kept. Uncertain cases
+  resolve to the more restrictive reading. Rendered under a DoD (DoDI 5200.48, the default) or
+  NARA (32 CFR 2002) profile. Unrecognised words are kept and flagged, never dropped.
+- **A self-test at every page open.** The worked examples of the marking rules, plus generated
+  markings checking that reading is order-independent, that keys and banners read back to
+  themselves, that the roll-up is a semilattice and that sorting never inverts dominance —
+  about 2,500 checks. A failure is a console error, so the release gate refuses the build.
+- **The floor replaces the banner field.** Settings now holds a classification floor: the least
+  anything here is marked. A source that says nothing is marked at the floor, never as
+  unclassified. The floor is stored canonical, in a form that keeps CUI categories; a blank or
+  unreadable entry is refused and the previous floor kept, so clearing the box by accident can
+  no longer drop everything to UNCLASSIFIED.
+- **Every input is a source.** Each file is registered with what it said about itself and the
+  evidence (a banner row, a CKL marking field, an Excel footer); banner and authority-block rows
+  are never ingested as data; each row's own portion mark goes with the records built from it.
+- **Every product is marked from its contents.** Portion Marking column, banner first and last,
+  the classification authority block or CUI designation indicator, coloured report banners
+  repeated on every printed page. Every download is logged with the marking it left under.
+- **The Markings tab** (Stage 1, after Settings; the tab walk is now 19 views). The marking of
+  everything loaded in one coloured banner, with a plain-language line naming the records that
+  put it there and how many sources sit at the floor; every source with what it said and an
+  inline correction; tags by host, subnet, software, port, finding, CVE, listing row, asset or
+  file, each showing how many records it matches right now; every product with the banner it
+  will carry, worked out by rendering it, and a per-product override; the policy and authority
+  block fields; the release log; and a marking checker that shows how any pasted marking is
+  read and how a list of them rolls up — and why.
+- **One rule for every override.** Raising never needs a reason. Anything that can come out
+  lower than the data says — an *exactly* tag or override, or a source set below what it said —
+  needs a written reason, and products print it as a *LOWERED* marking note. A replacement must
+  state a classification level or CUI. The same gate checks every marking typed anywhere.
+- **Mark this host.** The asset drawer shows the host's portion mark, the sources and tags behind
+  it, and marks the host in one step (marking it again changes that tag rather than stacking
+  another).
+- **Coloured banners.** The page banners take the standard colours by level — green
+  UNCLASSIFIED, purple CUI, blue CONFIDENTIAL, red SECRET, orange TOP SECRET, yellow TS/SCI — and
+  a banner long enough to wrap pushes the status line up instead of covering it. Asset and
+  software tables show each row's portion mark in front of its name (no rows added).
+- **Sessions and profiles.** Older sessions load unchanged and take the floor from their old
+  banner. Tags travel in the environment profile; sources, overrides and the release log
+  travel in the session.
+
 ## 2.8 — security hardening
 
 An adversarial review of 2.7 found two places where a scanned hostname was written into the page

@@ -15,7 +15,7 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-p31fPTY5hXmKcvZaG9uGaI5xznuQEYusaiiE5q2U5OE='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-m+uhvD7pwtlN/Rnk5tYHLXR7Q6WzQ5yrgQyjP9dUuLM='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palisade v2.8</title>
 <style>
@@ -48,10 +48,55 @@
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   .mono,code,.pill,td input.mono,th,.card .num{font-variant-numeric:tabular-nums}
 
-  /* ---- marking banners ---- */
-  .cui-banner{background:var(--cui);color:#fff;text-align:center;font-weight:700;
-    letter-spacing:.2em;padding:5px 0;font-size:11.5px;text-transform:uppercase}
-  .cui-bottom{position:fixed;bottom:0;left:0;right:0;z-index:30}
+  /* ---- marking banners ----
+     The colour follows the level, in the standard DoD colours, so the classification of the
+     page reads at a glance from across a room. One tier class sets a pair of variables that
+     every marking surface uses: the page banners, the seal on the Markings tab, the portion-mark
+     chips in tables. applyBanner() puts the class on the banners; a long banner wraps rather
+     than being cut, and the footer grows with it (see .appfoot). */
+  .mk-u{--mkb:#007a33;--mkf:#fff} .mk-cui{--mkb:#502b85;--mkf:#fff} .mk-c{--mkb:#0033a0;--mkf:#fff}
+  .mk-s{--mkb:#c8102e;--mkf:#fff} .mk-ts{--mkb:#ff8c00;--mkf:#000} .mk-tssci{--mkb:#fce83a;--mkf:#000}
+  .mk-none{--mkb:var(--cui);--mkf:#fff}
+  .cui-banner{background:var(--mkb,var(--cui));color:var(--mkf,#fff);text-align:center;font-weight:700;
+    letter-spacing:.2em;padding:5px 12px;font-size:11.5px;text-transform:uppercase;line-height:1.35;
+    overflow-wrap:anywhere}
+  /* a banner is also the way in to its explanation: click it for the Markings tab */
+  .cui-banner[data-click]{cursor:pointer}
+  /* the status line and the bottom banner share one fixed footer, so a banner that wraps to
+     two or three lines pushes the status line up instead of covering it */
+  .appfoot{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;flex-direction:column}
+  /* portion-mark chip: (S//NF) in front of what it marks */
+  .mkp{display:inline-block;background:var(--mkb,var(--cui));color:var(--mkf,#fff);border-radius:4px;
+    padding:0 5px;font-family:var(--mono);font-size:10.5px;font-weight:700;line-height:1.55;
+    white-space:nowrap;letter-spacing:.02em;vertical-align:1px}
+  .mkp.dim{background:transparent;color:var(--dim);box-shadow:inset 0 0 0 1px var(--line)}
+  .mkcell{display:flex;gap:6px;align-items:center}
+  .mkcell input{flex:1 1 auto;min-width:110px}
+  /* ---- Markings tab ---- */
+  .mkseal{display:inline-block;background:var(--mkb,var(--cui));color:var(--mkf,#fff);font-weight:750;
+    letter-spacing:.14em;font-size:19px;padding:9px 18px;border-radius:var(--r);text-transform:uppercase;
+    overflow-wrap:anywhere;max-width:100%;box-shadow:var(--shadow-sm)}
+  .mkwhy{color:var(--text);font-size:13px;line-height:1.75;margin:12px 0 4px;max-width:120ch}
+  .mkwhy .mkp{margin:0 2px}
+  .mkmeta{color:var(--dim);font-size:12px;margin:6px 0 0}
+  .mkwarn{margin:10px 0 0;padding:9px 12px;border-radius:var(--r-sm);background:rgba(240,104,95,.09);
+    border:1px solid rgba(240,104,95,.45);color:var(--text);font-size:12.5px;line-height:1.55}
+  .mkwarn b{color:var(--bad)}
+  .mkedit{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:10px 0 0}
+  .mkedit .field{min-width:150px;flex:1 1 150px}
+  .mkedit .field.wide{flex:2 1 230px}
+  .mkedit .field.narrow{flex:0 1 150px;min-width:120px}
+  .mkedit button{margin-bottom:1px}
+  details.mkd>summary{cursor:pointer;color:var(--accent);font-size:12px;list-style:none;white-space:nowrap}
+  details.mkd>summary::-webkit-details-marker{display:none}
+  details.mkd[open]{min-width:280px}
+  .mkflag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    border-radius:20px;padding:0 7px;border:1px solid var(--warn);color:var(--warn);white-space:nowrap}
+  .mkflag.bad{border-color:var(--bad);color:var(--bad)}
+  .mkflag.ok{border-color:var(--ok-dim);color:var(--accent2)}
+  .mksub{color:var(--dim);font-size:11.5px;line-height:1.45;margin-top:2px}
+  .mkout{margin-top:10px;font-size:12.5px}
+  .mkout table td:first-child{color:var(--dim);width:150px;white-space:nowrap}
 
   /* ---- sticky app header (marking + bar + nav) ---- */
   .apptop{position:sticky;top:0;z-index:25;background:rgba(11,17,23,.92);
@@ -107,7 +152,7 @@
   /* ---- workflow rail: the four stages, always visible, always in order ---- */
   .shell{display:flex;align-items:flex-start;max-width:1680px;margin:0 auto}
   .rail{flex:0 0 214px;align-self:flex-start;position:sticky;top:var(--hdr,84px);
-    max-height:calc(100vh - var(--hdr,84px));overflow:auto;
+    max-height:calc(100vh - var(--hdr,84px) - var(--ftr,60px));overflow:auto;
     padding:16px 12px 40px;border-right:1px solid var(--line-soft)}
   .navgroup{margin-bottom:15px}
   .navgroup .glabel{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;
@@ -122,7 +167,7 @@
   #tabs button.active{color:#04222c;background:var(--accent);border-color:var(--accent);
     font-weight:650;box-shadow:0 2px 10px rgba(87,200,222,.25)}
 
-  main{flex:1 1 auto;min-width:0;padding:20px 24px 84px}
+  main{flex:1 1 auto;min-width:0;padding:20px 24px calc(var(--ftr,60px) + 24px)}
 
   /* ---- per-tab heading: what this tab is, in one line ---- */
   .tabhead{display:flex;align-items:flex-start;gap:12px;margin:0 0 16px}
@@ -367,8 +412,8 @@
   .gterm dt .ab{font-family:var(--mono);color:var(--accent);margin-right:8px}
   .gterm dd{margin:4px 0 0;color:var(--dim);font-size:12.5px;line-height:1.55}
 
-  .statusbar{position:fixed;bottom:24px;left:0;right:0;padding:5px 20px;background:var(--panel);
-    border-top:1px solid var(--line);color:var(--dim);font-size:12px;font-family:var(--mono);z-index:29;
+  .statusbar{padding:5px 20px;background:var(--panel);
+    border-top:1px solid var(--line);color:var(--dim);font-size:12px;font-family:var(--mono);
     max-height:3.4em;overflow-y:auto;line-height:1.45}
 
   @media (max-width:1100px){
@@ -383,13 +428,14 @@
   @media (max-width:760px){
     .brand .t .sub{display:none}
     .meter .mtxt{display:none}
-    main{padding:16px 14px 88px}
+    main{padding:16px 14px calc(var(--ftr,60px) + 24px)}
+    .mkseal{font-size:15px;letter-spacing:.08em}
     .toolbar .filters{margin-left:0}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
   @media print{
-    .apptop,.statusbar,.cui-bottom,.drawer,.backdrop,.sheet,.bar-actions,.toolbar,
+    .apptop,.appfoot,.statusbar,.cui-bottom,.drawer,.backdrop,.sheet,.bar-actions,.toolbar,
     .rail,.callout,.flowstrip,.tabhead .qh{display:none!important}
     .shell{display:block}
     details.explain{border-color:#bbb;box-shadow:none;background:#fff}
@@ -402,7 +448,7 @@
 </head>
 <body>
 <header class="apptop">
-<div class="cui-banner" id="bannerTop">UNCLASSIFIED</div>
+<div class="cui-banner mk-u" id="bannerTop" data-click="gotoTab" data-arg="markings">UNCLASSIFIED</div>
 <div class="topbar">
   <div class="brand">
     <div class="glyph" title="Offline evidence compiler">
@@ -463,6 +509,7 @@
     <span class="glabel"><span class="n">1</span>Set up</span>
     <button data-t="overview" class="active">Overview</button>
     <button data-t="settings">Settings</button>
+    <button data-t="markings">Markings</button>
   </div>
   <div class="navgroup">
     <span class="glabel"><span class="n">2</span>Evidence</span>
@@ -542,7 +589,7 @@
     <p>2. Load one or more exports here. Hosts, open-port evidence, and installed-software evidence merge across files; re-loading a newer scan updates hosts in place without wiping your edits.</p>
     <p>3. Fill in <b>Enclave Settings</b> once (registration form static fields + boundary defaults). Review the <b>PPSM Matrix</b> rows, exclude anything not being registered, and edit boundaries per row where needed. Review <b>STIG Applicability</b> auto-marks and toggle cells where the scan evidence is wrong &mdash; manual overrides show a dashed amber outline and survive re-detection.</p>
     <p>4. Export: PPSM produces the tab-delimited <code>.txt</code> in the exact DoD IS Registration Form v8.0 column order (paste-ready / registry-upload format). STIG produces a CSV matching the STIG Testing Matrix layout (version header row + product row + one row per host).</p>
-    <p>5. <b>Save session</b> writes a JSON sidecar of everything (parsed evidence + your edits) so a half-completed matrix can be handed to a teammate and resumed. Sessions and exports inherit the banner marking from Enclave Settings.</p>
+    <p>5. <b>Save session</b> writes a JSON sidecar of everything (parsed evidence + your edits) so a half-completed matrix can be handed to a teammate and resumed. Every session and export is marked from what it actually contains &mdash; never below the classification floor in Settings; the <b>Markings</b> tab shows each one and why.</p>
     </div>
   </details>
   <div class="panel" id="uncredPanel" style="display:none">
@@ -1030,7 +1077,7 @@
 
 <!-- ================= SETTINGS ================= -->
 <div class="tabpane" id="pane-settings">
-  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Settings</h1><p>The details that cannot come from a scan but appear on every export &mdash; system identity, registration-form fields, boundary defaults, and the marking banner. Fill this in once.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="settings">?</button></div>
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Settings</h1><p>The details that cannot come from a scan but appear on every export &mdash; system identity, registration-form fields, boundary defaults, and the classification floor. Fill this in once.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="settings">?</button></div>
   <div class="panel">
     <h2>Environment profile <span class="pill" style="margin-left:6px">reusable config</span></h2>
     <p>Save your <b>Settings + Detection Config</b> as a small JSON file (no scan data) and share it, so everyone on the team starts from the same system identity, boundaries, marking, and detection rules. Loading a profile updates configuration without touching any scans you have open.</p>
@@ -1056,17 +1103,66 @@
     <div class="grid2" id="swDefaultsGrid"></div>
   </div>
   <div class="panel">
-    <h2>Marking banner</h2>
-    <p>Stamped on the page header and footer and at the top and bottom of every export. Set it to your system's handling marking.</p>
-    <div class="grid2"><div class="field"><label>Banner text (page + exports)</label><input id="bannerText" data-change="bannerInput"></div></div>
+    <h2>Classification floor</h2>
+    <p>The least anything here is marked. A source that says nothing about itself is marked at the floor &mdash; never
+      unclassified by default. Each export is then marked from what it actually contains, which is never below the
+      floor; the <b>Markings</b> tab shows what every one comes to, and why.</p>
+    <div class="grid2"><div class="field"><label>Floor &mdash; type it in any form (secret/noforn, CUI, U); it is stored in canonical form</label><input id="bannerText" data-change="bannerInput"></div></div>
     <div class="toolbar" style="margin:10px 0 0">
       <span class="hint">Quick set:</span>
-      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED">UNCLASSIFIED</button>
-      <button class="small" data-click="setBanner" data-arg="CUI">CUI</button>
-      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED//CUI">UNCLASSIFIED//CUI</button>
-      <button class="small" data-click="setBanner" data-arg="UNCLASSIFIED//FOUO">UNCLASSIFIED//FOUO</button>
+      <span id="floorPresets" style="display:contents"></span>
+      <button data-click="gotoTab" data-arg="markings">Open Markings &rsaquo;</button>
     </div>
   </div>
+</div>
+
+<!-- ================= MARKINGS ================= -->
+<div class="tabpane" id="pane-markings">
+  <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Markings</h1><p>What everything here is classified as, and why. Every file is read for its own marking, every row keeps its own portion mark, and every export is marked from what it actually contains. Fix a marking here and everything that contains it follows.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="markings">?</button></div>
+  <div class="panel" id="mkHero"></div>
+  <div class="panel">
+    <h2>Sources &mdash; what each file says about itself</h2>
+    <div id="mkSources"></div>
+  </div>
+  <div class="panel">
+    <h2>Tag data the files do not mark</h2>
+    <p>Mark a subnet, a host, a software title, a CVE, a whole file. <b>At least</b> only ever adds to a marking. <b>Exactly</b>
+      replaces what the data says and needs a reason. Tags travel in the session and in the environment profile.</p>
+    <div class="mkedit" style="margin-top:4px">
+      <div class="field narrow"><label>Tag</label><select id="mkRuleKind" data-change="mkRuleKind"></select></div>
+      <div class="field narrow"><label>where</label><select id="mkRuleField"></select></div>
+      <div class="field wide"><label>matches</label><input id="mkRulePat" placeholder="=SVR-DC01 &nbsp; 10.1.0.0/16 &nbsp; chrome &nbsp; re:^svr-"></div>
+      <div class="field"><label>as</label><input id="mkRuleMark" placeholder="SECRET//NOFORN"></div>
+      <div class="field narrow"><label>how</label><select id="mkRuleMode"><option value="raise">at least</option><option value="set">exactly</option></select></div>
+      <div class="field wide"><label>reason (needed for exactly)</label><input id="mkRuleWhy" placeholder="e.g. SCIF enclave per ISSM memo 24-117"></div>
+      <button class="primary" data-click="mkRuleAdd">Add tag</button>
+    </div>
+    <p class="mksub" style="margin-top:8px">Matches: <code>=SVR-DC01</code> exactly &middot; <code>chrome</code> contains, any case &middot; <code>re:^svr-</code> a regular expression &middot; <code>10.1.0.0/16</code> an address range.</p>
+    <div id="mkRules" style="margin-top:12px"></div>
+  </div>
+  <div class="panel">
+    <h2>Products &mdash; how each export will be marked</h2>
+    <div id="mkProducts"></div>
+  </div>
+  <div class="panel">
+    <h2>Marking checker</h2>
+    <p>Paste a marking in any form &mdash; any order, any separator, words or abbreviations, a misspelling &mdash; and see how
+      Palisade reads it. Below, list several to see them sorted and rolled up into one banner.</p>
+    <div class="grid2"><div class="field"><label>Any marking</label><input id="mkChkIn" data-input="mkCheck" placeholder="secret/noforn" spellcheck="false" autocomplete="off"></div></div>
+    <div id="mkChkTry" class="mksub" style="margin-top:6px"></div>
+    <div id="mkChkOut" class="mkout"></div>
+    <div class="field" style="margin-top:14px"><label>Sort and roll up &mdash; one marking per line</label>
+      <textarea id="mkSortIn" class="cfg" style="min-height:110px;color:var(--text)" data-input="mkSort" spellcheck="false" placeholder="(S//REL TO USA, AUS, GBR)&#10;(S//REL TO USA, CAN, GBR)&#10;(CUI//SP-PRVCY)&#10;(U)"></textarea></div>
+    <div id="mkSortOut" class="mkout"></div>
+  </div>
+  <details class="explain">
+    <summary>Marking policy and the classification authority block</summary>
+    <div class="xbody" id="mkPolicy"></div>
+  </details>
+  <details class="explain">
+    <summary>Release log &mdash; every product that left the tool, and the marking it left under</summary>
+    <div class="xbody" id="mkLog"></div>
+  </details>
 </div>
 
 <!-- ================= CONFIG ================= -->
@@ -1163,8 +1259,10 @@
     </div>
   </div>
 </section>
+<div class="appfoot">
 <div class="statusbar" id="statusbar">Ready. No files loaded.</div>
-<div class="cui-banner cui-bottom" id="bannerBottom">UNCLASSIFIED</div>
+<div class="cui-banner cui-bottom mk-u" id="bannerBottom" data-click="gotoTab" data-arg="markings">UNCLASSIFIED</div>
+</div>
 
 <script>
 "use strict";
@@ -6396,6 +6494,8 @@ document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",
  b.classList.add("active"); $("pane-"+b.dataset.t).classList.add("active");
  window.scrollTo({top:0,behavior:"instant"});
  if(b.dataset.t==="reports") rptTouch();
+ /* products are marked by rendering them, so that is done when someone comes to look */
+ if(b.dataset.t==="markings") mkTabOpen();
 }));
 
 /* ---------------- toolbar menus ----------------------------------------
@@ -6416,20 +6516,22 @@ document.addEventListener("keydown",e=>{
  if(e.key==="Escape")document.querySelectorAll(".menu.open").forEach(x=>x.classList.remove("open"));
 });
 
-/* the workflow rail sticks below the header, whatever height it wraps to */
+/* the workflow rail sticks below the header, whatever height it wraps to; the page leaves room
+   for the footer, however many lines a long bottom banner wraps to */
 function syncHeaderHeight(){
- const h=document.querySelector(".apptop");
+ const h=document.querySelector(".apptop"),f=document.querySelector(".appfoot");
  if(h)document.documentElement.style.setProperty("--hdr",h.offsetHeight+"px");
+ if(f)document.documentElement.style.setProperty("--ftr",f.offsetHeight+"px");
 }
 window.addEventListener("resize",syncHeaderHeight);
 syncHeaderHeight();
 if(window.ResizeObserver){
  const ro=new ResizeObserver(syncHeaderHeight);
- const h=document.querySelector(".apptop"); if(h)ro.observe(h);
+ [".apptop",".appfoot"].forEach(q=>{const h=document.querySelector(q); if(h)ro.observe(h);});
 }
 
 function renderAll(){mkDirty();renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
- computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
+ computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();renderMarkings();
  if(S.inventory&&S.inventory.length&&!$("invBox").value)
    $("invBox").value=S.inventory.map(i=>[(i.mk?mkPortion(i.mk)+" ":"")+i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
 
@@ -6654,7 +6756,8 @@ function renderSoftware(){
      <td><input type="text" value="${esc(r.approvalRef)}" data-change="swSet" data-key="${ke}" data-field="approvalRef"></td>
      <td style="text-align:center"><input type="checkbox" ${r.pinVersion?"checked":""} title="approval applies only to version ${esc(r.version)}" data-change="swPinVersion" data-key="${ke}"></td>
      <td>${eolCell}${intelBadge}</td>
-     ${SW_COLS.map(c=>`<td><input type="text" ${c[0]==="version"?'class="mono"':""} value="${esc(r[c[0]])}" data-change="swSet" data-key="${ke}" data-field="${esc(c[0])}"></td>`).join("")}
+     ${SW_COLS.map(c=>{const inp=`<input type="text" ${c[0]==="version"?'class="mono"':""} value="${esc(r[c[0]])}" data-change="swSet" data-key="${ke}" data-field="${esc(c[0])}">`;
+       return c[0]==="name"?`<td><div class="mkcell">${mkChip(mkE.sw(k))}${inp}</div></td>`:`<td>${inp}</td>`;}).join("")}
      <td>${(()=>{const sc=swSrcOf(r);const col=sc==="listing"?"var(--accent)":sc==="manual"?"var(--warn)":"var(--accent2)";
         return `<span class="pill" style="color:${col};border-color:${col}"${r.listNote?` title="${esc(r.listNote)}"`:""}>${sc}</span>`;})()}</td>
      <td>${(()=>{const extra=(r.listHosts||[]).filter(h=>!r.hosts.includes(h));
@@ -6775,7 +6878,9 @@ function renderAssets(){
    const ke=esc(k);
    html+=`<tr${a.fromScan?"":' style="background:rgba(240,180,41,.06)"'}>
      <td class="mono">${S.hosts[k]?hostLink(k,String(n)):n}</td>
-     ${ASSET_COLS.map(c=>`<td><input type="text" ${["ip","mac","serial","lastSeen"].includes(c[0])?'class="mono"':""} value="${esc(a[c[0]])}" data-change="assetSet" data-key="${ke}" data-field="${esc(c[0])}"></td>`).join("")}
+     ${ASSET_COLS.map(c=>{const inp=`<input type="text" ${["ip","mac","serial","lastSeen"].includes(c[0])?'class="mono"':""} value="${esc(a[c[0]])}" data-change="assetSet" data-key="${ke}" data-field="${esc(c[0])}">`;
+       /* the asset's portion mark sits in front of its name, as on a marked page */
+       return c[0]==="name"?`<td><div class="mkcell">${mkChip(mkE.asset(k))}${inp}</div></td>`:`<td>${inp}</td>`;}).join("")}
      <td class="mono" style="text-align:center;color:${SRC_COLOR[assetSrcOf(a)]}" title="scan = detected by the scanner; listing = from a HW/SW listing; both = corroborated; manual = hand-entered">${esc(assetSrcOf(a))}</td></tr>`;
  }
  if(!n) html+=`<tr><td colspan="${ASSET_COLS.length+2}" style="color:var(--dim)">${keys.length?"Nothing matches the filter.":"No assets yet — load scans, or add one manually."}</td></tr>`;
@@ -7676,6 +7781,8 @@ function openHostDetail(hk){
     <button data-click="exportHostReport" data-arg="${esc(hk)}">Export asset report .csv</button>`;
  const row=(k,v)=>v?`<div style="display:flex;gap:10px;padding:3px 0;font-size:12.5px"><span style="color:var(--dim);width:130px;flex:none">${esc(k)}</span><span class="mono">${esc(v)}</span></div>`:"";
  let b="";
+ // marking: what this host is marked, why, and the one-click fix
+ b+=mkHostSection(hk);
  // identity
  b+=`<div class="help-h">Identity</div>`
   +row("Host name",h.name)+row("IP address",h.ip)+row("MAC",h.mac)+row("FQDN",h.fqdn)
@@ -8736,7 +8843,425 @@ function renderSettings(){
      ["swHosting","Hosting Environment"],["swUii","IT Budget UII"],["swFiscalYear","Fiscal Year (FY)"],
      ["swPopEnd","POP End Date"],["swLicense","License or Contract #"],["swLicenseTerm","License Term"]],"swDefaultsGrid");
  $("bannerText").value=S.settings.banner;
+ /* quick-set floors come from the same allow-list setBanner checks, so a button can never offer
+    a value the handler would refuse */
+ const fk=mkFloor();
+ $("floorPresets").innerHTML=[...BANNERS].map(b=>
+  `<button class="small${mkKey(b)===fk?" primary":""}" data-click="setBanner" data-arg="${esc(b)}">${esc(b)}</button>`).join("");
 }
+
+/* =========================================================================
+   Markings tab: what everything here is classified as, why, and the fix.
+
+   This block only READS the engine and the provenance layer. What it WRITES is the
+   operator's decisions -- tags (S.marking.rules), overrides (S.marking.products), a
+   file's own marking (S.marking.files[id].set) -- and the floor, policy and authority
+   block fields in S.settings. Every marking a person types goes through one gate,
+   mkVet(), so the bar is the same wherever it is typed:
+     - text that is not a marking, or names nothing a product could be marked by, is
+       refused, and the refusal says why;
+     - RAISING never needs a reason: it can only make a marking stricter;
+     - anything that can come out LOWER than the data says -- a "set" tag or override,
+       which replaces whatever is loaded now or later, or lowering a file below what it
+       said -- needs a written reason, and a replacement must state a level or CUI.
+       That reason is printed on every product it touches.
+   Products are marked by rendering them (a dry run of the real exports), so the table
+   shows what a download WOULD carry, never a second opinion of it.
+   ========================================================================= */
+const MK_UI={prod:null,stale:false,host:null};
+const MK_KIND_LABEL={host:"Hosts",software:"Software",port:"Ports / services",finding:"Findings",account:"Accounts",
+ intel:"Threat-intel CVEs",listing:"Listing rows",asset:"Assets",file:"Source files"};
+const MK_FIELD_LABEL={any:"any field",name:"name",ip:"IP address",os:"operating system",vendor:"vendor",port:"port",
+ service:"service",plugin:"plugin ID",family:"plugin family",cve:"CVE",product:"product",host:"host",location:"location",
+ owner:"owner",type:"type"};
+const MK_CHECK_EXAMPLES=["secret/noforn","NOFORN//SECRET","(S//REL TO GBR, USA, AUS)","Controlled Unclassified Information",
+ "SECERT//NOFRON","TS//TK/SI-G ABCD//NF","U//FOUO","(//DEU S)"];
+const mkPl=(n,one,many)=>n+" "+(n===1?one:(many||one+"s"));
+/* A marking stored where a person reads it (the floor, the AI ceiling): the readable banner when
+   it reads back to exactly the same key, else the key itself -- a DoD banner leaves CUI
+   categories to the designation indicator, and storing that would drop them. */
+function mkStoreForm(key){const b=mkBanner(key,{profile:"NARA",legacy:"preserve"});return b&&mkKey(b)===key?b:key;}
+/* a portion-mark chip. A record at the floor is shown quietly, so what stands above it stands out. */
+function mkChip(r,loud){const k=typeof r==="string"?r:(r&&r.k)||"";if(!k)return "";
+ const R=typeof r==="string"?null:r;
+ const t=mkBanner(k)+(R?" — from "+mkPl(R.f.length,"source")+(R.r.length?" and "+mkPl(R.r.length,"tag"):""):"");
+ return `<span class="mkp mk-${mkTier(k)}${!loud&&k===mkFloor()?" dim":""}" title="${esc(t)}">${esc(mkPortion(k))}</span>`;}
+/* Does a key state anything a product could be marked by? A key of unrecognised words alone
+   ("hello world") is kept by the engine -- nothing is ever dropped -- but it is not a marking a
+   person can tag data with, and the checker does not present it as one. */
+function mkSays(key){const m=mkObj(key);return !!m&&(m.l>=0||m.cui||m.fd!=="B"||m.d.size>0||m.nonic.size>0||m.sci.size>0||m.sap.size>0
+ ||m.aea.size>0||!!m.fgi||m.ldc.size>0||(m.dist!==undefined&&m.dist!==31));}
+/* Why a roll-up came out stricter than, or different from, any one of its parts -- in words, so
+   the result is never a surprise. Reads the engine's own structured values; decides nothing. */
+function mkJoinNotes(keys,hw){
+ const H=mkObj(hw),ms=keys.map(mkObj).filter(Boolean),n=[];if(!H)return n;
+ if(H.fd==="F"&&!ms.some(m=>m.fd==="F")){
+   const rel=ms.filter(m=>m.fd==="X").length,unc=ms.filter(m=>m.fd==="N").length;
+   if(rel&&unc)n.push("NOFORN, because "+mkPl(unc,"part")+" with no release marking "+(unc===1?"sits":"sit")
+     +" beside a releasable one: what was never cleared for foreign release cannot be released");
+   else if(rel>1)n.push("NOFORN, because the release lists share no country besides USA");}
+ else if(H.fd==="X"&&H.rel){const L=ms.filter(m=>m.fd==="X"&&m.rel).map(m=>m.rel.size);
+   if(L.length>1&&H.rel.size<Math.max(...L))n.push("REL TO keeps only the countries every part releases to");}
+ if(H.l>=1&&ms.some(m=>m.d.has("FOUO")))n.push("FOUO is never shown in a classified banner; its portion keeps it");
+ if(H.l>=1&&H.cui&&MK_POLICY.profile==="DOD")n.push("CUI inside classified: under the DoD profile the banner shows the classified markings and the designation indicator carries the CUI");
+ if(H.sci.size&&ms.filter(m=>m.sci.size).length>1)n.push("SCI controls from every part are combined");
+ return n;}
+/* The one gate (see the block comment). o: {replace, mode, why, from}. Returns {key, notes} or {err}. */
+function mkVet(text,o){o=o||{};
+ const t=String(text??"").trim();
+ if(!t)return {err:"type a marking first, in any form: secret/noforn, CUI, (S//REL TO USA, GBR)."};
+ if(t.length>300)return {err:"that is too long to be a marking."};
+ const p=mkParse(t),m=mkObj(p.key);
+ if(!p.key||!m)return {err:"“"+t+"” is not a marking Palisade can read."};
+ if(!mkSays(p.key))return {err:"nothing in “"+t+"” is a marking Palisade recognises"+(m.unk.size?" (not recognised: "+[...m.unk].join(", ")+")":"")+"."};
+ if(o.replace&&!(m.l>=0||m.cui))return {err:"a marking that replaces what the data says must state a classification level or CUI."};
+ const lowers=o.mode==="set"||(o.from!==undefined&&!mkDominates(p.key,o.from||""));
+ if(lowers&&!String(o.why??"").trim())return {err:"this can make a marking lower than the data says, so it needs a reason. The reason is printed on everything it affects."};
+ return {key:p.key,notes:p.notes};}
+/* the inputs of the small form a button sits in */
+function mkEditVals(el){const box=el.closest(".mkedit"),q=n=>box&&box.querySelector('[data-mk="'+n+'"]');
+ return {mark:q("mark")?q("mark").value:"",mode:q("mode")?q("mode").value:"raise",why:(q("why")?q("why").value:"").trim().slice(0,300)};}
+function mkSay(el,msg){const box=el&&el.closest(".mkedit"),m=box&&box.querySelector(".mkmsg");if(m)m.textContent=msg;status(msg);}
+/* a small "marking / how / reason" form; arg is [attribute, value] for the button, or null */
+function mkEditForm(btn,label,arg,verb,whyLabel,modes){
+ return `<div class="mkedit"><div class="field"><label>${esc(label)}</label><input data-mk="mark" placeholder="e.g. SECRET//NOFORN" spellcheck="false"></div>`
+  +(modes?`<div class="field narrow"><label>how</label><select data-mk="mode"><option value="raise">at least</option><option value="set">exactly</option></select></div>`:"")
+  +`<div class="field wide"><label>${esc(whyLabel)}</label><input data-mk="why"></div>`
+  +`<button data-click="${esc(btn)}"${arg?` data-${arg[0]}="${esc(arg[1])}"`:""}>${esc(verb)}</button><div class="mksub mkmsg" style="flex-basis:100%"></div></div>`;}
+const mkNow=()=>mkSeal(mkWorkspaceDoc("*"));
+const mkRuleById=id=>typeof id==="string"&&S.marking.rules.find(r=>r.id===id)||null;
+function mkNewRuleId(){let i=S.marking.rules.length,id;do{id="t"+Date.now().toString(36)+"_"+(i++);}while(mkRuleById(id));return id;}
+function mkRuleText(r){return (MK_KIND_LABEL[r.kind]||r.kind)+" whose "+(MK_FIELD_LABEL[r.field]||r.field)+" matches "+r.pat;}
+
+/* The workspace again, record by record and labelled, so the hero can say WHICH records put the
+   banner where it is. Same records as mkWorkspace(), so the same join; the scenario tests hold
+   the two equal. */
+function mkWhy(){return mkMemo("ui-why",()=>{
+ const D=mkDoc("*"),first=new Map(),hn=k=>(S.hosts[k]&&S.hosts[k].name)||k;
+ const add=(R,label,hk)=>{if(!R)return;if(!first.has(R.k))first.set(R.k,hk||null);D.add(R,label);};
+ const fnd=S.marking.rules.some(r=>r.en&&r.kind==="finding"),acc=S.marking.rules.some(r=>r.en&&r.kind==="account");
+ for(const k in S.hosts){add(mkE.host(k),"host "+hn(k),k);
+   if(fnd)for(const p in S.hosts[k].findings||{})add(mkE.finding(k,p),"finding "+p+" on "+hn(k),k);
+   if(acc)for(const a in S.hosts[k].accounts||{}){const n=S.hosts[k].accounts[a].name||a;add(mkE.acct(k,n),"account "+n+" on "+hn(k),k);}}
+ for(const k in S.software){const r=S.software[k];add(mkE.sw(k),"software "+r.name+(r.version?" "+r.version:""));}
+ for(const k in S.ppsm)add(mkE.port(k),"port "+k);
+ for(const k in S.intel.rows)add(mkE.intel(k),"threat intel "+k);
+ (S.listings.hw||[]).concat(S.listings.sw||[]).forEach(r=>add(mkE.rec(r),"listing row "+(r.host||r.name||r.src||"")));
+ for(const k in S.assets)add(mkE.asset(k),"asset "+((S.assets[k]&&S.assets[k].name)||k));
+ for(const hk in S.stigResults)for(const bk in S.stigResults[hk])add(mkE.stig(hk,bk),"STIG result on "+hn(hk),mkOwn(S.hosts,hk)?hk:null);
+ (S.trend||[]).forEach(p=>add(mkE.trend(p),"trend cycle "+(p&&p.taken||"")));
+ if(S.baseline)add(mkE.base(),"the baseline");
+ if((S.inventory||[]).length)add(mkE.typed(),"the pasted inventory");
+ return {D,first};});}
+
+/* How many records each enabled tag matches right now, read from the same resolutions the
+   products use. A record's resolution also carries the tags of what it was built from (a
+   finding carries its host's), so only tags of the record's own kind are counted for it. */
+function mkRuleCounts(){return mkMemo("ui-rulecount",()=>{
+ const c=new Map(),kindOf=new Map(S.marking.rules.filter(r=>r.en).map(r=>[r.id,r.kind])),kinds=new Set(kindOf.values());
+ const tally=(R,kind)=>(R&&R.r||[]).forEach(id=>{if(kindOf.get(id)===kind)c.set(id,(c.get(id)||0)+1);});
+ if(kinds.has("host"))for(const k in S.hosts)tally(mkE.host(k),"host");
+ if(kinds.has("finding"))for(const k in S.hosts)for(const p in S.hosts[k].findings||{})tally(mkE.finding(k,p),"finding");
+ if(kinds.has("account"))for(const k in S.hosts){const A=S.hosts[k].accounts||{};for(const a in A)tally(mkE.acct(k,A[a].name||a),"account");}
+ if(kinds.has("software"))for(const k in S.software)tally(mkE.sw(k),"software");
+ if(kinds.has("port"))for(const k in S.ppsm)tally(mkE.port(k),"port");
+ if(kinds.has("intel"))for(const k in S.intel.rows)tally(mkE.intel(k),"intel");
+ if(kinds.has("listing"))(S.listings.hw||[]).concat(S.listings.sw||[]).forEach(r=>tally(mkE.rec(r),"listing"));
+ if(kinds.has("asset"))for(const k in S.assets)tally(mkE.asset(k),"asset");
+ /* file tags act inside mkFileKey and leave no trace on a resolution: ask the same matcher */
+ if(kinds.has("file"))for(const id in S.marking.files){const f=S.marking.files[id];
+   mkRuleHits("file",fld=>fld==="name"?[id]:fld==="type"?[f.type]:[id,f.type]).ids.forEach(x=>c.set(x,(c.get(x)||0)+1));}
+ return c;});}
+
+/* ---- products: a dry run of the real exports ---- */
+/* The same exports the evidence package runs, plus the leadership report, the AI package, the
+   session and the profile, rendered with downloads captured and MK_DRY set (no status line, no
+   release log, no dialogs). The session save stamps S.meta; that is put back. */
+function mkProductsCompute(){
+ const t0=performance.now(),meta=Object.assign({},S.meta),cap=[],errs=[];
+ const run=(label,fn)=>{try{fn();}catch(e){errs.push(label+": "+(e&&e.message||e));}};
+ MK_DRY=true;DL_CAPTURE=cap;
+ try{
+   if(Object.keys(S.hosts).length){
+     if(rptSel&&rptSel.length)run("report",exportCombinedReport);
+     run("leadership report",exportLeadershipReport);run("AI package",exportAiPackage);
+     [["STIG matrix",exportSTIG],["software listing",exportSoftware],["PPSM registry",exportPPSM],["PPSM working copy",exportPPSMcsv],
+      ["asset inventory",exportAssets],["unsupported components",exportEol],["control mapping",exportControlMap],
+      ["eMASS software",exportEmassSoftware],["eMASS hardware",exportEmassHardware],["OS packages",exportOsPackages],
+      ["approval sheet",exportApprovalSheet],["reconciliation",exportRecon]].forEach(([l,f])=>run(l,f));
+     if(S.delta)run("change record",exportDelta);
+     if(Object.keys(S.intel.rows).length)run("prioritized vulnerabilities",exportIntel);
+     if(vulnGroups().length)[["remediation plan",exportRemediationPlan],["vulnerability report",exportVulns],
+       ["vulnerability detail",exportVulnDetail],["IP summary",exportIpSummary],["POA&M draft",exportPoam]].forEach(([l,f])=>run(l,f));
+     run("scan coverage",exportScanHealth);
+     if((S.trend||[]).length)run("trend",exportTrend);
+     if(stigResultRows().length)[["STIG compliance",exportStigCompliance],["STIG open findings",exportStigOpenFindings],
+       ["STIG POA&M",exportStigPoam],["STIG coverage",exportStigCoverage]].forEach(([l,f])=>run(l,f));
+     if(acctRows().length)run("account audit",exportAccountAudit);
+   }
+   run("session",saveSession);run("profile",saveProfile);
+ }finally{MK_DRY=false;DL_CAPTURE=null;S.meta=meta;}
+ const rows=cap.map(e=>{const M=e.M||null,pfx=String(e.name).replace(/_\d{4}-\d{2}-\d{2}[^/]*$/,"");
+   return {name:String(e.name),pid:M&&M.pid?String(M.pid):pfx,M};});
+ MK_UI.prod={rows,errs,at:new Date(),ms:Math.round(performance.now()-t0)};MK_UI.stale=false;
+ return MK_UI.prod;}
+const mkProductPids=()=>new Set((MK_UI.prod&&MK_UI.prod.rows||[]).map(r=>r.pid));
+function mkTabOpen(){mkProductsCompute();mkRenderParts();}
+
+/* ---- rendering ---- */
+/* From renderAll: data or markings may have changed. Products follow at once when the tab is in
+   view and re-rendering them is quick; otherwise they are flagged and redone on the next look. */
+function renderMarkings(){
+ if(!$("mkHero"))return;
+ if(MK_UI.prod){if($("pane-markings").classList.contains("active")&&MK_UI.prod.ms<400)mkProductsCompute();else MK_UI.stale=true;}
+ mkRenderParts();}
+function mkRenderParts(){
+ [mkRenderHero,mkRenderSources,mkRenderRules,mkRenderProducts,mkRenderPolicy,mkRenderLog,mkCheck,mkSortRender].forEach(f=>f());}
+
+function mkRenderHero(){
+ const M=mkNow(),floor=mkFloor(),W=mkWhy(),D=W.D,ids=Object.keys(S.marking.files);
+ const keys=[...D.by.keys()].sort((a,b)=>mkCmp(b,a)),total=keys.reduce((n,k)=>n+D.by.get(k).n,0);
+ const bare=ids.filter(id=>!mkFileKey(id)).length,ov=mkOwn(S.marking.products,"*");
+ const eg=k=>{const b=D.by.get(k),hk=W.first.get(k);return b.eg?" ("+(hk&&mkOwn(S.hosts,hk)?hostLink(hk,b.eg):esc(b.eg))+")":"";};
+ /* grouped by what the reader sees: two keys that print the same portion mark (CUI with
+    different categories, under the DoD profile) are one line, counted together, shown by the
+    most sensitive of them */
+ const grp=new Map();keys.forEach(k=>{const p=mkPortion(k);const g=grp.get(p);if(g)g.n+=D.by.get(k).n;else grp.set(p,{k,n:D.by.get(k).n});});
+ const G=[...grp.values()];
+ let why;
+ if(!total)why="Nothing is loaded yet, so everything is at the floor. Each file you load is read for its own marking, and every export is marked from what it contains.";
+ else{
+   why=`Rolled up from <b>${mkPl(total,"record")}</b>${ids.length?` in <b>${mkPl(ids.length,"source file")}</b>`:""}`
+    +(G.length===1?`, every one of them ${mkChip(G[0].k,1)}${eg(G[0].k)}.`
+     :`, most sensitive first: `+G.slice(0,3).map(g=>`${mkChip(g.k,1)} &times;${g.n}${eg(g.k)}`).join(" &middot; ")
+      +(G.length>3?` &middot; ${mkPl(G.length-3,"lower marking")}`:"")+".");
+   /* the join can need more than any single record -- say so, and say why, rather than leave it
+      unexplained; and say what the banner deliberately leaves to the portions or the indicator */
+   const jn=mkJoinNotes(keys.concat(floor),M.derived);
+   if(mkBanner(mkJoin(keys[0],floor))!==mkBanner(M.derived))
+     why+=" Together they need more than any one of them: "+(jn.length?esc(jn.join("; ")):"a banner carries every control any part carries, and only the release every part allows")+".";
+   else if(jn.length)why+=" "+esc(jn.map(s=>s[0].toUpperCase()+s.slice(1)).join(". "))+".";}
+ why+=" "+(!ids.length?"Anything that states no marking of its own is marked at the floor, "
+   :bare?`<b>${bare}</b> of ${mkPl(ids.length,"source file")} ${bare===1?"says nothing about itself and is":"say nothing about themselves and are"} marked at the floor, `
+   :"Every source file states its own marking; the floor is ")+`${mkChip(floor,1)} (Settings).`;
+ let h=`<h2>Everything loaded is marked</h2><div class="mkseal mk-${esc(M.tier)}" id="mkSeal">${esc(M.banner)}</div><p class="mkwhy">${why}</p>`;
+ if(ov){const eff=M.over?(M.down?"<b>LOWERED</b> from":"raised from"):"no effect right now: the data already says at least that &mdash;";
+   h+=`<div class="${M.down?"mkwarn":"mkmeta"}">Override: everything marked ${ov.mode==="set"?"exactly":"at least"} ${mkChip(ov.mark,1)}${ov.why?" &mdash; &ldquo;"+esc(ov.why)+"&rdquo;":""}; ${eff} ${mkChip(M.derived,1)} ${esc(mkBanner(M.derived))}.`
+    +`${M.down?" Every product prints this reason.":""} <button class="small" data-click="mkGlobalClear">Remove override</button></div>`;}
+ if(M.review.length)h+=`<div class="mkwarn"><b>Review before release:</b> ${esc(M.review.join("; "))}.</div>`;
+ /* a source set below what it said moves every product made from it: keep that in plain sight */
+ const low=ids.filter(id=>{const f=S.marking.files[id];return f.set&&f.det&&!mkDominates(f.set,f.det);});
+ if(low.length)h+=`<div class="mkwarn"><b>Marked lower than ${low.length===1?"it says":"they say"}:</b> `
+   +low.map(id=>`${esc(id)} (${esc(mkBanner(S.marking.files[id].det))} &rarr; ${esc(mkBanner(S.marking.files[id].set))}: &ldquo;${esc(S.marking.files[id].why||"")}&rdquo;)`).join("; ")
+   +`. Set by you under Sources; a derivative classifier should confirm before anything made from ${low.length===1?"it":"them"} is released.</div>`;
+ h+=mkEditForm("mkGlobalSet","Mark everything",null,"Apply to everything","reason (needed for exactly)",true);
+ const st=MK_SELFTEST;
+ h+=`<p class="mkmeta">${!st?"Engine self-test: running&hellip;":st.pass
+   ?`<span class="mkflag ok">engine self-test passed</span> ${st.checks.toLocaleString()} checks of the reading and roll-up rules, run at page open.`
+   :`<span class="mkflag bad">engine self-test FAILED</span> ${esc(st.fails.slice(0,3).join(" | "))} &mdash; do not trust derived markings in this build.`}
+   <button class="small" data-click="mkSelfTestRun">Run again</button></p>`;
+ $("mkHero").innerHTML=h;}
+
+function mkRenderSources(){
+ const F=S.marking.files,floor=mkFloor(),eff=id=>mkFileKey(id)||floor;
+ const ids=Object.keys(F).sort((a,b)=>mkCmp(eff(b),eff(a))||mkAlpha(a,b));
+ if(!ids.length){$("mkSources").innerHTML=`<p>No source files yet. Every file you load appears here with what it said about itself; a file that says nothing is marked at the floor, ${mkChip(floor,1)}.</p>`;return;}
+ const shown=ids.slice(0,300);
+ $("mkSources").innerHTML=`<div class="tablewrap" style="max-height:52vh"><table><tr><th>Source</th><th>What it said</th><th>Marked</th><th></th></tr>`
+  +shown.map(id=>{const f=F[id],own=mkFileKey(id);
+    return `<tr><td><b>${esc(id)}</b><div class="mksub">${esc(f.type||"file")}${f.rows?" &middot; "+mkPl(+f.rows||0,"row"):""}${f.at?" &middot; loaded "+esc(f.at):""}</div></td>`
+     +`<td>${f.det?mkChip(f.det,1)+" "+esc(mkBanner(f.det)):'<span class="mkflag">said nothing</span>'}`
+     +`${f.how&&f.how.length?`<div class="mksub">${esc(f.how.slice(0,4).join("; "))}${f.how.length>4?" &hellip;":""}</div>`:""}</td>`
+     +`<td>${mkChip(eff(id),1)}${own?"":' <span class="mkflag" title="this file states no marking of its own">at the floor</span>'}`
+     +`${f.set?`<div class="mksub">set by you${f.why?": &ldquo;"+esc(f.why)+"&rdquo;":""}</div>`:""}</td>`
+     +`<td style="min-width:110px"><details class="mkd"><summary>${f.set?"Change":"Set marking"}</summary>`
+     +mkEditForm("mkFileSet","This file is",["key",id],"Set","reason (needed if lower than it said)",false)
+     +(f.set?`<button class="small" style="margin-top:6px" data-click="mkFileClear" data-key="${esc(id)}">Back to what it said</button>`:"")
+     +`</details></td></tr>`;}).join("")
+  +`</table></div>`+(ids.length>shown.length?`<p class="mksub">${ids.length-shown.length} less sensitive source(s) not shown.</p>`:"");}
+
+/* the tag form's "where" list follows the kind picked */
+function mkRuleFields(){const k=$("mkRuleKind").value,sel=$("mkRuleField");if(!hasOwnKind(k)||!sel)return;
+ sel.innerHTML=["any"].concat(MK_RULE_KINDS[k]).map(f=>`<option value="${esc(f)}">${esc(MK_FIELD_LABEL[f]||f)}</option>`).join("");
+ sel.value=k==="host"?"name":"any";}
+function mkRenderRules(){
+ const ks=$("mkRuleKind");
+ if(ks&&!ks.options.length){ks.innerHTML=Object.keys(MK_RULE_KINDS).map(k=>`<option value="${esc(k)}">${esc(MK_KIND_LABEL[k]||k)}</option>`).join("");mkRuleFields();}
+ const R=S.marking.rules,cnt=mkRuleCounts();
+ $("mkRules").innerHTML=!R.length?`<p class="mksub">No tags yet. Open any host and use <b>Mark this host</b>, or add one above.</p>`
+  :`<div class="tablewrap" style="max-height:44vh"><table><tr><th>On</th><th>Tag</th><th>as</th><th>Reason</th><th style="text-align:right">Matches now</th><th></th></tr>`
+  +R.map(r=>`<tr${r.en?"":' style="opacity:.55"'}><td><input type="checkbox"${r.en?" checked":""} data-change="mkRuleToggle" data-key="${esc(r.id)}" title="turn this tag on or off"></td>`
+    +`<td>${esc(MK_KIND_LABEL[r.kind]||r.kind)} whose ${esc(MK_FIELD_LABEL[r.field]||r.field)} matches <code>${esc(r.pat)}</code></td>`
+    +`<td style="white-space:nowrap">${r.mode==="set"?"exactly":"at least"} ${mkChip(r.mark,1)}</td><td style="color:var(--dim)">${esc(r.why||"")}</td>`
+    +`<td class="mono" style="text-align:right">${r.en?(cnt.get(r.id)||0):"off"}</td>`
+    +`<td><button class="small danger" data-click="mkRuleDel" data-key="${esc(r.id)}">Remove</button></td></tr>`).join("")
+  +`</table></div>`;}
+
+function mkRenderProducts(){
+ const P=MK_UI.prod;
+ if(!P){$("mkProducts").innerHTML=`<p>Each export is marked from what it contains. <button class="primary" data-click="mkProductsRefresh">Work out every product&rsquo;s marking</button></p>`;return;}
+ const key=r=>r.M?r.M.key:"";
+ const rows=P.rows.slice().sort((a,b)=>(a.M?1:0)-(b.M?1:0)||mkCmp(key(b),key(a))||mkAlpha(a.name,b.name));
+ const marked=rows.filter(r=>r.M),top=marked.length?marked[0].M:null,nov=marked.filter(r=>mkOwn(S.marking.products,r.pid)).length;
+ let h=`<p>${mkPl(rows.length,"product")}${!Object.keys(S.hosts).length?" (load data to see every export &mdash; with nothing loaded only the session and profile exist)":""}.`
+  +(top?` Most sensitive: ${mkChip(top.key,1)} ${esc(top.banner)}.`:"")+(nov?` ${mkPl(nov,"product")} carry their own override.`:"")
+  +` <span class="mksub">Rendered ${esc(P.at.toTimeString().slice(0,5))} in ${P.ms} ms.</span> <button class="small" data-click="mkProductsRefresh">Recompute</button></p>`;
+ if(MK_UI.stale)h+=`<div class="mkwarn">Data or markings changed since these were worked out. <button class="small" data-click="mkProductsRefresh">Recompute now</button></div>`;
+ if(P.errs.length)h+=`<div class="mkwarn"><b>Could not render:</b> ${esc(P.errs.join("; "))}</div>`;
+ h+=`<div class="tablewrap" style="max-height:60vh"><table><tr><th>Product</th><th>Its contents say</th><th>Marked</th><th></th></tr>`
+  +rows.map(r=>{const M=r.M,o=mkOwn(S.marking.products,r.pid);
+    if(!M)return `<tr><td><b>${esc(r.name)}</b></td><td colspan="3"><span class="mkflag bad">not marked by this build</span> <span class="mksub">this export did not hand its marking to the download &mdash; report it</span></td></tr>`;
+    return `<tr><td><b>${esc(r.name)}</b><div class="mksub">${mkPl(M.srcs.length,"source")}${M.n?" &middot; "+mkPl(M.n,"marked row"):""}</div></td>`
+     +`<td>${mkChip(M.derived,1)} <span class="mono" style="font-size:12px">${esc(mkBanner(M.derived))}</span></td>`
+     +`<td>${mkChip(M.key,1)} <span class="mono" style="font-size:12px">${esc(M.banner)}</span>`
+     +(M.down?' <span class="mkflag bad">lowered</span>':M.over?' <span class="mkflag">raised</span>':"")
+     +(M.review.length?` <span class="mkflag" title="${esc(M.review.join("; "))}">review</span>`:"")
+     +(o?`<div class="mksub">override ${o.mode==="set"?"exactly":"at least"} ${esc(mkBanner(o.mark))}${o.why?": &ldquo;"+esc(o.why)+"&rdquo;":""}</div>`:"")+`</td>`
+     +`<td style="min-width:110px"><details class="mkd"><summary>${o?"Change":"Override"}</summary>`
+     +mkEditForm("mkProdSet","Mark "+r.pid,["key",r.pid],"Apply","reason (needed for exactly)",true)
+     +(o?`<button class="small" style="margin-top:6px" data-click="mkProdClear" data-key="${esc(r.pid)}">Remove override</button>`:"")
+     +`</details></td></tr>`;}).join("")
+  +`</table></div>`;
+ $("mkProducts").innerHTML=h;}
+
+function mkRenderPolicy(){
+ const s=S.settings;
+ const sel=(k,label,opts)=>`<div class="field"><label>${esc(label)}</label><select data-change="mkSetting" data-key="${esc(k)}">`
+   +opts.map(([v,l])=>`<option value="${esc(v)}"${s[k]===v?" selected":""}>${esc(l)}</option>`).join("")+`</select></div>`;
+ const inp=(k,label,ph)=>`<div class="field"><label>${esc(label)}</label><input value="${esc(s[k]||"")}" data-change="mkSetting" data-key="${esc(k)}" placeholder="${esc(ph||"")}"></div>`;
+ $("mkPolicy").innerHTML=`<p>How markings are written. Reading and roll-up never depend on this, so a session made under one profile reads the same under the other.</p><div class="grid2">`
+  +sel("mkProfile","Profile",[["DOD","DoD (DoDI 5200.48, DoDM 5200.01): CUI categories on the designation indicator"],["NARA","NARA (32 CFR 2002): CUI categories and controls in the banner"]])
+  +sel("mkLegacy","Legacy FOUO, SBU, LES",[["preserve","Show as written: UNCLASSIFIED//FOUO"],["convert","Show as the CUI that replaced them"]])
+  +inp("mkAiMax","Most sensitive marking the AI package may carry","CUI")+`</div>`
+  +`<p style="margin-top:14px">The classification authority block (classified products) and CUI designation indicator. Palisade never invents a name: an empty field prints as a bracketed instruction, so a product cannot pass for complete when it is not.</p><div class="grid2">`
+  +inp("mkClassBy","Classified By","name and position")+inp("mkDerivedFrom","Derived From","blank: Palisade names the sources")
+  +inp("mkDeclOn","Declassify On","date or exemption, per the sources")+inp("mkCtrlBy","CUI: Controlled by","agency or DoD component")
+  +inp("mkCtrlOffice","Controlled by (office)","office, if not evident")+inp("mkPoc","CUI: POC","name, phone or e-mail")+`</div>`
+  +`<div id="mkCabPreview"></div>`;
+ mkRenderCab();}
+/* the authority block as it prints for everything loaded; redrawn alone while fields are being
+   filled in, so the field being typed in is never replaced under the cursor */
+function mkRenderCab(){const M=mkNow(),cab=mkCab(M),el=$("mkCabPreview");if(!el)return;
+ el.innerHTML=`<div class="help-h">As it prints for everything loaded (${esc(M.banner)})</div>`
+  +(cab.length?`<div class="mono" style="font-size:12px;line-height:1.65;color:var(--text)">${cab.map(esc).join("<br>")}</div>`:`<p>Plain UNCLASSIFIED carries no authority block.</p>`);}
+
+function mkRenderLog(){
+ const L=(S.marking.log||[]).slice().reverse();
+ $("mkLog").innerHTML=!L.length?`<p>Nothing has left the tool yet. Every download is recorded here with the marking it left under, and the log travels in the session file.</p>`
+  :`<p>${mkPl(L.length,"release")} recorded${L.length>100?"; the latest 100 are shown":""}, latest first.</p><div class="tablewrap" style="max-height:40vh"><table><tr><th>When</th><th>File</th><th>Left marked</th><th>Derived, if overridden</th></tr>`
+  +L.slice(0,100).map(x=>`<tr><td class="mono" style="white-space:nowrap">${esc(String(x.at||"").replace("T"," ").slice(0,16))}</td><td>${esc(x.file)}</td>`
+    +`<td class="mono">${esc(x.banner)}${x.down?' <span class="mkflag bad">lowered</span>':""}</td><td class="mono" style="color:var(--dim)">${x.derived?esc(x.derived):"&mdash;"}</td></tr>`).join("")
+  +`</table></div>`;}
+
+/* ---- the checker: where a person can watch the algorithm work ---- */
+function mkCheck(){
+ const out=$("mkChkOut"),t=($("mkChkIn")||{}).value||"";
+ if($("mkChkTry")&&!$("mkChkTry").childNodes.length)$("mkChkTry").innerHTML="Try: "+MK_CHECK_EXAMPLES.map((x,i)=>
+   `<button class="small ghost" data-click="mkCheckTry" data-arg="${i}">${esc(x)}</button>`).join(" ");
+ if(!out)return;if(!t.trim()){out.innerHTML="";return;}
+ const p=mkParse(t),pol=pr=>({profile:pr,legacy:MK_POLICY.legacy});
+ if(!p.key||!mkSays(p.key)){const u=p.key?mkObj(p.key).unk:new Set();
+   out.innerHTML=`<p><span class="mkflag bad">not a marking</span> Nothing in this text is a classification or control marking Palisade recognises.`
+    +(u.size?` Inside a real marking these words would be kept verbatim and held for review: <span class="mono">${esc([...u].join(", "))}</span>.`:"")+`</p>`;return;}
+ const rv=mkReview(p.key),row=(k,v)=>`<tr><td>${esc(k)}</td><td>${v}</td></tr>`;
+ out.innerHTML=`<div style="margin-bottom:8px"><span class="mkseal mk-${esc(mkTier(p.key))}" style="font-size:14px;padding:6px 12px">${esc(mkBanner(p.key))}</span></div>`
+  +`<table>`+row("Banner (DoD)",`<span class="mono">${esc(mkBanner(p.key,pol("DOD")))}</span>`)
+  +row("Banner (NARA)",`<span class="mono">${esc(mkBanner(p.key,pol("NARA")))}</span>`)
+  +row("Portion mark",`<span class="mono">${esc(mkPortion(p.key))}</span>`)
+  +row("Stored as",`<span class="mono">${esc(p.key)}</span> <span class="mksub">the lossless form sessions keep</span>`)
+  +row("How it was read",p.notes.length?esc(p.notes.join("; ")):(p.strict?"exactly as written":"as written"))
+  +row("Review",rv.length?`<span style="color:var(--warn)">${esc(rv.join("; "))}</span>`:'<span style="color:var(--accent2)">nothing to review</span>')
+  +`</table>`;}
+function mkSortRender(){
+ const out=$("mkSortOut"),t=($("mkSortIn")||{}).value||"";if(!out)return;
+ const lines=t.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,500);
+ if(!lines.length){out.innerHTML="";return;}
+ const ok=[],bad=[];lines.forEach(l=>{const k=mkKey(l);(k&&mkSays(k)?ok:bad).push({l,k});});
+ ok.sort((a,b)=>mkCmp(b.k,a.k));
+ const hw=mkJoinAll(ok.map(x=>x.k)),jn=hw?mkJoinNotes(ok.map(x=>x.k),hw):[];
+ out.innerHTML=(hw?`<p>High-water mark of these ${ok.length}: <span class="mkseal mk-${esc(mkTier(hw))}" style="font-size:13px;padding:5px 11px;vertical-align:middle">${esc(mkBanner(hw))}</span></p>`
+   +(jn.length?`<p class="mksub">${esc(jn.join(". "))}.</p>`:""):"")
+  +(ok.length?`<ol style="margin:6px 0;padding-left:22px;line-height:1.9">${ok.map(x=>`<li>${mkChip(x.k,1)} <span class="mono" style="font-size:12px">${esc(mkBanner(x.k))}</span>${mkPortion(x.k)!==x.l?` <span class="mksub">from &ldquo;${esc(x.l)}&rdquo;</span>`:""}</li>`).join("")}</ol>`:"")
+  +(bad.length?`<p class="mksub">Not markings: ${esc(bad.map(x=>x.l).join(" | "))}</p>`:"");}
+
+/* ---- the host drawer's marking section ---- */
+function mkHostSection(hk){
+ const h=S.hosts[hk],R=mkE.host(hk),floor=mkFloor();MK_UI.host=hk;
+ const parts=(h.mkc||[]).map(([id,rk])=>{const own=mkFileKey(id);
+   return `<div>${rk?mkChip(rk,1)+" its own row in":own?mkChip(own,1)+" from":'<span class="mkflag">at the floor</span> from'} <span class="mono">${esc(id)}</span>${!rk&&!own?" (the file states no marking)":""}</div>`;});
+ const tags=R.r.map(mkRuleById).filter(Boolean).map(r=>`<div>${r.mode==="set"?"set exactly":"raised to at least"} ${mkChip(r.mark,1)} by the tag &ldquo;${esc(mkRuleText(r))}&rdquo;${r.why?" &mdash; "+esc(r.why):""} <button class="small ghost" data-click="mkRuleDel" data-key="${esc(r.id)}">remove tag</button></div>`);
+ return `<div class="help-h">Marking</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${mkChip(R,1)} <b class="mono" id="mkHostBanner">${esc(mkBanner(R.k))}</b></div>`
+  +`<div class="mksub" style="margin-top:6px;line-height:1.75">${parts.join("")||"<div>No source file is recorded for this host.</div>"}${tags.join("")}`
+  +`<div>never below the floor ${mkChip(floor,1)}</div><div>The host is marked at the high-water mark of these.</div></div>`
+  +mkEditForm("mkMarkHost","Mark this host",["arg",hk],"Mark host","reason (needed for exactly)",true);}
+
+/* ---- what the controls do ---- */
+function mkAfterEdit(msg){renderAll();rptTouch();
+ if(MK_UI.host&&$("hostDrawer").classList.contains("open")&&mkOwn(S.hosts,MK_UI.host))openHostDetail(MK_UI.host);
+ status(msg);}
+function mkMarkHost(el,hk){
+ const v=mkEditVals(el);if(!MK_MODES.has(v.mode))return;
+ const r=mkVet(v.mark,{replace:v.mode==="set",mode:v.mode,why:v.why});if(r.err)return mkSay(el,"Not marked: "+r.err);
+ /* one exact tag per host: marking it again changes that tag rather than stacking another */
+ const pat="="+hk,x=S.marking.rules.find(t=>t.kind==="host"&&t.field==="name"&&t.pat===pat);
+ if(x)Object.assign(x,{en:true,mark:r.key,mode:v.mode,why:v.why});
+ else S.marking.rules.push({id:mkNewRuleId(),en:true,kind:"host",field:"name",pat,mark:r.key,mode:v.mode,why:v.why});
+ mkDirty();
+ mkAfterEdit((S.hosts[hk].name||hk)+" is now marked "+mkBanner(mkE.host(hk).k)+"; everything loaded is "+mkNow().banner+"."
+   +(r.notes.length?" ("+r.notes.join("; ")+")":""));}
+function mkRuleAdd(el){
+ const kind=$("mkRuleKind").value,field=$("mkRuleField").value,pat=$("mkRulePat").value.trim(),mode=$("mkRuleMode").value,why=$("mkRuleWhy").value.trim().slice(0,300);
+ const no=m=>{status("Tag not added: "+m);};
+ if(!hasOwnKind(kind)||!(field==="any"||MK_RULE_KINDS[kind].indexOf(field)>=0)||!MK_MODES.has(mode))return no("pick what to tag.");
+ if(!pat||pat==="=")return no("say what to match: =SVR-DC01, 10.1.0.0/16, chrome or re:^svr-.");
+ if(pat.length>LIMITS.REGEX_SOURCE_CHARS)return no("that pattern is too long.");
+ if(/^re:/i.test(pat)){let ok=!unsafeRegexSource(pat.slice(3));if(ok)try{new RegExp(pat.slice(3),"i");}catch(e){ok=false;}
+   if(!ok)return no("that regular expression is invalid, or could hang the page.");}
+ const cidr=pat.match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
+ if(cidr&&(mkIpNum(cidr[1])===null||+cidr[2]>32))return no("that address range is not valid.");
+ const r=mkVet($("mkRuleMark").value,{replace:mode==="set",mode,why});if(r.err)return no(r.err);
+ const t={id:mkNewRuleId(),en:true,kind,field,pat,mark:r.key,mode,why};
+ S.marking.rules.push(t);mkDirty();
+ $("mkRulePat").value="";$("mkRuleWhy").value="";
+ const n=mkRuleCounts().get(t.id)||0;
+ mkAfterEdit("Tag added: "+mkRuleText(t)+" → "+(mode==="set"?"exactly ":"at least ")+mkBanner(r.key)+". "
+   +(n?"It matches "+mkPl(n,"record")+" now; everything loaded is "+mkNow().banner+".":"It matches nothing loaded yet and will apply to anything that matches later.")
+   +(r.notes.length?" ("+r.notes.join("; ")+")":""));}
+function mkRuleToggle(r,en){r.en=!!en;mkDirty();mkAfterEdit("Tag "+(r.en?"on":"off")+": "+mkRuleText(r)+". Everything loaded is "+mkNow().banner+".");}
+function mkRuleDel(r){S.marking.rules=S.marking.rules.filter(x=>x!==r);mkDirty();
+ mkAfterEdit("Tag removed: "+mkRuleText(r)+". Everything loaded is "+mkNow().banner+".");}
+function mkOverrideSet(el,pid){
+ const v=mkEditVals(el);if(!MK_MODES.has(v.mode))return;
+ const r=mkVet(v.mark,{replace:v.mode==="set",mode:v.mode,why:v.why});if(r.err)return mkSay(el,"Not applied: "+r.err);
+ S.marking.products[pid]={mark:r.key,mode:v.mode,why:v.why,at:today()};mkDirty();
+ const M=pid==="*"?mkNow():null;
+ mkAfterEdit((pid==="*"?"Everything is now marked "+M.banner+(M.down?" — LOWERED from what the data says ("+mkBanner(M.derived)+"); every product prints your reason":"")
+   :pid+" will be marked "+(v.mode==="set"?"exactly ":"at least ")+mkBanner(r.key))+"."+(r.notes.length?" ("+r.notes.join("; ")+")":""));}
+function mkOverrideClear(pid){if(!hasOwn(S.marking.products,pid))return;delete S.marking.products[pid];mkDirty();
+ mkAfterEdit((pid==="*"?"Override removed; everything is marked from the data: ":"Override removed for "+pid+"; everything loaded is ")+mkNow().banner+".");}
+function mkFileSet(el,id){
+ const f=mkOwn(S.marking.files,id),v=mkEditVals(el);if(!f)return;
+ const r=mkVet(v.mark,{replace:true,from:f.det,why:v.why});if(r.err)return mkSay(el,"Not set: "+r.err);
+ f.set=r.key;f.why=v.why;mkDirty();
+ mkAfterEdit(id+" is now marked "+mkBanner(r.key)+(f.det&&!mkDominates(r.key,f.det)?", lower than it said ("+mkBanner(f.det)+")":"")+"; everything loaded is "+mkNow().banner+".");}
+function mkFileClear(id){const f=mkOwn(S.marking.files,id);if(!f)return;f.set="";f.why="";mkDirty();
+ mkAfterEdit(id+" is back to what it said: "+(f.det?mkBanner(f.det):"nothing, so the floor")+".");}
+/* policy and authority-block fields. The two policies are enums; the AI ceiling is a marking and
+   goes through the gate; the rest are free text, trimmed and bounded. */
+function mkSettingSet(el){
+ const k=el.dataset.key;let v=String(el.value??"").trim().slice(0,300);
+ if(k==="mkProfile"&&!MK_PROFILES.has(v))return;
+ if(k==="mkLegacy"&&!MK_LEGACY.has(v))return;
+ if(k==="mkAiMax"){const r=mkVet(v,{replace:true});
+   if(r.err){el.value=S.settings.mkAiMax||"";status("AI ceiling unchanged: "+r.err);return;}v=mkStoreForm(r.key);el.value=v;}
+ S.settings[k]=v;mkDirty();
+ if(k==="mkProfile"||k==="mkLegacy"){mkAfterEdit("Markings are now written under the "+(MK_POLICY.profile==="NARA"?"NARA":"DoD")+" profile"
+   +(MK_POLICY.legacy==="convert"?", legacy controls shown as CUI":"")+". Everything loaded reads "+mkNow().banner+".");}
+ else{mkRenderCab();rptTouch();status("Saved. It rides in the session and the environment profile, and prints on every product that needs it.");}}
+function mkSelfTestRun(){
+ try{MK_SELFTEST=mkSelfTest(150);if(!MK_SELFTEST.pass)console.error("Palisade marking engine self-test FAILED:",MK_SELFTEST.fails.join(" | "));}
+ catch(e){MK_SELFTEST={pass:false,checks:0,fails:[String(e&&e.message||e)]};console.error("Palisade marking engine self-test could not run:",e);}
+ mkRenderHero();status("Engine self-test "+(MK_SELFTEST.pass?"passed: "+MK_SELFTEST.checks+" checks.":"FAILED."));}
 
 function renderConfig(){$("cfgBox").value=JSON.stringify(S.config,null,2);}
 function migrateConfig(cfg){
@@ -8891,10 +9416,10 @@ const HELP = {
    steps:[
      "Click <b>Load scans</b> (top right) or drag files onto the drop zone. A <code>.nessus</code> export is best; a Tenable CSV works if it includes the <b>Plugin Output</b> column.",
      "Drop in your <b>HW/SW baseline listings</b> too (.xlsx/.csv) — hardware rows enrich the Asset Inventory with make/model/serial/location/facility, software rows join the Software Listing, and reconciliation shows where scans and paperwork disagree.",
-     "Open <b>Settings</b> once and fill the details a scan can't provide (system identity, registration fields, marking banner).",
+     "Open <b>Settings</b> once and fill the details a scan can't provide (system identity, registration fields, the classification floor). The <b>Markings</b> tab then shows what everything is marked and why.",
      "Recommended: load a threat-intel sheet (SASR-E or similar, .xlsx/.csv) on the <b>Threat Intel</b> tab — it fuses with scan findings and prioritizes remediation by real-world exploitation.",
      "Work down the readiness checklist until the amber warnings clear.",
-     "Click <b>Export all artifacts</b> to produce every deliverable, date-stamped and marking-banner stamped."],
+     "Click <b>Export all artifacts</b> to produce every deliverable, date-stamped, each marked from what it actually contains."],
    proves:"The readiness panel is your pre-delivery QC. Green means the evidence is internally complete; amber flags something a reviewer will ask about before you deliver."},
  stig:{name:"STIG Applicability",
    lead:"Shows which security configuration baselines (STIGs) apply to each host, inferred from the operating system and installed software the scan found.",
@@ -9024,13 +9549,24 @@ const HELP = {
      "No list yet? <b>Seed from Asset Inventory</b> for a starting draft, curate it, then maintain it deliberately."],
    proves:"Inventory completeness and scan coverage (CM-8(3), RA-5). A list built only from scan results can never reveal an asset that failed to scan — which is the main thing worth catching."},
  settings:{name:"Settings",
-   lead:"The details that can't come from a scan but appear on every export — system identity, registration-form fields, boundary defaults, and the marking banner. Fill this once.",
+   lead:"The details that can't come from a scan but appear on every export — system identity, registration-form fields, boundary defaults, and the classification floor. Fill this once.",
    steps:[
      "Complete the registration static fields and the Software Listing header block.",
      "Set boundary defaults (B1–B16) that seed new PPSM rows.",
-     "Set your <b>marking banner</b> — it stamps the page and every exported file.",
+     "Set the <b>classification floor</b>: the least anything here is marked. A file that says nothing about itself is marked at the floor, never treated as unclassified by default. Type it in any form; it is stored in canonical form.",
      "Use <b>Save environment profile</b> to reuse this configuration next time, or hand a ready-made profile to a teammate so the whole team starts from the same baseline."],
    proves:"These values label the evidence so each artifact is self-describing when it goes up the chain."},
+ markings:{name:"Markings",
+   lead:"What everything here is classified as, and why. Palisade reads the marking of every file you load, keeps each row's own portion mark from ingest to export, and marks every product from what it actually contains &mdash; never below the floor you set in Settings.",
+   steps:[
+     "Read the big banner at the top. It is the marking of everything loaded, and the page banner. The line under it names the records that put it there; click a host to see its own marking.",
+     "Check <b>Sources</b>. Each file shows what it said about itself and how Palisade knows (a banner row, a CKL marking field, a spreadsheet footer). A file that said nothing is flagged <b>at the floor</b>. If a file was mislabelled, set its marking; lowering it needs a reason.",
+     "Tag what the files do not mark: a subnet (<code>10.1.0.0/16</code>), a host (<code>=SVR-DC01</code>), a software title, a CVE, a whole file. <b>At least</b> only ever adds; <b>exactly</b> replaces what the data says and needs a reason. Or open any host and use <b>Mark this host</b>.",
+     "Look at <b>Products</b>: each export's banner, worked out by rendering it. A product that holds less shows less. Override one when a classifier says so &mdash; anything that comes out lower than the data needs a reason, and the product prints it.",
+     "Under <b>policy and authority block</b>, pick DoD or NARA marking rules and fill Classified By, Derived From, Declassify On and the CUI designation fields. Empty fields print as bracketed instructions, so nothing passes for complete when it is not.",
+     "Unsure how a marking reads? Paste it into the <b>Marking checker</b> &mdash; any form, any order, a misspelling. List several to see them sorted and rolled up."],
+   proves:"Every product carries the banner its contents require, with its portion marks, authority block and designation indicator, and every download is logged with the marking it left under (AC-16, MP-3; DoDM 5200.01 Vol 2 and DoDI 5200.48 marking).",
+   warn:"Palisade derives markings from what the files say and what you tag; it is not a classification authority. A derivative classifier still reviews the result. Wherever a case is uncertain, the more restrictive reading wins &mdash; a file that says nothing is never read as unclassified."},
  controls:{name:"Control Mapping",
    lead:"Shows exactly which NIST 800-53 controls each artifact supports, and in plain language what it demonstrates. Use this wording when you write the assessment.",
    steps:[
@@ -9046,7 +9582,7 @@ const HELP = {
      "<b>Apply config</b> re-runs detection immediately; your manual STIG overrides survive it. <b>Save environment profile</b> to share your tuned rules."],
    proves:"Keeps the tool current for your environment without shipping new code."}
 };
-const HELP_ORDER=["overview","stig","software","ppsm","assets","eol","intel","vulns","accounts","stigcompliance","scanhealth","delta","trend","recon","reports","settings","controls","config"];
+const HELP_ORDER=["overview","stig","software","ppsm","assets","eol","intel","vulns","accounts","stigcompliance","scanhealth","delta","trend","recon","reports","settings","markings","controls","config"];
 
 let helpOpen=false, helpTopic="overview";
 function currentTab(){const p=document.querySelector(".tabpane.active");return p?p.id.replace("pane-",""):"overview";}
@@ -9084,7 +9620,18 @@ const GLOSSARY=[
  ["RMF","Risk Management Framework","The NIST/DoD process for authorizing a system to operate. The artifacts here are evidence that feeds an RMF package."],
  ["ATO","Authorization to Operate","The approval an RMF package is seeking. \u201cAudit-ready evidence\u201d means evidence a reviewer will accept toward an ATO."],
  ["POA&M","Plan of Action & Milestones","The tracked list of known gaps and how they'll be fixed. Findings here (e.g. unsupported software) often become POA&M items."],
- ["CUI / FOUO","Controlled Unclassified Information","Handling markings. Set your marking in Settings; it stamps the page and every export. FOUO is the legacy term CUI replaced."],
+ ["CUI","Controlled Unclassified Information","Unclassified information that a law, regulation or policy requires to be protected (32 CFR 2002; DoDI 5200.48). Marked CUI, with categories such as SP-PRVCY and limited dissemination controls. Under the DoD profile the categories go on the designation indicator rather than the banner; under NARA they are in the banner. Inside a classified product, the DoD banner shows only the classified markings and the indicator carries the CUI."],
+ ["FOUO","For Official Use Only","The legacy control CUI replaced. Palisade reads it, never drops it, and shows it as written or as CUI (a setting on the Markings tab). It is never shown beside CUI or in a classified banner."],
+ ["Banner","Overall classification marking","The line at the top and bottom of a product: the highest classification and every control that applies to anything in it, e.g. SECRET//NOFORN. Palisade works it out from the product's own contents and colours the page banner by level."],
+ ["Portion mark","Marking of one part","The marking in parentheses in front of one paragraph, row or cell, e.g. (S//NF) or (CUI). Palisade keeps each row's own portion mark from ingest to export, and it outranks the file's banner for that row."],
+ ["High-water mark","Roll-up of portions","The least marking that covers every portion: the highest level, every SCI, SAP, AEA, FGI and dissemination control any portion carries, and only the foreign release every portion allows. A product's banner is the high-water mark of what it contains."],
+ ["Floor","Minimum marking","Set in Settings. The least anything here is marked: a source that says nothing about itself is marked at the floor, never treated as unclassified by default."],
+ ["NOFORN","Not releasable to foreign nationals","A dissemination control. It beats any REL TO; REL TO lists that intersect down to USA alone become NOFORN; and a classified or CUI portion with no release marking beside one that has a REL TO makes the whole product NOFORN, because that portion was never cleared for release."],
+ ["REL TO","Authorized for release to","A release list, USA first, e.g. REL TO USA, GBR. Combining portions keeps only the countries every portion releases to. Tetragraphs such as FVEY and NATO are compared as written, never expanded: release to an organisation is not release to each member."],
+ ["LDC","Limited dissemination control","A CUI control on who may receive it: NOFORN, REL TO, DISPLAY ONLY, FED ONLY, FEDCON, NOCON, DL ONLY, ATTORNEY-CLIENT, ATTORNEY-WP. A product carries every LDC any of its portions carries."],
+ ["Authority block","Classified By / Derived From / Declassify On","The lines a derivatively classified product must carry, and for CUI the designation indicator (Controlled by, CUI Category, dissemination control, POC). Set them on the Markings tab; Palisade never invents a name and prints a bracketed instruction for anything unset."],
+ ["Derivative classification","Classifying from existing sources","Marking new material from the markings of what it was made from rather than by an original decision. Every Palisade product is derivative: its banner comes from its sources, and Derived From names them."],
+ ["Override","An operator-set marking","A marking a person sets on the Markings tab for everything, one product, or one source file. At least only adds; exactly replaces and needs a written reason, which the product prints (as LOWERED when it is below what the data says). Every download is logged with the marking it left under."],
  ["DITPR","DoD IT Portfolio Repository","A system registry ID. Appears on the registration form and software header; fill it in Settings if your system has one."],
  ["UII","Unique Investment Identifier","A budget/investment ID tied to a system. A software-listing column a scan can't provide — fill it manually."],
  ["MAC Level","Mission Assurance Category","A system's mission-criticality tier (I/II/III). A required registration-form field, set in Settings."],
@@ -9156,7 +9703,7 @@ const WIZ=[
  {title:"Make it yours",html:`
    <p class="help-lead">This build ships with generic, editable defaults so any team can adopt it. Two steps make it yours:</p>
    <div class="wizrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/></svg></div>
-     <div><b>Set your system identity & marking</b><p>Open <b>Settings</b> to enter your system name, registration fields, boundary defaults, and handling banner. These stamp every export.</p></div></div>
+     <div><b>Set your system identity & classification floor</b><p>Open <b>Settings</b> to enter your system name, registration fields, boundary defaults, and the classification floor &mdash; the least anything here is marked. Every export is then marked from what it actually contains; the <b>Markings</b> tab shows each one, why, and lets you fix it.</p></div></div>
    <div class="wizrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg></div>
      <div><b>Save an environment profile</b><p>From Settings or Detection Config, save a profile (your config, no scan data) and share it. Everyone loads the same profile and works from an identical baseline — no per-person setup.</p></div></div>
    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
@@ -9411,6 +9958,9 @@ document.addEventListener("securitypolicyviolation",e=>{
    boolean is coerced explicitly below ("false" is truthy). ========================================= */
 const FILE_INPUTS=new Set(["fileIn","sessIn","profIn","apprIn","baseIn","listIn","intelIn","trendIn"]);
 const BANNERS=new Set(["UNCLASSIFIED","CUI","CONFIDENTIAL","SECRET","SECRET//NOFORN","TOP SECRET"]);
+/* Markings tab: the settings it may write, and the values its two policy selects may take */
+const MK_SETTING_KEYS=new Set(["mkProfile","mkLegacy","mkClassBy","mkDerivedFrom","mkDeclOn","mkCtrlBy","mkCtrlOffice","mkPoc","mkAiMax"]);
+const MK_PROFILES=new Set(["DOD","NARA"]), MK_LEGACY=new Set(["preserve","convert"]), MK_MODES=new Set(["raise","set"]);
 const PPSM_FIELDS=new Set(["include","svc","app","srcIp","dstIp","notes"]);
 const STIG_FIELDS=new Set(["device","comments"]);
 const SW_FIELDS=new Set(["include","approvedBy","approvalDate","approvalRef",...SW_COLS.map(c=>c[0])]);
@@ -9498,13 +10048,37 @@ const ACTIONS=Object.freeze({
         gesture, so the chooser's activation requirement is satisfied. --- */
  pickFile:el=>{ if(FILE_INPUTS.has(el.dataset.arg)) $(el.dataset.arg).click(); },
 
- /* --- banner --- */
- setBanner:el=>{ if(BANNERS.has(el.dataset.arg)){ S.settings.banner=el.dataset.arg; mkDirty(); applyBanner(); rptTouch(); } },
- /* the floor is stored canonical: whatever form it was typed in, it is read and written back in
-    register order, and a blank floor is refused rather than read as "no marking" */
- bannerInput:el=>{ const p=mkParse(el.value); const b=p.key?mkBanner(p.key):"";
-   S.settings.banner=b||"UNCLASSIFIED"; mkDirty(); applyBanner(); rptTouch();
-   status(b?"Floor set to "+b+(p.notes.length?" ("+p.notes.join("; ")+")":"")+".":"A blank or unreadable floor is not allowed; the floor is UNCLASSIFIED."); },
+ /* --- the classification floor. It moves every record that states no marking of its own, so
+        everything is redrawn: tables, chips, the page banner, the Markings tab. --- */
+ setBanner:el=>{ if(BANNERS.has(el.dataset.arg)){ const was=mkFloor(); S.settings.banner=el.dataset.arg; renderAll(); rptTouch();
+   status("Floor set to "+el.dataset.arg+(mkDominates(mkFloor(),was)?"":" — lowered from "+mkBanner(was)+": sources that state no marking are now marked "+el.dataset.arg)+"."); } },
+ /* The floor is stored canonical, in a form that reads back to exactly the same marking (a DoD
+    banner would drop CUI categories). A blank or unreadable entry is refused and the floor kept:
+    clearing the box by accident must never quietly drop everything to UNCLASSIFIED. */
+ bannerInput:el=>{ const r=mkVet(el.value,{replace:true});
+   if(r.err){ el.value=S.settings.banner; status("Floor unchanged ("+mkBanner(mkFloor())+"): "+r.err); return; }
+   const was=mkFloor(); S.settings.banner=mkStoreForm(r.key); renderAll(); rptTouch();
+   status("Floor set to "+mkBanner(r.key)+(mkDominates(r.key,was)?"":" — lowered from "+mkBanner(was)+": sources that state no marking are now marked "+mkBanner(r.key))
+     +"."+(r.notes.length?" ("+r.notes.join("; ")+")":"")); },
+ /* --- Markings tab. Every key is resolved against what it names before anything is written: a
+        tag by its id, a source by its registered name, a product by the products just
+        rendered, a host by S.hosts; settings and modes by allow-list. --- */
+ mkRuleKind:()=>mkRuleFields(),
+ mkRuleAdd:el=>mkRuleAdd(el),
+ mkRuleToggle:el=>{ const r=mkRuleById(el.dataset.key); if(r) mkRuleToggle(r,el.checked); },
+ mkRuleDel:el=>{ const r=mkRuleById(el.dataset.key); if(r) mkRuleDel(r); },
+ mkGlobalSet:el=>mkOverrideSet(el,"*"),
+ mkGlobalClear:()=>mkOverrideClear("*"),
+ mkProdSet:el=>{ const p=el.dataset.key; if(p!=="*"&&mkProductPids().has(p)) mkOverrideSet(el,p); },
+ mkProdClear:el=>{ const p=el.dataset.key; if(p!=="*"&&hasOwn(S.marking.products,p)) mkOverrideClear(p); },
+ mkFileSet:el=>{ if(hasOwn(S.marking.files,el.dataset.key)) mkFileSet(el,el.dataset.key); },
+ mkFileClear:el=>{ if(hasOwn(S.marking.files,el.dataset.key)) mkFileClear(el.dataset.key); },
+ mkMarkHost:el=>{ if(hasOwn(S.hosts,el.dataset.arg)) mkMarkHost(el,el.dataset.arg); },
+ mkProductsRefresh:()=>{ mkProductsCompute(); mkRenderProducts(); status("Every product re-rendered to read its marking."); },
+ mkSetting:el=>{ if(MK_SETTING_KEYS.has(el.dataset.key)) mkSettingSet(el); },
+ mkSelfTestRun:()=>mkSelfTestRun(),
+ mkCheck:()=>mkCheck(), mkSort:()=>mkSortRender(),
+ mkCheckTry:el=>{ const i=idx(el); if(i>=0&&i<MK_CHECK_EXAMPLES.length){ $("mkChkIn").value=MK_CHECK_EXAMPLES[i]; mkCheck(); } },
 
  /* --- compound handlers that used to be semicolon-joined statements in the attribute --- */
  rerunDetection:()=>{ runDetection(); renderSTIG(); status("Detection re-run. Manual overrides preserved."); },

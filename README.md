@@ -283,6 +283,83 @@ explicitly include them. The tool itself never makes a network call; carrying a 
 assistant is a deliberate human act, and the handling banner is there to make you think about
 it first.
 
+## Classification markings
+
+Every input is read for its own marking, every row keeps its own portion mark from ingest to
+export, and every product is marked from what it actually contains. The **Markings** tab (Stage
+1, after Settings) shows the marking of everything loaded in one coloured banner, the records
+that put it there, every source with what it said about itself, every product with the banner
+it will carry, and the controls to fix any of it.
+
+**What is read.** Banner rows at the top or bottom of a sheet or CSV, a marking column
+(*Classification*, *Portion Marking*, *Marking*), a portion mark leading a cell —
+`(S//NF) WKSTN-001` — Excel print headers, footers and sensitivity labels, the CKL `<MARKING>`
+field and its CKLB equivalents, the `.nessus` report and policy names, and Palisade's own
+authority block when one of its exports is loaded back. A marking is read in any form: banner
+or portion, words or abbreviations, any order, `//`, `/` or ` - ` between parts, legacy forms
+such as `FOR OFFICIAL USE ONLY` and `USA/GBR EYES ONLY`, and one-letter misspellings
+(`SECERT//NOFRON`). A word the engine does not recognise is kept verbatim inside the marking
+and flagged for review — nothing a source says is dropped. `(C) Microsoft` is a copyright sign,
+not CONFIDENTIAL: a lone `(C)` counts only inside a source already marked classified, and a
+corporate label such as "Confidential" is recorded, never applied as a US classification.
+
+**The floor.** Settings holds the classification floor: the least anything here is marked. A
+source that says nothing about itself is marked at the floor — never assumed unclassified —
+and every product is at least the floor.
+
+**How a banner is worked out.** A product's banner is the high-water mark of its portions: the
+least marking that covers every one of them. The highest level wins; SCI, SAP, Atomic Energy
+Act, FGI and dissemination controls accumulate; foreign release is decided country by country,
+so NOFORN beats REL TO and REL TO lists intersect. Where a case is uncertain, the more
+restrictive reading wins, on purpose:
+
+- **Uncaveated beside releasable is NOFORN.** A classified or CUI portion with no release
+  marking, next to one marked REL TO, makes the whole NOFORN: the uncaveated part was never
+  cleared for release.
+- **Tetragraphs are compared as written.** `REL TO USA, FVEY` and `REL TO USA, GBR` share no
+  country, so together they are NOFORN. Release to an organisation is not release to each
+  member, so FVEY and NATO are never expanded.
+- **A bare REL with no banner to resolve it reads as NOFORN**; NATO RESTRICTED reads as
+  CONFIDENTIAL; spelling repair is one edit and one candidate only, so `CLASSIFIED` can never be
+  "repaired" into `UNCLASSIFIED`.
+- **CUI inside classified follows the profile.** Under the DoD profile (DoDI 5200.48, the
+  default) the banner carries only the classified markings; the CUI designation indicator and
+  the DoD commingling warning carry the CUI. Under NARA (32 CFR 2002) CUI and its categories
+  follow the classified markings in the banner.
+- **FOUO** is never shown beside CUI or in a classified banner, and its portion keeps it. A
+  setting shows FOUO, SBU and LES as written or as the CUI that replaced them.
+
+The combination is commutative, associative and idempotent, so a banner never depends on the
+order files were loaded in, or on whether the data passed through a session file on the way.
+
+**Tags and overrides.** Tag what the files do not mark — a host, a subnet (`10.1.0.0/16`), a
+software title, a port, a finding, a CVE, a listing row, an asset, a whole source file — or open
+any host and use **Mark this host**. Overrides apply to everything, to one product, or to one
+source file. *At least* only ever adds. *Exactly*, or anything else that can come out lower than
+the data says, needs a written reason, and every product it touches prints it as a *Marking
+note: LOWERED …* line. Tags ride in the session and the environment profile; overrides and
+source settings ride in the session.
+
+**Products.** A CSV carries a Portion Marking column, the banner first and last, and above the
+closing banner the classification authority block (Classified By, Derived From, Declassify On)
+or the CUI designation indicator. The eMASS import shapes must keep their header on line 1, so
+there each row's portion mark leads its Comments cell and the file's marking is recorded in
+the release log and the package index. Palisade never invents a classifier's name: an empty field
+prints as a bracketed instruction, so a product cannot pass for complete when it is not. The
+Markings tab renders every product in a dry run to show the banner it would carry, and every
+real download is logged with the marking it left under; the log travels in the session file.
+
+**The self-test.** Each time the page opens, the marking engine checks itself: the worked
+examples of the marking rules under both profiles, then generated markings to confirm that
+reading does not depend on order, that every key and banner reads back to itself, that the
+roll-up is a true semilattice, and that sorting never ranks a marking above one that dominates
+it — about 2,500 checks. A failure is a console error, which the release gate treats as a broken
+build. The result is on the Markings tab, with a button to run it again, and the **Marking
+checker** there shows how any marking you paste is read, and how several roll up.
+
+Palisade derives markings from what the files say and what you tag. It is not a classification
+authority; a derivative classifier reviews the result before release.
+
 ## Configuration
 
 The Detection Config tab holds the STIG catalog, vendor and type inference rules, hostname
@@ -339,8 +416,9 @@ Read these before you rely on an export.
 
 Scan exports, session files, and generated artifacts contain hostnames, IP addresses, MAC
 addresses, and software inventories for real systems. Handle them at whatever classification
-or sensitivity level your organization assigns that data, and mark them accordingly — the
-banner field at the top of the tool stamps every export.
+or sensitivity level your organization assigns that data. Palisade marks every export from
+what it contains, never below the classification floor you set; check the **Markings** tab
+before anything leaves.
 
 The `.gitignore` in this repository excludes scan data, session files, and generated artifacts
 by filename pattern. **Do not loosen it.** The tool itself ships with no host data; the only
@@ -388,7 +466,7 @@ sha384sum -c SHA384SUMS
 
 **Run the regression gate yourself.** It drives your own Chromium over the DevTools protocol
 against a real `file://` URL — the actual deployment origin, not a local web server — loads the
-demo dataset through the real button, walks all 18 tabs, and asserts zero page errors and zero CSP
+demo dataset through the real button, walks all 19 tabs, and asserts zero page errors and zero CSP
 violations. No packages are installed; it needs Node 22 or newer (it uses the global `WebSocket`, on by
 default from Node 22) and a Chromium-family browser.
 
