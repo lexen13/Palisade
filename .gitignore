@@ -47,8 +47,16 @@ STIG_Coverage*.csv
 Trend_Burndown*.csv
 Remediation_Plan*.csv
 Asset_Report*.csv
+Enclave_Status*.csv
+Campaign_Log*.csv
+Campaign_Scope*.csv
 exports/
 output/
+
+# Campaign registry — enclave definitions, expected host names, and the host lists of
+# recorded scan efforts. A working file for the team, never a commit.
+*Campaigns*.json
+Palisade_Campaigns*.json
 
 # Site-specific configuration — keep local, never publish
 config.local.json

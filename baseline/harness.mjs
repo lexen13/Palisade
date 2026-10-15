@@ -92,7 +92,8 @@ const PROBE = `(function(){
     "statCards","vulnCards","intelCards","assetCards","swCards","eolCards","scCards",
     "shCards","accCards","trendCards","rptCards",
     "vulnBody","intelBody","accBody","shBody","scBody","reconBody","deltaBody",
-    "readyBody","eolBody","controlsBody","settingsGrid","boundaryGrid"];
+    "readyBody","eolBody","controlsBody","settingsGrid","boundaryGrid",
+    "campCards","campViews","campBody","campBar"];
   const ids = {};
   for (const id of idlist){
     const el = document.getElementById(id);

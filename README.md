@@ -64,6 +64,7 @@ Any of these, dragged onto the Overview tab. Multiple files merge into one pictu
 | SCC results | XCCDF result `.xml`, or the `.zip` SCC produces — both recognized automatically |
 | STIG Viewer checklists | `.ckl` (XML) and `.cklb` (STIG Viewer 3 JSON) — manual review answers live here |
 | Prior session `.json` | For drift detection against a previous baseline, or trend backfill |
+| Campaign registry `.json` | The team's scan-tracking database — enclaves, campaigns, recorded results. Loaded on the Campaigns tab; two registries merge by id |
 
 Every format is recognized by content, not file extension — a mislabeled file routes
 correctly or reports why it did not.
@@ -93,6 +94,7 @@ explicitly and fall back to OS inference — they are never silently treated as 
 | `STIG_Compliance_Summary.csv` / `STIG_Open_Findings.csv` / `STIG_Coverage.csv` | CM-6, CM-6(1), CA-2, CA-7 |
 | `Scan_Coverage.csv` | RA-5, RA-5(1), RA-5(5) — credentialed-scan verification |
 | `Trend_Burndown.csv` | CA-7, PM-6 — posture direction across cycles |
+| `Enclave_Status.csv` / `Campaign_Log.csv` / `Campaign_Scope_<name>.csv` | RA-5, RA-5(1), CA-7, CM-8(3) — scan coverage by zone, one row per scan effort, and every host in one scope |
 | `Asset_Report_<host>.csv` | Everything known about one asset, as a hand-off artifact |
 | `Control_Mapping.csv` | The mapping itself, as a reviewable artifact |
 
@@ -151,6 +153,11 @@ demonstrates rather than relying on the reader to know.
   machine, with a one-click consolidated asset report
 - **Trend & burndown** — one metrics point per assessment cycle; history rebuilds
   retroactively from saved session files
+- **Campaigns & enclaves** — divide the network into the zones you scan as units (Weather,
+  Operations, HR), track each scan effort against them, and see per zone the last scan date,
+  cadence status, expected assets that never appeared, and posture. Files are attributed to
+  a campaign as they load; rules suggest attribution for anything loaded without one, and all
+  of it can be changed later. A small registry file is the tracking database (see below)
 - **Report builder** — one document assembled from 20 sections, with audience presets you can
   redefine and share; print-tuned for PDF
 - **Evidence package** — every artifact plus an index page saying who each file is for, in one zip
@@ -216,6 +223,41 @@ or stale scan rather than a clean host — exactly the thing worth catching befo
 Prioritization guides remediation order. It never downgrades a finding out of existence, and
 the risk decision stays with whoever owns it.
 
+## Campaigns and enclaves
+
+Scan data answers "what did we find"; it does not answer "have we scanned everything we are
+responsible for, and when did we last do it." The Campaigns tab answers the second question
+without touching the first.
+
+An **enclave** is a zone you scan as a unit — *Weather Enclave*, *Operations*, *HR*. It carries
+an owner, a scan cadence in days, the rules that recognize its hosts (IP ranges such as
+`203.0.113.0/24`, dash ranges, dotted prefixes, hostname patterns, file-name patterns), and an
+optional **expected-asset list**. A **campaign** is one scan effort against an enclave or the
+whole site: a planned window, a status (planned → active → complete), and the files and hosts
+attributed to it. Closing a campaign records a results snapshot — hosts seen, scan dates, findings
+by severity, STIG score, unsupported components — that outlives the session it came from.
+
+**Attribution is deliberate and reversible.** Pick a campaign under *loading into* (on the
+Campaigns tab or the strip above the drop zone) and every file you load is attributed to it. Loaded
+without one? The *Attribution* view lists what the rules suggest for each file and host — accept,
+override, or exclude, per item or all at once — and the same view is where you fix an attribution
+later. A host resolves to an enclave by explicit override first, then by the enclave rules, then
+by the campaign that loaded it; when the rules and the campaign disagree the host is flagged for a
+decision rather than silently filed.
+
+**The registry is the tracking database.** Because the tool has no storage and no network by
+design, the registry is a small JSON sidecar — enclaves, campaigns, recorded results, overrides,
+no scan payloads — saved from the Registry menu and kept on the team share beside the session
+files. Load it next cycle and the *Plan* view says which zones are overdue against their cadence,
+which have never been scanned, which expected assets never appeared, and which effort is still
+open. Two teammates' registries merge by id: the newer record wins its fields, lists union, and
+a recorded result is replaced only by one recorded later. The registry also rides inside the
+session file, and loading a pre-2.9 session simply yields no campaigns.
+
+The *Scope* view shows just the hosts of one campaign or enclave, with their posture and the top
+remediation actions for that zone alone. It is a lens, not a filter: every other tab, the
+readiness meter, and every existing export still describe the whole dataset.
+
 ## Reporting
 
 The Reports tab builds **one document** rather than leaving you to assemble it from CSVs. Pick a
@@ -253,8 +295,9 @@ Palisade_Package_2026-08-28/
   2-registration/         <- PPSM, STIG matrix, software/asset/eMASS baselines, control mapping
   3-findings/             <- remediation plan, POA&M drafts, vulnerability cuts, unsupported
   4-configuration/        <- STIG compliance results, open findings, coverage gaps
-  5-evidence-quality/     <- scan coverage, account audit, reconciliation, change record, trend
-  6-session/              <- session file to resume from, profile to share
+  5-evidence-quality/     <- scan coverage, account audit, reconciliation, change record, trend,
+                             enclave status, campaign log
+  6-session/              <- session file to resume from, profile and campaign registry to share
 ```
 
 Written with a minimal ZIP writer over the browser's native `CompressionStream` — the mirror of
@@ -388,7 +431,7 @@ sha384sum -c SHA384SUMS
 
 **Run the regression gate yourself.** It drives your own Chromium over the DevTools protocol
 against a real `file://` URL — the actual deployment origin, not a local web server — loads the
-demo dataset through the real button, walks all 18 tabs, and asserts zero page errors and zero CSP
+demo dataset through the real button, walks all 19 tabs, and asserts zero page errors and zero CSP
 violations. No packages are installed; it needs Node 22 or newer (it uses the global `WebSocket`, on by
 default from Node 22) and a Chromium-family browser.
 

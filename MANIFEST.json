@@ -1,14 +1,14 @@
 {
   "file": "palisade.html",
-  "bytes": 521771,
-  "sha256": "fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97",
-  "sha384": "40c8ee517b7a7bf15a686f1231cdb039f9a94570f681dec25afd68f44816131fd9003d42c8de24e3915353c72928612f",
-  "sha512": "c4b5f4f91245065eaeeb1d1d16bdc675f858606963d284c056a07e8b7e6cbfd1382cb9e9d4bace259a1a9c4f1f9983d41bf6fc61c11c0d73cc79d09907193df6",
-  "version": "2.8",
+  "bytes": 616429,
+  "sha256": "8560c5821228b2638c05eb8dd4270b96a360bfdd7a9d36208dc81f96cfaca9fe",
+  "sha384": "8e616d4d09e84db46528de0518146ebc4a8599dc737e6e21dd82446558ee16f40a10d0372ab34e0072dd8cd5fe0d4a0f",
+  "sha512": "b4451c566f25c014727cec6d61a47b75ab5fabeff5caac4d6f0374ed073117fdd7425c6398cf6aca0b51548902a0fe6b8cc54b40ab76c52550c001e7b37672bf",
+  "version": "2.9",
   "inlineScriptBlocks": [
     {
-      "bytes": 438777,
-      "sha256": "M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q="
+      "bytes": 526865,
+      "sha256": "glTwudDJfDoq38txSPskWWGBbeR80pp2yi4MSyERi4g="
     }
   ],
   "lineEndings": "LF",

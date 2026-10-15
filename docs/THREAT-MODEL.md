@@ -227,9 +227,15 @@ elements (452-922) hand raw bytes to `ingestFiles()` (1824). Everything upstream
 everything downstream assumes structure. Resource limits belong here, because this is the last
 point at which nothing has been allocated yet.
 
-**B1b — The JSON boundary.** Seven call sites take JSON that came from a file or a textarea:
+**B1b — The JSON boundary.** Eight call sites take JSON that came from a file or a textarea:
 `loadSession` (7265), `ingestTrendSessions` (4538), `loadBaseline` (4699), `loadProfile` (7610),
-`applyConfig` (7189, the detection-config box), and the `.cklb` sniff and parse (5830, 5833).
+`applyConfig` (7189, the detection-config box), the `.cklb` sniff and parse (5830, 5833), and,
+since 2.9, `loadCampaignRegistry` (the campaign registry — line numbers above are as of 2.8).
+The registry is additionally coerced field by field by `normCampaigns()` after parsing: ids are
+regenerated unless they match `[A-Za-z0-9_-]{1,64}` and are not a prototype member name, every
+list is filtered to strings, every number is bounded, and a campaign that names an enclave the file
+does not define loses the reference. Its lookups are array `.find()`s and its index maps are
+prototype-less objects, so even an id that survived would be a label, never a property path.
 This is a *separate* boundary from B1 because JSON does not merely carry values — it carries
 keys, types, and, via `__proto__`, a handle on the language itself.
 

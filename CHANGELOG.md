@@ -4,6 +4,56 @@
 preparing the public release — merged at 2.4, with the listing branch landing at 2.6 — the first public release. Entries
 below are ordered by content.*
 
+## 2.9 — campaigns and enclaves
+
+Scan data says what was found; it does not say whether everything the team is responsible for
+has been scanned, or when. This release adds a Campaigns tab that answers that second question
+as a lens over the loaded evidence. Nothing in it changes a number on any other tab, the readiness
+meter, or any existing export — the frozen demo numbers are byte-for-byte what 2.8 produced.
+
+- **Enclaves.** A zone scanned as a unit — Weather, Operations, HR — with an owner, a scan
+  cadence, the rules that recognize its hosts (CIDR, dash range, dotted prefix, hostname pattern,
+  file-name pattern; `re:` works as everywhere else), and an optional expected-asset list.
+  The Plan view shows each zone's last scan, cadence state (current / due soon / overdue / never
+  scanned), coverage against the expected list with the assets that never appeared named, and
+  posture, then orders the zones into a *what to scan next* list with the reason for each.
+- **Campaigns.** One scan effort: a planned window, a target enclave or the whole site, a
+  status, and the files and hosts attributed to it. *Close & record* freezes a results snapshot
+  (hosts seen, scan dates, findings by severity, STIG score, unsupported) that stays in the
+  registry after the session that produced it is gone; *Record* snapshots an open effort without
+  closing it; closed efforts can be reopened.
+- **Attribution at the door, reversible later.** Pick a campaign under *loading into* and files
+  are attributed as they arrive. Loaded without one? The Attribution view shows what the rules
+  suggest per file (file-name patterns, or the zone 60% of its hosts resolve to) and per host
+  (neighbours in the same /24), with an apply-all. Any file can be moved between campaigns, any
+  host overridden to a zone or excluded from one, and any host dropped from or added to a
+  campaign. A host resolves to a zone by override, then rules, then the campaign that loaded it;
+  disagreement between the last two is flagged, not resolved silently. Subnets no enclave claims
+  are offered as new enclaves with the rule pre-filled.
+- **Scope.** Just the hosts of one campaign or enclave, with per-host posture and the top
+  remediation actions for that zone alone — computed with the same functions the
+  Vulnerabilities and STIG tabs use, over a host subset.
+- **The registry.** The tracking database is a JSON sidecar, `Palisade_Campaigns_<date>.json`,
+  carrying enclaves, campaigns, recorded results and overrides, and no scan payloads. It saves
+  and loads from the Registry menu, merges by id (newer record wins its fields, lists union, a
+  recorded result is replaced only by a later one) or replaces on request, and also rides inside
+  the session file. It is the eighth place the tool reads untrusted JSON and goes through the same
+  `safeParse()` as the other seven; on top of that every id, status, list and number is coerced
+  to shape, ids that spell a prototype member are regenerated, and a malformed file is refused
+  with the previous registry kept.
+- **Exports and the report.** `Enclave_Status.csv` (one row per zone), `Campaign_Log.csv` (one
+  row per effort), `Campaign_Scope_<name>.csv` (every host in a scope), a report-builder section
+  *Enclave coverage & campaigns* that the ISSM and QC presets now include, a control-mapping row
+  (RA-5, RA-5(1), CA-7, CM-8(3), PM-6), and package filing under `5-evidence-quality` and
+  `6-session`. The asset drawer shows a host's enclave and campaigns.
+- **Provenance carries the scan date.** Each per-file host record (`h.src`) now keeps the date
+  that file saw the host, and the Tenable CSV path records the same provenance the `.nessus` path
+  always did, so a campaign's actual scan window is read from its own files rather than from the
+  newest date any file reported.
+- Help entry, five glossary terms, and demo data: two zones, one open site-wide effort, and one
+  recorded effort from a prior cycle, with an expected asset that never scanned so the coverage
+  gap is visible on first load.
+
 ## 2.8 — security hardening
 
 An adversarial review of 2.7 found two places where a scanned hostname was written into the page

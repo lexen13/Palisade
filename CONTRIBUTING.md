@@ -76,6 +76,11 @@ them, and old sessions get re-opened cycles later. Do not break loading an older
 without a migration path — `loadSession()` and `loadBaseline()` accept historical tool
 identifiers on purpose.
 
+The campaign registry (`Palisade_Campaigns_*.json`) is a user-facing format too, and it is the one
+most likely to be hand-edited and merged across people. `loadCampaignRegistry()` coerces whatever it
+is given through `normCampaigns()` rather than rejecting an unfamiliar shape; if you add a field,
+add it there, with a default, so an older registry still loads.
+
 ## Releasing
 
 Bump the version in four places:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Palisade v2.8 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
+<!-- Palisade v2.9 - offline scan-to-evidence compiler. MIT License. Authors: Gavin Lee Domingo Johnson, Jacob Keith. Source: github.com/lexen13/Palisade (release tag and SHA-256 manifest in SHA256SUMS). Single file, no build step, no network, no storage. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,9 +15,9 @@
      style-src stays 'unsafe-inline': 481 style= attributes, CSS cannot execute, and img/font/
      connect/frame/object are 'none', so it exfiltrates nothing.
      frame-ancestors / sandbox / report-* are omitted: they are ignored in <meta>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-glTwudDJfDoq38txSPskWWGBbeR80pp2yi4MSyERi4g='; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Palisade v2.8</title>
+<title>Palisade v2.9</title>
 <style>
   /* ================================================================
      Palisade — instrument console theme
@@ -267,6 +267,10 @@
   .field input,.field select{background:var(--bg);border:1px solid var(--line);color:var(--text);
     border-radius:var(--r-sm);padding:7px 9px;font-size:13px;font-family:var(--sans)}
   .field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+  .field textarea{background:var(--bg);border:1px solid var(--line);color:var(--text);min-height:58px;
+    border-radius:var(--r-sm);padding:7px 9px;font-size:12.5px;font-family:var(--mono);line-height:1.5;resize:vertical}
+  .field textarea:focus{outline:none;border-color:var(--accent)}
+  .field.wide{grid-column:1 / -1}
   textarea.cfg{width:100%;min-height:340px;background:var(--bg);border:1px solid var(--line);
     color:var(--accent2);font-family:var(--mono);font-size:12px;border-radius:var(--r-sm);padding:11px;line-height:1.55}
   textarea.cfg:focus{outline:none;border-color:var(--accent)}
@@ -358,6 +362,28 @@
     font-family:var(--mono);font-size:11px;font-weight:700;display:grid;place-items:center;font-style:normal}
   .flowstrip .arr{color:var(--line);font-size:16px}
 
+  /* ---- campaigns: the "loading into" strip on Overview, and the enclave board ---- */
+  .campbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;
+    padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);
+    color:var(--dim);font-size:12.5px}
+  .campbar:empty{display:none}
+  .campbar .sel{min-width:220px}
+  .campbar b{color:var(--text)}
+  .encgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:14px}
+  .enc{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;
+    box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:7px}
+  .enc .eh{display:flex;align-items:flex-start;gap:8px}
+  .enc .eh b{font-size:13.5px;color:var(--text);flex:1;min-width:0}
+  .enc .em{color:var(--dim);font-size:12px;line-height:1.5}
+  .enc .ek{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+  .enc .ek span b{color:var(--text);font-family:var(--mono);font-weight:600}
+  .enc .ea{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+  .cov{height:7px;border-radius:4px;background:var(--surface3);overflow:hidden}
+  .cov i{display:block;height:100%;background:var(--accent2)}
+  .pill.ok{color:var(--accent2);border-color:var(--ok-dim)}
+  .pill.bad{color:var(--bad);border-color:rgba(240,104,95,.45)}
+  .pill.dim{color:var(--dim)}
+
   /* glossary */
   .glosssearch{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
     border-radius:var(--r-sm);padding:9px 11px;font-size:13px;margin-bottom:14px}
@@ -410,7 +436,7 @@
         <path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <div class="t">
-      <h1>Palisade <span class="ver">v2.8</span>
+      <h1>Palisade <span class="ver">v2.9</span>
         <span class="badge"><span class="dot"></span>Offline</span></h1>
       <div class="sub">Turns Tenable / ACAS scan exports into audit-ready control evidence &mdash; all parsing local, no network calls</div>
     </div>
@@ -479,6 +505,7 @@
   </div>
   <div class="navgroup">
     <span class="glabel"><span class="n">3</span>Sustainment</span>
+    <button data-t="campaigns">Campaigns</button>
     <button data-t="delta">Changes</button>
     <button data-t="trend">Trend</button>
     <button data-t="recon">Reconciliation</button>
@@ -498,6 +525,7 @@
 <!-- ================= OVERVIEW ================= -->
 <div class="tabpane active" id="pane-overview">
   <div class="tabhead"><div class="th"><span class="step">Stage 1 &middot; Set up</span><h1>Overview</h1><p>Your home base. Load scan exports, watch the readiness checklist fill in, and export every artifact from one place. Nothing leaves this machine.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="overview">?</button></div>
+  <div class="campbar" id="campBar"></div>
   <div class="drop" id="drop">Drag Tenable / ACAS exports here (.nessus preferred, .csv accepted) &mdash; or use <b>Load scan exports</b> above.<br><b>HW/SW baseline listings</b> (.xlsx/.csv/.tsv), threat-intel sheets (SASR-E and similar, .xlsx/.csv) and STIG compliance results (SCC XCCDF .xml, STIG Viewer .ckl/.cklb, or a .zip of either) can be dropped here too &mdash; all recognized automatically. Multiple files merge into one dataset.</div>
   <div class="callout">
     <div class="ct"><b>First time here?</b>
@@ -936,6 +964,47 @@
   <div id="trendBody"></div>
 </div>
 
+<!-- ================= CAMPAIGNS ================= -->
+<div class="tabpane" id="pane-campaigns">
+  <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Campaigns &amp; Enclaves</h1><p>Which zones of the network have been scanned, when, by which effort, and what is due next. Attribute loaded files and hosts to a campaign here &mdash; and change your mind later without disturbing any other tab.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="campaigns">?</button></div>
+  <div class="toolbar">
+    <button class="primary" data-click="openCampaignEditor">New campaign</button>
+    <button data-click="openEnclaveEditor">New enclave</button>
+    <div class="menu">
+      <button class="mbtn icon" data-click="toggleMenu" title="The registry is the tracking database: enclaves, campaigns, and recorded results, as one JSON file your team keeps on a share">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Registry</button>
+      <div class="mlist">
+        <div class="mhead">The tracking database</div>
+        <button data-click="saveCampaignRegistry">Save registry .json &mdash; enclaves, campaigns, recorded results</button>
+        <button data-click="pickFile" data-arg="campIn">Load registry &mdash; merge into what is here</button>
+        <label title="When ticked, loading a registry replaces the enclaves and campaigns currently in memory instead of merging by id"><input type="checkbox" id="campReplace"> replace instead of merge</label>
+        <hr>
+        <div class="mhead">Exports</div>
+        <button data-click="exportEnclaveStatus">Enclave status .csv &mdash; one row per zone: last scan, coverage, posture</button>
+        <button data-click="exportCampaignLog">Campaign log .csv &mdash; one row per scan effort</button>
+        <button data-click="exportCampaignScope">Campaign scope .csv &mdash; every host in the selected scope</button>
+      </div>
+    </div>
+    <input type="file" id="campIn" accept=".json" style="display:none">
+    <div class="filters">
+      <label class="chk" title="Files loaded from now on are attributed to this campaign. Change it any time; nothing already loaded moves.">loading into
+        <select class="sel" id="campActive" data-change="setActiveCampaign"></select></label>
+    </div>
+  </div>
+  <details class="explain"><summary>How enclaves, campaigns, and the registry fit together</summary>
+    <div class="xbody">
+    <p>An <b>enclave</b> is a zone you scan as a unit &mdash; <i>Weather</i>, <i>Operations</i>, <i>HR</i>. It carries an owner, how often it should be scanned, and the rules that recognize its hosts: IP ranges, hostname patterns, or file-name patterns. A <b>campaign</b> is one scan effort against an enclave: it has a window, a status, and the files and hosts attributed to it. Close a campaign and its results are recorded, so the registry remembers what each effort found even after that session is gone.</p>
+    <p>Attribution is deliberate, and reversible. Pick a campaign under <b>loading into</b> before you drop files and they are attributed as they arrive. Loaded without one? The <b>Attribution</b> view shows what the rules suggest for every file and host &mdash; accept, override, or exclude, as often as you like. Nothing here changes a number on any other tab: the evidence stays one dataset, and campaigns are a lens over it.</p>
+    <p>The <b>registry</b> is the tracking database &mdash; a small JSON file, no scan payloads, that your team keeps alongside its session files. Save it when you finish, load it next cycle, and the <b>Plan</b> view tells you which zones are overdue, which expected assets never appeared, and which effort is still open. Two people's registries merge by id when loaded.</p>
+    </div>
+  </details>
+  <p style="color:var(--dim);font-size:12px" id="campCtrl"></p>
+  <div class="cards" id="campCards"></div>
+  <div class="bar-actions" id="campViews"></div>
+  <div id="campBody"></div>
+</div>
+
 <!-- ================= RECON ================= -->
 <div class="tabpane" id="pane-recon">
   <div class="tabhead"><div class="th"><span class="step">Stage 3 &middot; Sustainment</span><h1>Reconciliation</h1><p>Compares your authoritative asset list against what actually scanned, so you catch assets that failed to scan or turned up unexpectedly.</p></div><button class="qh" title="Plain-language help for this tab" data-click="openHelp" data-arg="recon">?</button></div>
@@ -1102,6 +1171,17 @@
     <button class="primary" data-click="saveBoundaries">Apply to row</button>
     <button data-click="fillBoundaryDefaults">Fill from defaults</button>
     <button data-click="closeModal">Cancel</button>
+  </div>
+</div>
+<div class="modal" id="cModal">
+  <h3 id="cModalTitle">Campaign</h3>
+  <p id="cModalNote" style="color:var(--dim);font-size:12.5px;margin:0 0 10px"></p>
+  <div class="grid2" id="cModalGrid"></div>
+  <div class="bar-actions" style="margin-top:12px">
+    <button class="primary" data-click="saveCampaignEditor">Save</button>
+    <button data-click="closeModal">Cancel</button>
+    <span class="spacer"></span>
+    <button class="danger ghost" id="cModalDelete" data-click="deleteFromEditor">Delete</button>
   </div>
 </div>
 
@@ -1389,7 +1469,9 @@ const CONTROL_MAP = {
  scanhealth:{controls:["RA-5","RA-5(1)","RA-5(5)","CA-7"],
             why:"Vulnerability scanning coverage and tool currency: evidence that scans authenticated successfully, ran under a known policy, and used a current plugin feed - which is what makes every other artifact defensible."},
  accounts: {controls:["AC-2","AC-2(3)","AC-6(5)","IA-4"],
-            why:"Account management evidence: scan-enumerated user accounts, privileged group membership, and account-state exceptions (dormant, non-expiring passwords) reconciled against the authorized account list."}
+            why:"Account management evidence: scan-enumerated user accounts, privileged group membership, and account-state exceptions (dormant, non-expiring passwords) reconciled against the authorized account list."},
+ campaigns:{controls:["RA-5","RA-5(1)","CA-7","CM-8(3)","PM-6"],
+            why:"Scan coverage tracking by enclave: which zones were assessed, when, by which effort, and which expected assets never appeared - the cadence evidence behind continuous monitoring."}
 };
 function ctrlHeader(k){
  const c=CONTROL_MAP[k]; if(!c) return "";
@@ -1724,7 +1806,7 @@ function patMatch(pattern,hay){
 let S = newState();
 function newState(){
  return {
-  meta:{tool:"Palisade", ver:"2.8", saved:null},
+  meta:{tool:"Palisade", ver:"2.9", saved:null},
   settings:{isName:"",version:"",description:"",netEnv:"",ipAddress:"",perimeterIp:"",macLevel:"",
             conf:"",integ:"",avail:"",atd:"",ditpr:"",
             banner:"UNCLASSIFIED",
@@ -1752,6 +1834,7 @@ function newState(){
   delta:null,      // computed change record
   intel:emptyIntel(), // fused cyber threat intelligence (SASR-E and similar sheets)
   listings:emptyListings(), // ingested HW/SW baseline listings (records + per-file mapping reports)
+  campaigns:emptyCampaigns(), // enclaves, scan campaigns, attribution overrides (the registry, in memory)
   config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
   auto:{}
  };
@@ -1823,6 +1906,7 @@ drop.addEventListener("drop",e=>ingestFiles(e.dataTransfer.files));
 
 async function ingestFiles(list){
  const warns=[]; let intelNew=0, stigNew=0, listNew={hw:0,sw:0};
+ const nFilesBefore=S.filesLoaded.length;
  for(const f of list){
    try{
      checkFileSize(f);
@@ -1852,16 +1936,22 @@ async function ingestFiles(list){
        const sep=/\.tsv$/i.test(f.name)?"\t":",";
        if(sniffIntelSheet(text,sep)){ intelNew+=ingestIntelRows(f.name,csvRows(text,sep),warns); }
        else if(sniffListingSheet(text,sep)){ const r=ingestListingRows(f.name,csvRows(text,sep),warns); listNew.hw+=r.hw; listNew.sw+=r.sw; }
-       else { const n=parseTenableCSV(text,warns); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
+       else { const n=parseTenableCSV(text,warns,f.name); S.filesLoaded.push({name:f.name,type:"csv",hosts:n}); }
      }else{ warns.push(f.name+": unrecognized format (expected .nessus, .csv, or .xlsx threat-intel sheet)"); }
    }catch(err){ warns.push(f.name+": parse error — "+err.message); }
  }
  $("fileIn").value=""; if($("intelIn"))$("intelIn").value=""; if($("listIn"))$("listIn").value="";
  invalidateFusion();
  mergeHostsByIp(); rebuildPPSMFromHosts(); const added=runDetection(); buildSoftware(); buildAssets(); applyListings();
+ /* Attribution happens at the door: every file that just arrived is attached to the campaign the
+    operator chose under "loading into". Nothing already loaded moves, and the Attribution view can
+    undo any of it later -- the choice is recorded, never enforced. */
+ const attributed=campaignAttachNewFiles(S.filesLoaded.slice(nFilesBefore));
  renderAll();
  $("parseWarnings").textContent=warns.join("  |  ");
  let msg=`Loaded ${S.filesLoaded.length} file(s), ${Object.keys(S.hosts).length} host(s), ${Object.keys(S.ppsm).length} unique port tuple(s).`;
+ if(attributed) msg+=` ${attributed.n} file(s) attributed to campaign "${attributed.name}".`;
+ else if(S.campaigns.campaigns.length&&S.filesLoaded.length>nFilesBefore) msg+=` No campaign selected — attribute the new file(s) on the Campaigns tab.`;
  if(intelNew) msg+=` Threat intel: ${Object.keys(S.intel.rows).length} CVE record(s) on file.`;
  if(listNew.hw||listNew.sw) msg+=` HW/SW listing: +${listNew.hw} hardware, +${listNew.sw} software row(s) ingested — see Assets and Software tabs.`;
  if(stigNew) msg+=` STIG compliance: ${stigNew} rule result(s) ingested.`;
@@ -2041,13 +2131,16 @@ function parseNessus(text,srcName){
       prove (or disprove) it is the same machine. Two different boxes sharing a
       short hostname collide on one key and silently merge -- the audit catches it. */
    (h.src=h.src||[]);
+   const end=props["HOST_END"]||props["host_end"]||"";
+   let seen=""; if(end){const d=new Date(end); if(!isNaN(d)) seen=d.toISOString().slice(0,10);}
+   if(seen) h.lastSeen=seen;
+   /* `seen` is the per-file scan date, kept separately from h.lastSeen (the newest across
+      files) so a campaign can say when ITS files saw the host rather than when anything did. */
    {const rec={file:srcName||"",ip:props["host-ip"]||rh.getAttribute("name")||"",
       mac:(props["mac-address"]||"").split(/\r?\n/)[0].trim(),
-      os:props["operating-system"]||"",name:props["netbios-name"]||props["host-fqdn"]||""};
+      os:props["operating-system"]||"",name:props["netbios-name"]||props["host-fqdn"]||"",seen};
     if(!h.src.some(x=>x.file===rec.file&&x.ip===rec.ip&&x.mac===rec.mac)) h.src.push(rec);
     if(h.src.length>40) h.src.length=40;}
-   const end=props["HOST_END"]||props["host_end"]||"";
-   if(end){const d=new Date(end); if(!isNaN(d)) h.lastSeen=d.toISOString().slice(0,10);}
    const names=new Set();
    rh.querySelectorAll("ReportItem").forEach(ri=>{
      const pid=ri.getAttribute("pluginID"), port=ri.getAttribute("port"),
@@ -2097,7 +2190,7 @@ function csvRows(t,sep){
  if(f!==""||row.length){row.push(f);rows.push(row);}
  return rows;
 }
-function parseTenableCSV(text,warns){
+function parseTenableCSV(text,warns,srcName){
  const rows=csvRows(text);
  if(rows.length<2) throw new Error("empty CSV");
  const hdr=rows[0].map(x=>x.trim().toLowerCase());
@@ -2121,7 +2214,14 @@ function parseTenableCSV(text,warns){
    if(!key) continue;
    const h=getHost(key); seen.add(key);
    if(iIp>=0&&row[iIp]) h.ip=row[iIp];
-   if(iSeen>=0&&row[iSeen]){const d=new Date(row[iSeen]); if(!isNaN(d)) h.lastSeen=d.toISOString().slice(0,10);}
+   let seenDate="";
+   if(iSeen>=0&&row[iSeen]){const d=new Date(row[iSeen]); if(!isNaN(d)) seenDate=d.toISOString().slice(0,10);}
+   if(seenDate) h.lastSeen=seenDate;
+   /* Same provenance record the .nessus path keeps (file, identity fields, scan date), so a CSV-fed
+      host can be attributed to the campaign that loaded it and audited for identity conflicts. */
+   {(h.src=h.src||[]); const rec=h.src.find(x=>x.file===(srcName||"")&&x.ip===(h.ip||""));
+    if(rec){ if(seenDate&&(!rec.seen||seenDate>rec.seen)) rec.seen=seenDate; }
+    else if(h.src.length<40) h.src.push({file:srcName||"",ip:h.ip||"",mac:"",os:"",name:iDns>=0?String(row[iDns]||""):"",seen:seenDate});}
    const pname=iName>=0?row[iName]:"";
    if(iPort>=0) addPort(h,iProto>=0?row[iProto]:"tcp",row[iPort],"",pname);
    const pid=iPid>=0?String(row[iPid]).trim():"";
@@ -3972,6 +4072,49 @@ const RPT_SECTIONS = [
    +rptCtrl("trend");
  }},
 
+{id:"campaigns", name:"Enclave coverage & campaigns", group:"Evidence quality",
+ blurb:"Which zones were scanned, when, what is overdue, and what each effort found.",
+ need:()=>campaignsInUse(),
+ build:T=>{
+  const idx=campIndex(), C=S.campaigns;
+  const sts=C.enclaves.map(e=>enclaveStatus(e,idx));
+  const order={overdue:0,never:1,due:2,current:3};
+  sts.sort((a,b)=>order[a.state]-order[b.state]||b.missing.length-a.missing.length||a.e.name.localeCompare(b.e.name));
+  const late=sts.filter(r=>r.state==="overdue"||r.state==="never").length;
+  const missing=sts.reduce((n,r)=>n+r.missing.length,0);
+  const open=C.campaigns.filter(c=>c.status!=="complete");
+  const stCol=s=>s==="overdue"||s==="never"?T.critical:s==="due"?T.warning:T.bar;
+  let h=rptTiles([[C.enclaves.length,"enclaves tracked"],[late,"overdue or never scanned",late>0],
+    [missing,"expected assets never seen",missing>0],[idx.unassigned.length,"hosts in no enclave",idx.unassigned.length>0&&C.enclaves.length>0],
+    [open.length,"open campaigns"],[C.campaigns.length-open.length,"efforts recorded"]],T);
+  if(sts.length)
+    h+='<h3>Zones</h3>'+rptTable(["Enclave",{h:"Status",w:"110px"},{h:"Last scan",mono:true,w:"96px"},{h:"Next due",mono:true,w:"96px"},
+        {h:"Hosts",a:"r",w:"52px"},{h:"Coverage",a:"r",w:"76px"},{h:"Crit",a:"c",w:"44px"},{h:"High",a:"c",w:"44px"},{h:"STIG",a:"r",w:"56px"},"Open effort / why"],
+      sts.map(r=>[esc(r.e.name)+(r.e.owner?'<div class="rhosts">'+esc(r.e.owner)+'</div>':""),rptTag(stateLabel(r.state)[0],stCol(r.state),T),
+        esc(r.last||"—"),esc(r.due||"—"),String(r.st.hosts),
+        r.coverage===null?"—":(r.coverage+"%"+(r.missing.length?' <span style="color:'+T.critical+'">('+r.missing.length+' missing)</span>':"")),
+        r.st.crit?'<b style="color:'+T.critical+'">'+r.st.crit+'</b>':"·",r.st.high?'<b style="color:'+T.serious+'">'+r.st.high+'</b>':"·",
+        r.st.stigScore===null?"—":r.st.stigScore+"%",
+        '<span style="color:'+T.ink2+'">'+esc((r.open.length?r.open.map(c=>c.name).join(", ")+" — ":"")+(r.reasons.join("; ")||"nothing outstanding"))+'</span>']),T);
+  const missRows=sts.filter(r=>r.missing.length);
+  if(missRows.length)
+    h+='<h3>Expected assets never seen</h3>'+rptTable(["Enclave","Assets on the expected list with no scan evidence"],
+      missRows.map(r=>[esc(r.e.name),'<span style="color:'+T.critical+'">'+esc(r.missing.join(", "))+'</span>']),T);
+  if(C.campaigns.length){
+    const list=[...C.campaigns].sort((a,b)=>String(b.start||b.created).localeCompare(String(a.start||a.created)));
+    h+='<h3>Campaigns</h3>'+rptTable(["Campaign",{h:"Target",w:"130px"},{h:"Status",w:"80px"},{h:"Scans dated",mono:true,w:"150px"},
+        {h:"Hosts",a:"r",w:"52px"},{h:"Crit",a:"c",w:"44px"},{h:"High",a:"c",w:"44px"},{h:"STIG",a:"r",w:"56px"},{h:"Recorded",mono:true,w:"90px"}],
+      list.map(c=>{const L=campaignLive(c,idx), s=L.st||{}; const first=L.frozen?((c.results.stats||{}).first||""):L.dates.first, last=L.frozen?c.results.taken:L.dates.last;
+        return [esc(c.name)+(c.objective?'<div class="rhosts">'+esc(c.objective)+'</div>':""),esc(encName(c.enclave)||"whole site"),
+          rptTag(c.status,c.status==="complete"?T.muted:c.status==="active"?T.bar:T.warning,T),
+          esc(first&&last&&first!==last?first+" → "+last:(last||first||"—")),String(L.frozen?c.results.hosts:L.keys.length),
+          s.crit?'<b style="color:'+T.critical+'">'+s.crit+'</b>':"·",s.high?'<b style="color:'+T.serious+'">'+s.high+'</b>':"·",
+          s.stigScore===null||s.stigScore===undefined?"—":s.stigScore+"%",esc(c.results?c.results.taken:"live")];}),T);
+  }
+  return rptLead("Scan coverage by zone. Status compares each enclave's last scan date with its cadence; coverage is judged against the expected-asset list the team maintains outside the scan data.")
+    +h+rptCtrl("campaigns");
+ }},
+
 {id:"controls", name:"Control mapping", group:"Reference",
  blurb:"Which NIST 800-53 controls each artifact supports, in plain language.",
  need:()=>true,
@@ -3981,7 +4124,7 @@ const RPT_SECTIONS = [
     ["PPSM Matrix","ppsm"],["Unsupported Components","eol"],["Prioritized Vulnerability List","intel"],
     ["Vulnerability Report / POA&M","vulns"],["Account Audit","accounts"],
     ["STIG Compliance Results","stigcompliance"],["Trend & Burndown","trend"],
-    ["Scan Coverage & Credential Verification","scanhealth"]]
+    ["Scan Coverage & Credential Verification","scanhealth"],["Enclave Status & Campaign Log","campaigns"]]
     .filter(([,k])=>CONTROL_MAP[k])
     .map(([t,k])=>[esc(t),esc(CONTROL_MAP[k].controls.join(", ")),
       '<span style="color:'+T.ink2+'">'+esc(CONTROL_MAP[k].why)+'</span>']),T)},
@@ -4027,14 +4170,14 @@ const RPT_PRESETS_BUILTIN = {
    sections:["scorecard","charts","lenses","trend"]},
  issm:{name:"ISSM / assessor package",
    note:"The evidence record: control mapping, configuration results, POA&M line items, and the provenance that makes them defensible.",
-   sections:["scorecard","readiness","scanhealth","stigcompliance","stigcoverage","stigapplicability",
+   sections:["scorecard","readiness","scanhealth","campaigns","stigcompliance","stigcoverage","stigapplicability",
              "poam","eol","accounts","recon","software","assets","ppsm","controls"]},
  engineering:{name:"Engineering work order",
    note:"What the people doing the work need: the fix list in priority order, with scope and per-asset detail.",
    sections:["scorecard","remediation","vulns","stigcompliance","eol","accounts","hosts"]},
  qc:{name:"Pre-delivery QC",
    note:"Your own check before anything goes out: what a reviewer will ask about first.",
-   sections:["scorecard","readiness","scanhealth","stigcoverage","recon"]},
+   sections:["scorecard","readiness","scanhealth","campaigns","stigcoverage","recon"]},
  full:{name:"Full record",
    note:"Every section that has data. Long by design — this is the archive copy.",
    sections:RPT_SECTIONS.map(x=>x.id)}
@@ -4253,6 +4396,10 @@ const PKG_MAP=[
  [/^Asset_Reconciliation/,       "5-evidence-quality","ISSM",   "Assets that never scanned, and hosts nobody expected."],
  [/^Change_Record/,              "5-evidence-quality","ISSM",   "What changed since the baseline cycle."],
  [/^Trend_Burndown/,             "5-evidence-quality","Leadership","Posture across assessment cycles."],
+ [/^Enclave_Status/,             "5-evidence-quality","ISSM / leadership","One row per zone: last scan, cadence status, expected assets never seen, posture."],
+ [/^Campaign_Log/,               "5-evidence-quality","ISSM",   "One row per scan effort: window, files, hosts, and what it found."],
+ [/^Campaign_Scope/,             "5-evidence-quality","Analyst","Every host in one campaign or enclave, with per-host posture."],
+ [/^Palisade_Campaigns/,         "6-session",     "Your team",   "The campaign registry: enclaves, scan efforts, recorded results. Load it next cycle to see what is due."],
  [/^Palisade_Session/,           "6-session",     "You",         "Reload this in Palisade to resume with every edit intact. Next cycle, it is your baseline."],
  [/^Compliance_Profile/,         "6-session",     "Your team",   "Settings and detection rules, no scan data. Share it so everyone starts the same."]
 ];
@@ -4289,6 +4436,7 @@ async function exportPackage(){
      exportIpSummary();exportPoam();}
    exportScanHealth();
    if((S.trend||[]).length) exportTrend();
+   if(campaignsInUse()){exportEnclaveStatus();exportCampaignLog();}
    if(stigResultRows().length){exportStigCompliance();exportStigOpenFindings();
      exportStigPoam();exportStigCoverage();}
    if(acctRows().length) exportAccountAudit();
@@ -5001,7 +5149,7 @@ if(window.ResizeObserver){
 }
 
 function renderAll(){renderStats();renderPPSM();renderSTIG();renderSoftware();renderAssets();renderListings();renderEol();renderIntel();renderVulns();renderAccountAudit();renderStigCompliance();renderScanHealth();renderTrend();renderReports();renderControls();renderSettings();renderConfig();
- computeDelta();renderDelta();renderRecon();renderReadiness();applyBanner();
+ computeDelta();renderDelta();renderRecon();renderCampaigns();renderCampaignBar();renderReadiness();applyBanner();
  if(S.inventory&&S.inventory.length&&!$("invBox").value)
    $("invBox").value=S.inventory.map(i=>[i.name,i.type,i.note].filter(Boolean).join(", ")).join("\n");}
 
@@ -5086,7 +5234,7 @@ function saveBoundaries(){
  if(modalKey){S.ppsm[modalKey].boundaries=BOUNDARY_LABELS.map((_,i)=>$("bm"+i).value);}
  closeModal(); renderPPSM();
 }
-function closeModal(){$("modalBg").style.display="none";$("bModal").style.display="none";modalKey=null;}
+function closeModal(){$("modalBg").style.display="none";$("bModal").style.display="none";if($("cModal"))$("cModal").style.display="none";modalKey=null;}
 
 function toggleColumnManager(){
  const el=$("colMgr");
@@ -5574,6 +5722,7 @@ function exportAll(){
    step.push(()=>{exportIpSummary();n++;});step.push(()=>{exportPoam();n++;});}
  if(Object.keys(S.hosts).length)step.push(()=>{exportScanHealth();n++;});
  if((S.trend||[]).length)step.push(()=>{exportTrend();n++;});
+ if(campaignsInUse()){step.push(()=>{exportEnclaveStatus();n++;});step.push(()=>{exportCampaignLog();n++;});}
  if(stigResultRows().length){step.push(()=>{exportStigCompliance();n++;});
    step.push(()=>{exportStigOpenFindings();n++;});step.push(()=>{exportStigPoam();n++;});
    step.push(()=>{exportStigCoverage();n++;});}
@@ -6130,6 +6279,7 @@ function openHostDetail(hk){
   +row("Host name",h.name)+row("IP address",h.ip)+row("MAC",h.mac)+row("FQDN",h.fqdn)
   +row("Operating system",h.os)+row("Device type",S.stig.device[hk]||"")
   +row("Last scanned",h.lastSeen)
+  +row("Enclave",hostEnclaveLabel(hk))+row("Campaigns",campIndex().byHost[hk]?campIndex().byHost[hk].map(id=>(campById(id)||{}).name).filter(Boolean).join("; "):"")
   +(d.asset?row("Owner",d.asset.owner)+row("Location",d.asset.location)+row("Criticality",d.asset.criticality)
     +row("Serial",d.asset.serial)+row("Status",d.asset.status):"");
  // scan provenance
@@ -7119,7 +7269,7 @@ function renderControls(){
    ["ppsm","PPSM Matrix"],["eol","Unsupported Components"],
    ["intel","Prioritized Vulnerability List"],["vulns","Vulnerability Report / POA&M"],
    ["accounts","Account Audit"],["stigcompliance","STIG Compliance Results"],["trend","Trend & Burndown"],
-   ["scanhealth","Scan Coverage & Credential Verification"]];
+   ["scanhealth","Scan Coverage & Credential Verification"],["campaigns","Enclave Status & Campaign Log"]];
  $("controlsBody").innerHTML=order.map(([k,title])=>{
    const c=CONTROL_MAP[k];
    return `<div class="panel"><h2>${esc(title)}</h2>
@@ -7135,7 +7285,7 @@ function exportControlMap(){
   ["PPSM Matrix","ppsm"],["Unsupported Components","eol"],["Prioritized Vulnerability List","intel"],
   ["Vulnerability Report / POA&M","vulns"],["Account Audit","accounts"],
   ["STIG Compliance Results","stigcompliance"],["Trend & Burndown","trend"],
-  ["Scan Coverage & Credential Verification","scanhealth"]].forEach(([t,k])=>
+  ["Scan Coverage & Credential Verification","scanhealth"],["Enclave Status & Campaign Log","campaigns"]].forEach(([t,k])=>
    rows.push([t,CONTROL_MAP[k].controls.join("; "),CONTROL_MAP[k].why]));
  rows.push([]);rows.push([S.settings.banner]);
  dl(`Control_Mapping_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
@@ -7279,12 +7429,930 @@ async function loadSession(f){
    S.trend=Array.isArray(S.trend)?S.trend:[];
    S.intel=S.intel&&S.intel.rows?S.intel:emptyIntel();
    S.intel.scoreSource=S.intel.scoreSource||"blended";
+   S.campaigns=normCampaigns(S.campaigns);   // pre-2.9 sessions carry none; hostile ones are coerced
    invalidateFusion();
    runDetection(); buildSoftware(); buildAssets(); applyListings(); renderAll();
    status(`Session restored (saved ${obj.meta.saved||"unknown"}).`);
  }catch(e){ S=prev; try{renderAll();}catch(_){}
    alert("Session load failed: "+e.message+" - previous dataset restored."); }
  $("sessIn").value="";
+}
+
+/* =========================================================================
+   Campaigns & enclaves (v2.9).
+   An ENCLAVE is a zone the team scans as a unit -- Weather, Operations, HR --
+   with an owner, a scan cadence, and the rules that recognize its hosts. A
+   CAMPAIGN is one scan effort: a window, a status, and the files and hosts
+   attributed to it, plus a results snapshot recorded when it closes. With the
+   per-host attribution overrides they form the REGISTRY -- the tracking
+   database -- which is a small JSON sidecar like the session and profile files,
+   because this tool has no other place to keep anything (no storage, no
+   network, by design). It also rides inside the session file.
+
+   This block is a LENS over the dataset, never a filter on it. Nothing here
+   alters S.hosts, S.software, S.ppsm or any number another tab computes; it
+   reads them, scoped to a set of host keys. Host-to-enclave resolution is:
+     1. an explicit override set on the Attribution view
+     2. the enclave whose rules match (IP range, hostname pattern)
+     3. the enclave the attributing campaign targets
+   in that order, because the rules are the team's definition of the zone and a
+   campaign is only a statement about one effort. Disagreement between 2 and 3
+   is surfaced on the Attribution view, not resolved silently.
+   ========================================================================= */
+function emptyCampaigns(){return {enclaves:[],campaigns:[],hostMap:{},active:"",meta:{saved:""}};}
+function campNow(){return new Date().toISOString();}
+/* Ids are generated here and validated on every load (normCampaigns), so an id can never be
+   a prototype key or carry markup; every lookup is a .find() over an array, never a map read. */
+function campNewId(p){return p+Date.now().toString(36)+Math.floor(Math.random()*1679616).toString(36).padStart(4,"0");}
+const CAMP_ID_RX=/^[A-Za-z0-9_-]{1,64}$/;
+/* Names that are also members of Object.prototype. Every id lookup is an array .find() and every
+   index map is prototype-less, so these would be harmless -- but a registry carrying them is not
+   one anybody wrote by hand, and refusing them costs nothing. */
+const CAMP_RESERVED=/^(__proto__|constructor|prototype|toString|valueOf|hasOwnProperty|__defineGetter__|__defineSetter__|__lookupGetter__|__lookupSetter__)$/i;
+const campIdOk=id=>CAMP_ID_RX.test(id)&&!CAMP_RESERVED.test(id);
+const CAMP_STATUS=["planned","active","complete"];
+function enclaveById(id){return S.campaigns.enclaves.find(e=>e.id===id)||null;}
+function campById(id){return S.campaigns.campaigns.find(c=>c.id===id)||null;}
+function campaignsInUse(){const C=S.campaigns;return !!(C&&((C.enclaves||[]).length||(C.campaigns||[]).length));}
+
+/* ---- the untrusted-JSON side: coerce a registry (or a session's campaigns block) to shape ---- */
+function normCampaigns(x){
+ const out=emptyCampaigns(); if(!x||typeof x!=="object") return out;
+ const str=v=>v==null?"":String(typeof v==="object"?"":v).slice(0,600);
+ const list=(v,loose)=>!Array.isArray(v)?[]:v.map(s=>str(s).trim()).filter(Boolean).slice(0,loose?5000:500);
+ const stamp=v=>{const s=str(v); return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,24):"";};
+ const seen=new Set();
+ (Array.isArray(x.enclaves)?x.enclaves:[]).slice(0,500).forEach(e=>{
+   if(!e||typeof e!=="object") return;
+   let id=str(e.id); if(!campIdOk(id)||seen.has(id)) id=campNewId("e"); seen.add(id);
+   const name=str(e.name).trim(); if(!name) return;
+   out.enclaves.push({id,name,desc:str(e.desc),owner:str(e.owner),poc:str(e.poc),
+     cadence:Math.max(0,Math.min(3650,parseInt(e.cadence,10)||0)),
+     cidrs:list(e.cidrs),hostPatterns:list(e.hostPatterns),filePatterns:list(e.filePatterns),
+     expected:list(e.expected,true),notes:str(e.notes),created:stamp(e.created),updated:stamp(e.updated)});
+ });
+ (Array.isArray(x.campaigns)?x.campaigns:[]).slice(0,2000).forEach(c=>{
+   if(!c||typeof c!=="object") return;
+   let id=str(c.id); if(!campIdOk(id)||seen.has(id)) id=campNewId("c"); seen.add(id);
+   const name=str(c.name).trim(); if(!name) return;
+   const enc=str(c.enclave); const st=str(c.status);
+   let results=null;
+   if(c.results&&typeof c.results==="object"){
+     const r=c.results, stats={};
+     if(r.stats&&typeof r.stats==="object")
+       for(const k of Object.keys(r.stats).slice(0,64)){
+         if(!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(k)||CAMP_RESERVED.test(k)) continue;
+         const v=r.stats[k];
+         if(v===null||typeof v==="number"&&isFinite(v)) stats[k]=v;
+         else if(typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v)) stats[k]=v;
+       }
+     results={taken:stamp(r.taken).slice(0,10),recorded:stamp(r.recorded),
+       hosts:Math.max(0,parseInt(r.hosts,10)||0),hostNames:list(r.hostNames,true),files:list(r.files),stats};
+   }
+   out.campaigns.push({id,name,enclave:out.enclaves.some(e=>e.id===enc)?enc:"",
+     status:CAMP_STATUS.includes(st)?st:"planned",owner:str(c.owner),objective:str(c.objective),
+     start:stamp(c.start).slice(0,10),end:stamp(c.end).slice(0,10),notes:str(c.notes),
+     files:list(c.files),hosts:list(c.hosts,true),excluded:list(c.excluded,true),results,
+     created:stamp(c.created),updated:stamp(c.updated),closed:stamp(c.closed)});
+ });
+ if(x.hostMap&&typeof x.hostMap==="object"&&!Array.isArray(x.hostMap))
+   for(const k of Object.keys(x.hostMap).slice(0,20000)){
+     if(CAMP_RESERVED.test(k)||k.length>128) continue;
+     const v=x.hostMap[k]; if(!v||typeof v!=="object") continue;
+     const enc=str(v.enclave);
+     if(v.none) out.hostMap[k]={enclave:"",none:true};
+     else if(enc&&out.enclaves.some(e=>e.id===enc)) out.hostMap[k]={enclave:enc,none:false};
+   }
+ out.active=str(x.active); if(!out.campaigns.some(c=>c.id===out.active)) out.active="";
+ out.meta.saved=x.meta&&typeof x.meta==="object"?stamp(x.meta.saved):"";
+ return out;
+}
+/* Two registries combine by id: the newer `updated` record wins its scalar fields, list fields are
+   unioned, and a recorded result is replaced only by one recorded later. Overrides from the
+   incoming file win where both name the same host. Both inputs are already normalized. */
+function mergeCampaigns(a,b){
+ const out=emptyCampaigns();
+ const union=(x,y)=>[...new Set([...(x||[]),...(y||[])])];
+ const newer=(x,y)=>String(y.updated||"")>=String(x.updated||"")?y:x;
+ const encs=new Map(); a.enclaves.forEach(e=>encs.set(e.id,e));
+ b.enclaves.forEach(e=>{const cur=encs.get(e.id);
+   if(!cur){encs.set(e.id,e);return;}
+   const w=newer(cur,e);
+   encs.set(e.id,Object.assign({},w,{cidrs:union(cur.cidrs,e.cidrs),hostPatterns:union(cur.hostPatterns,e.hostPatterns),
+     filePatterns:union(cur.filePatterns,e.filePatterns),expected:union(cur.expected,e.expected),
+     created:cur.created<e.created&&cur.created?cur.created:(e.created||cur.created)}));});
+ out.enclaves=[...encs.values()];
+ const camps=new Map(); a.campaigns.forEach(c=>camps.set(c.id,c));
+ b.campaigns.forEach(c=>{const cur=camps.get(c.id);
+   if(!cur){camps.set(c.id,c);return;}
+   const w=newer(cur,c);
+   let results=w.results;
+   if(cur.results&&c.results) results=String(c.results.recorded||"")>=String(cur.results.recorded||"")?c.results:cur.results;
+   else results=cur.results||c.results||null;
+   camps.set(c.id,Object.assign({},w,{files:union(cur.files,c.files),hosts:union(cur.hosts,c.hosts),
+     excluded:union(cur.excluded,c.excluded),results,
+     created:cur.created<c.created&&cur.created?cur.created:(c.created||cur.created)}));});
+ out.campaigns=[...camps.values()];
+ out.campaigns.forEach(c=>{if(c.enclave&&!out.enclaves.some(e=>e.id===c.enclave)) c.enclave="";});
+ out.hostMap=Object.assign({},a.hostMap,b.hostMap);
+ for(const k of Object.keys(out.hostMap)){const v=out.hostMap[k];
+   if(!v.none&&!out.enclaves.some(e=>e.id===v.enclave)) delete out.hostMap[k];}
+ out.meta.saved=[a.meta.saved,b.meta.saved].filter(Boolean).sort().pop()||"";
+ return out;
+}
+
+/* ---- rules: IPv4 ranges and name patterns ----------------------------------------------- */
+function ip4Int(ip){
+ const m=String(ip||"").trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/); if(!m) return null;
+ let n=0; for(let i=1;i<=4;i++){const o=+m[i]; if(o>255) return null; n=n*256+o;} return n;
+}
+/* Accepted forms: CIDR (203.0.113.0/24), a dash range (203.0.113.10-203.0.113.50), one address,
+   or a dotted prefix ending in a dot (203.0.113.). Anything else never matches and is reported
+   by the editor rather than silently ignored. */
+function ipRuleKind(rule){
+ const r=String(rule||"").trim();
+ if(/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(r)) return "cidr";
+ if(/^\d{1,3}(\.\d{1,3}){3}\s*-\s*\d{1,3}(\.\d{1,3}){3}$/.test(r)) return "range";
+ if(/^\d{1,3}(\.\d{1,3}){3}$/.test(r)) return "single";
+ if(/^\d{1,3}(\.\d{1,3}){0,2}\.$/.test(r)) return "prefix";
+ return "";
+}
+function ipRuleMatch(rule,ip){
+ const r=String(rule||"").trim(), n=ip4Int(ip); if(!r||n===null) return false;
+ const kind=ipRuleKind(r);
+ if(kind==="cidr"){const [base,bits]=r.split("/"); const b=ip4Int(base), k=+bits; if(b===null||k>32) return false;
+   const mask=k===0?0:((0xFFFFFFFF<<(32-k))>>>0); return ((n&mask)>>>0)===((b&mask)>>>0);}
+ if(kind==="range"){const [x,y]=r.split(/\s*-\s*/).map(ip4Int); if(x===null||y===null) return false;
+   return n>=Math.min(x,y)&&n<=Math.max(x,y);}
+ if(kind==="single") return ip4Int(r)===n;
+ if(kind==="prefix") return String(ip).trim().startsWith(r);
+ return false;
+}
+function enclaveRuleHit(e,h){
+ if(!e||!h) return "";
+ for(const c of e.cidrs||[]) if(ipRuleMatch(c,h.ip)) return "ip "+c;
+ const names=[h.name,h.fqdn,h.netbios,h.key].filter(Boolean);
+ for(const p of e.hostPatterns||[]) if(names.some(n=>patMatch(p,n))) return "name "+p;
+ return "";
+}
+function enclaveFileHit(e,name){for(const p of e.filePatterns||[]) if(patMatch(p,name)) return p; return "";}
+
+/* ---- attribution: files -> hosts -> campaigns -> enclaves ------------------------------- */
+/* A loaded file's hosts come from the provenance records the parsers keep (h.src for scan
+   files, the result record's source for SCC/checklist files). Nothing is stored twice. */
+function fileHostKeys(name){
+ const out=[]; if(!name) return out;
+ const tail="("+name+")";
+ for(const hk of Object.keys(S.hosts)){
+   const h=S.hosts[hk];
+   if((h.src||[]).some(x=>x.file===name)){out.push(hk);continue;}
+   const R=own(S.stigResults,hk);
+   if(R&&typeof R==="object"&&Object.keys(R).some(k=>String((R[k]||{}).source||"").endsWith(tail))) out.push(hk);
+ }
+ return out;
+}
+function campaignOfFile(name){return S.campaigns.campaigns.find(c=>(c.files||[]).includes(name))||null;}
+function campaignHosts(c){
+ const set=new Set();
+ (c.files||[]).forEach(f=>fileHostKeys(f).forEach(k=>set.add(k)));
+ (c.hosts||[]).forEach(k=>{if(hasOwn(S.hosts,k))set.add(k);});
+ (c.excluded||[]).forEach(k=>set.delete(k));
+ return [...set].sort();
+}
+/* Scan dates for one campaign: the per-file `seen` dates of its hosts, falling back to lastSeen. */
+function campaignDates(c,keys){
+ const files=new Set(c.files||[]); const ds=[];
+ keys.forEach(k=>{const h=S.hosts[k]; if(!h) return;
+   const mine=(h.src||[]).filter(x=>files.has(x.file)&&x.seen).map(x=>x.seen);
+   if(mine.length) ds.push(...mine); else if(h.lastSeen) ds.push(h.lastSeen);});
+ ds.sort(); return {first:ds[0]||"",last:ds[ds.length-1]||""};
+}
+let _campIdx=null;
+function campTouch(){_campIdx=null;}
+function hostEnclaveResolve(hk,cids){
+ const h=S.hosts[hk]; if(!h) return {id:"",via:""};
+ const ov=own(S.campaigns.hostMap,hk);
+ if(ov&&typeof ov==="object"){
+   if(ov.none) return {id:"",via:"override"};
+   if(ov.enclave&&enclaveById(ov.enclave)) return {id:ov.enclave,via:"override"};
+ }
+ let rule=null;
+ for(const e of S.campaigns.enclaves){const hit=enclaveRuleHit(e,h); if(hit){rule={id:e.id,via:"rule",hit};break;}}
+ const viaCamp=[...new Set((cids||[]).map(id=>campById(id)).filter(c=>c&&c.enclave&&enclaveById(c.enclave)).map(c=>c.enclave))];
+ if(rule){ if(viaCamp.length&&!viaCamp.includes(rule.id)) rule.disagree=viaCamp; return rule; }
+ if(viaCamp.length===1) return {id:viaCamp[0],via:"campaign"};
+ if(viaCamp.length>1) return {id:viaCamp[0],via:"campaign",disagree:viaCamp.slice(1)};
+ return {id:"",via:""};
+}
+/* One pass over hosts and campaigns, memoized until the next mutation (campTouch) or render.
+   The memo also checks the cheap signals a mutation elsewhere leaves behind -- the registry
+   object, the host set, the file list -- so a caller that forgot campTouch() cannot read a
+   stale map after an ingest or a session load. Every map is prototype-less: host keys come
+   from scan data and may spell "constructor". */
+function campIndex(){
+ const sig=S.campaigns.enclaves.length+":"+S.campaigns.campaigns.length+":"+Object.keys(S.hosts).length+":"+S.filesLoaded.length+":"+Object.keys(S.hosts).join("\u0001");
+ if(_campIdx&&_campIdx.reg===S.campaigns&&_campIdx.sig===sig) return _campIdx;
+ const byHost=Object.create(null), byCamp=Object.create(null), hostEnc=Object.create(null),
+       byEnclave=Object.create(null), unassigned=[];
+ for(const c of S.campaigns.campaigns){const ks=campaignHosts(c); byCamp[c.id]=ks; ks.forEach(k=>{(byHost[k]=byHost[k]||[]).push(c.id);});}
+ for(const hk of Object.keys(S.hosts)){
+   const r=hostEnclaveResolve(hk,byHost[hk]||[]); hostEnc[hk]=r;
+   if(r.id)(byEnclave[r.id]=byEnclave[r.id]||[]).push(hk); else unassigned.push(hk);
+ }
+ return _campIdx={byHost,byCamp,hostEnc,byEnclave,unassigned,reg:S.campaigns,sig};
+}
+function hostEnclaveLabel(hk){
+ const r=campIndex().hostEnc[hk]; if(!r||!r.id) return "";
+ const e=enclaveById(r.id); return e?e.name+(r.via==="override"?" (set by hand)":r.via==="campaign"?" (via campaign)":""):"";
+}
+
+/* ---- scoped posture: the same measures the Trend tab records, over a host subset ---------- */
+function scopeStats(keys){
+ const set=new Set(keys); const hs=keys.map(k=>S.hosts[k]).filter(Boolean);
+ const st={hosts:hs.length,cred:hs.filter(h=>h.cred).length,credChecks:hs.filter(h=>scanCredOk(h)).length,
+   crit:0,high:0,med:0,low:0,findings:0,overdue:0,exploitable:0,first:"",last:""};
+ const dates=hs.map(h=>h.lastSeen).filter(Boolean).sort(); st.first=dates[0]||""; st.last=dates[dates.length-1]||"";
+ for(const h of hs) for(const pid in (h.findings||{})){const f=h.findings[pid]; if(!(f.sev>0)) continue;
+   st.findings++; if(f.sev===4)st.crit++; else if(f.sev===3)st.high++; else if(f.sev===2)st.med++; else st.low++;
+   if(f.expl) st.exploitable++; if(findingOverdue(f)) st.overdue++;}
+ const sc=stigResultRows().filter(r=>set.has(r.hk));
+ const assessed=sc.reduce((n,r)=>n+r.c.Open+r.c.NotAFinding,0), passed=sc.reduce((n,r)=>n+r.c.NotAFinding,0);
+ st.stigOpen=sc.reduce((n,r)=>n+r.c.Open,0); st.catI=sc.reduce((n,r)=>n+r.c.catOpen.high,0);
+ st.notReviewed=sc.reduce((n,r)=>n+r.c.Not_Reviewed,0);
+ st.stigScore=assessed?Math.round(passed/assessed*100):null; st.stigAssessed=new Set(sc.map(r=>r.hk)).size;
+ const names=new Set(hs.map(h=>h.name));
+ st.software=0; st.eol=0; st.swUnreviewed=0;
+ for(const k in S.software){const r=S.software[k]; if(!(r.hosts||[]).some(n=>names.has(n))) continue;
+   st.software++; if(r.include&&!r.rpm&&r.approval==="Not Reviewed") st.swUnreviewed++;
+   if(!r.rpm){const e=eolFor(r.name,r.version); if(e&&e.state==="expired") st.eol++;}}
+ st.ports=Object.values(S.ppsm).filter(r=>r.include&&(r.hosts||[]).some(n=>names.has(n))).length;
+ st.dormantAccts=acctRows().filter(r=>set.has(r.hk)&&r.a.flags.neverLoggedOn&&!r.a.flags.disabled&&!r.a.flags.autoDisabled).length;
+ if(Object.keys(S.intel.rows).length){const fu=getIntelFusion(); st.p1=fu.rows.filter(r=>r.tier==="P1"&&r.hits.some(x=>set.has(x.hk))).length;}
+ else st.p1=null;
+ return st;
+}
+/* Where an enclave stands: last scan, cadence state, coverage against its expected list. */
+function enclaveStatus(e,idx){
+ idx=idx||campIndex();
+ const keys=idx.byEnclave[e.id]||[]; const st=scopeStats(keys);
+ const exp=(e.expected||[]).map(x=>hostKeyFrom(x,"")).filter(Boolean);
+ const expSet=new Set(exp);
+ const have=new Set(keys.map(k=>hostKeyFrom(S.hosts[k].name,S.hosts[k].ip))); keys.forEach(k=>have.add(k));
+ const missing=exp.filter(x=>!have.has(x));
+ const unexpected=exp.length?keys.filter(k=>!expSet.has(k)&&!expSet.has(hostKeyFrom(S.hosts[k].name,S.hosts[k].ip))):[];
+ const camps=S.campaigns.campaigns.filter(c=>c.enclave===e.id);
+ const recorded=camps.filter(c=>c.results&&c.results.taken).sort((a,b)=>String(a.results.taken).localeCompare(String(b.results.taken)));
+ const lastRec=recorded.length?recorded[recorded.length-1].results.taken:"";
+ const last=[st.last,lastRec].filter(Boolean).sort().pop()||"";
+ const cadence=Number(e.cadence)||0;
+ let days=null, state="never", due="";
+ if(last){days=Math.max(0,Math.floor((Date.now()-new Date(last).getTime())/86400000));
+   if(cadence>0){const d=new Date(last+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+cadence); due=d.toISOString().slice(0,10);
+     state=days>cadence?"overdue":days>cadence-7?"due":"current";}
+   else state="current";}
+ const open=camps.filter(c=>c.status!=="complete");
+ const reasons=[];
+ if(state==="never") reasons.push("never scanned");
+ if(state==="overdue") reasons.push("overdue by "+(days-cadence)+" day(s)");
+ if(state==="due") reasons.push("due "+due);
+ if(missing.length) reasons.push(missing.length+" expected asset(s) never seen");
+ if(st.hosts&&st.credChecks<st.hosts) reasons.push((st.hosts-st.credChecks)+" host(s) not credentialed");
+ if(st.crit) reasons.push(st.crit+" critical finding(s)");
+ if(st.catI) reasons.push(st.catI+" CAT I open");
+ return {e,keys,st,expected:exp,missing,unexpected,
+   coverage:exp.length?Math.round((exp.length-missing.length)/exp.length*100):null,
+   last,days,state,due,cadence,camps,open,recorded,reasons};
+}
+function campaignLive(c,idx){
+ idx=idx||campIndex();
+ const keys=idx.byCamp[c.id]||[];
+ return {keys,st:c.status==="complete"&&c.results?c.results.stats:scopeStats(keys),dates:campaignDates(c,keys),frozen:c.status==="complete"&&!!c.results};
+}
+
+/* ---- suggestions: what the rules would do, offered rather than applied ------------------- */
+function campaignSuggestions(idx){
+ idx=idx||campIndex();
+ const files=[], hosts=[], subnets=[];
+ for(const f of S.filesLoaded){
+   if(!/^(nessus|csv|stig|demo)$/.test(f.type)||campaignOfFile(f.name)) continue;
+   let enc=null, why="";
+   const byName=S.campaigns.enclaves.find(e=>enclaveFileHit(e,f.name));
+   if(byName){enc=byName; why="file name matches "+enclaveFileHit(byName,f.name);}
+   else{
+     const ks=fileHostKeys(f.name), tally=Object.create(null);
+     ks.forEach(k=>{const r=idx.hostEnc[k]; if(r&&r.id&&r.via!=="campaign") tally[r.id]=(tally[r.id]||0)+1;});
+     const best=Object.keys(tally).sort((a,b)=>tally[b]-tally[a])[0];
+     if(best&&tally[best]>=Math.ceil(ks.length*0.6)){enc=enclaveById(best); why=tally[best]+" of "+ks.length+" host(s) resolve to "+enc.name;}
+   }
+   if(!enc) continue;
+   const open=S.campaigns.campaigns.filter(c=>c.enclave===enc.id&&c.status!=="complete");
+   files.push({file:f,enclave:enc,campaign:open[0]||null,why});
+ }
+ /* a host no rule names, sitting in a /24 whose other hosts all resolve to one enclave */
+ const bySub=Object.create(null);
+ for(const hk of Object.keys(S.hosts)){const ip=S.hosts[hk].ip||""; if(!ip4Int(ip)) continue;
+   const sub=ip.split(".").slice(0,3).join(".")+".0/24"; (bySub[sub]=bySub[sub]||[]).push(hk);}
+ for(const sub of Object.keys(bySub)){
+   const ks=bySub[sub]; const encIds=new Set(ks.map(k=>idx.hostEnc[k].id).filter(Boolean));
+   const orphans=ks.filter(k=>!idx.hostEnc[k].id&&!own(S.campaigns.hostMap,k));
+   if(!orphans.length) continue;
+   if(encIds.size===1){const e=enclaveById([...encIds][0]);
+     orphans.forEach(k=>hosts.push({hk:k,enclave:e,why:"neighbours in "+sub+" resolve to "+e.name}));}
+   else if(encIds.size===0) subnets.push({sub,keys:ks});
+ }
+ return {files,hosts,subnets};
+}
+function applyFileSuggestion(name){
+ const s=campaignSuggestions().files.find(x=>x.file.name===name); if(!s) return;
+ let c=s.campaign;
+ if(!c){ c=campaignCreate({name:s.enclave.name+" — "+today(),enclave:s.enclave.id,status:"active"}); }
+ assignFileToCampaign(name,c.id,true);
+ status(`"${name}" attributed to campaign "${c.name}" (${s.why}).`);
+}
+function applyHostSuggestion(hk){
+ const s=campaignSuggestions().hosts.find(x=>x.hk===hk); if(!s) return;
+ setHostEnclaveOverride(hk,s.enclave.id,true);
+ status(`${S.hosts[hk].name} assigned to ${s.enclave.name} (${s.why}).`);
+}
+function applyCampaignSuggestions(){
+ const sg=campaignSuggestions(); let nf=0, nh=0;
+ sg.files.forEach(s=>{applyFileSuggestion(s.file.name); nf++;});
+ campTouch();
+ campaignSuggestions().hosts.forEach(s=>{setHostEnclaveOverride(s.hk,s.enclave.id,true); nh++;});
+ campTouch(); renderCampaigns(); renderCampaignBar();
+ status(`Applied suggestions: ${nf} file(s) attributed, ${nh} host(s) assigned. Everything is reversible on this view.`);
+}
+
+/* ---- mutations ------------------------------------------------------------------------- */
+function campaignCreate(fields){
+ const now=campNow();
+ const c=Object.assign({id:campNewId("c"),name:"",enclave:"",status:"planned",owner:"",objective:"",start:"",end:"",
+   notes:"",files:[],hosts:[],excluded:[],results:null,created:now,updated:now,closed:""},fields||{});
+ if(c.enclave&&!enclaveById(c.enclave)) c.enclave="";
+ S.campaigns.campaigns.push(c); campTouch(); return c;
+}
+function setActiveCampaign(id){
+ const c=id?campById(id):null;
+ if(c&&c.status==="complete"){status(`"${c.name}" is complete — reopen it before loading files into it.`);return;}
+ S.campaigns.active=c?c.id:"";
+ renderCampaignBar(); const sel=$("campActive"); if(sel) sel.innerHTML=campaignOptions(S.campaigns.active);
+ status(c?`Files loaded from now on are attributed to "${c.name}".`:"Files loaded from now on land unattributed; attribute them on the Campaigns tab.");
+}
+function campaignAttachNewFiles(entries){
+ const c=S.campaigns.active?campById(S.campaigns.active):null;
+ if(c&&c.status==="complete"){S.campaigns.active="";return null;}   // a merged registry can carry a closed target
+ if(!c||!entries.length) return null;
+ let n=0;
+ entries.forEach(f=>{if(!/^(nessus|csv|stig|demo)$/.test(f.type)) return;
+   S.campaigns.campaigns.forEach(x=>{x.files=(x.files||[]).filter(y=>y!==f.name);});
+   c.files.push(f.name); n++;});
+ if(n){c.updated=campNow(); if(c.status==="planned") c.status="active";}
+ campTouch(); return n?{n,name:c.name}:null;
+}
+function assignFileToCampaign(name,cid,quiet){
+ if(!S.filesLoaded.some(f=>f.name===name)) return;
+ S.campaigns.campaigns.forEach(c=>{c.files=(c.files||[]).filter(x=>x!==name);});
+ const c=cid?campById(cid):null;
+ if(c){c.files.push(name); c.updated=campNow(); if(c.status==="planned") c.status="active";}
+ campTouch();
+ if(!quiet){renderCampaigns(); renderCampaignBar(); status(c?`"${name}" attributed to "${c.name}".`:`"${name}" is no longer attributed to any campaign.`);}
+}
+function setHostEnclaveOverride(hk,v,quiet){
+ if(!hasOwn(S.hosts,hk)) return;
+ if(v==="") delete S.campaigns.hostMap[hk];
+ else if(v==="none") S.campaigns.hostMap[hk]={enclave:"",none:true};
+ else if(enclaveById(v)) S.campaigns.hostMap[hk]={enclave:v,none:false};
+ else return;
+ campTouch();
+ if(!quiet){renderCampaigns(); status(v===""?`${S.hosts[hk].name}: enclave follows the rules again.`:v==="none"?`${S.hosts[hk].name} excluded from every enclave.`:`${S.hosts[hk].name} assigned to ${enclaveById(v).name}.`);}
+}
+function hostCampaignAdd(hk,cid){
+ const c=campById(cid); if(!c||!hasOwn(S.hosts,hk)) return;
+ c.excluded=(c.excluded||[]).filter(x=>x!==hk);
+ if(!campaignHosts(c).includes(hk)) c.hosts.push(hk);
+ c.updated=campNow(); campTouch(); renderCampaigns(); status(`${S.hosts[hk].name} added to "${c.name}".`);
+}
+function hostCampaignDrop(hk,cid){
+ const c=campById(cid); if(!c||!hasOwn(S.hosts,hk)) return;
+ c.hosts=(c.hosts||[]).filter(x=>x!==hk);
+ if(campaignHosts(c).includes(hk)&&!c.excluded.includes(hk)) c.excluded.push(hk);   // came via a file: exclude explicitly
+ c.updated=campNow(); campTouch(); renderCampaigns(); status(`${S.hosts[hk].name} removed from "${c.name}".`);
+}
+function campaignSnapshot(c,keys){
+ const st=scopeStats(keys), d=campaignDates(c,keys);
+ return {taken:d.last||st.last||today(),recorded:campNow(),hosts:keys.length,
+   hostNames:keys.map(k=>S.hosts[k].name).sort(),files:[...(c.files||[])],stats:st};
+}
+function recordCampaignResults(cid){
+ const c=campById(cid); if(!c) return;
+ const keys=campIndex().byCamp[c.id]||[];
+ if(!keys.length){alert("No hosts are attributed to this campaign yet, so there is nothing to record.");return;}
+ c.results=campaignSnapshot(c,keys); c.updated=campNow(); campTouch(); renderCampaigns();
+ status(`Results recorded for "${c.name}": ${keys.length} host(s) as of ${c.results.taken}.`);
+}
+function closeCampaign(cid){
+ const c=campById(cid); if(!c) return;
+ const keys=campIndex().byCamp[c.id]||[];
+ if(!keys.length&&!confirm(`No hosts are attributed to "${c.name}". Close it anyway? (Its results will be empty.)`)) return;
+ if(!confirm(`Close "${c.name}" and record its results? The snapshot is kept in the registry; the campaign can be reopened later.`)) return;
+ c.results=campaignSnapshot(c,keys); c.status="complete"; c.closed=campNow(); c.updated=c.closed;
+ if(S.campaigns.active===c.id) S.campaigns.active="";
+ campTouch(); renderCampaigns(); renderCampaignBar();
+ status(`"${c.name}" closed — ${keys.length} host(s) recorded as of ${c.results.taken}.`);
+}
+function reopenCampaign(cid){
+ const c=campById(cid); if(!c) return;
+ c.status="active"; c.closed=""; c.updated=campNow(); campTouch(); renderCampaigns(); renderCampaignBar();
+ status(`"${c.name}" reopened. Its recorded results are kept until you record again.`);
+}
+
+/* ---- editor modal (one modal, two shapes) ---------------------------------------------- */
+let cEdit={kind:"",id:""};
+function cfld(id,label,val,type,x){
+ x=x||{};
+ const inner=type==="area"?`<textarea id="${id}" placeholder="${esc(x.ph||"")}" spellcheck="false">${esc(val)}</textarea>`
+  :type==="select"?`<select id="${id}">${(x.opts||[]).map(([v,l])=>`<option value="${esc(v)}"${v===val?" selected":""}>${esc(l)}</option>`).join("")}</select>`
+  :`<input id="${id}" type="${type||"text"}" value="${esc(val)}" placeholder="${esc(x.ph||"")}"${type==="number"?' min="0" max="3650"':""}>`;
+ return `<div class="field${x.wide?" wide":""}"><label>${esc(label)}</label>${inner}</div>`;
+}
+function openModalC(){$("modalBg").style.display="block"; $("cModal").style.display="block";}
+function openEnclaveEditor(id,preset){
+ const e=id?enclaveById(id):null; cEdit={kind:"enclave",id:e?e.id:""};
+ const v=Object.assign({name:"",desc:"",owner:"",poc:"",cadence:30,cidrs:[],hostPatterns:[],filePatterns:[],expected:[],notes:""},e||{},preset||{});
+ $("cModalTitle").textContent=e?"Edit enclave — "+e.name:"New enclave";
+ $("cModalNote").textContent="A zone you scan as a unit. The rules are how its hosts are recognized — one match is enough. Coverage is judged against the expected-asset list, so keep that list from outside the scan data.";
+ $("cModalGrid").innerHTML=
+   cfld("ce_name","Name *",v.name,"text",{ph:"Weather Enclave"})
+  +cfld("ce_owner","Owner",v.owner,"text",{ph:"ISSO / system owner"})
+  +cfld("ce_poc","Point of contact",v.poc,"text",{ph:"name, phone, e-mail"})
+  +cfld("ce_cadence","Scan cadence in days (0 = not tracked)",String(v.cadence),"number")
+  +cfld("ce_desc","Description",v.desc,"text",{wide:true,ph:"what lives here, which building, which program"})
+  +cfld("ce_cidrs","IP ranges — one per line: 203.0.113.0/24 · 203.0.113.10-203.0.113.50 · 203.0.113.",(v.cidrs||[]).join("\n"),"area",{wide:true,ph:"203.0.113.0/24"})
+  +cfld("ce_hosts","Hostname patterns — one per line (substring, or re: for a regular expression)",(v.hostPatterns||[]).join("\n"),"area",{ph:"WX-\nre:^OPS-"})
+  +cfld("ce_files","File-name patterns — one per line",(v.filePatterns||[]).join("\n"),"area",{ph:"weather_\nre:^ops-.*\\.nessus$"})
+  +cfld("ce_expected","Expected assets — host names, one per line or comma-separated",(v.expected||[]).join("\n"),"area",{wide:true,ph:"WX-WS01\nWX-WS02\nWX-SVR01"})
+  +cfld("ce_notes","Notes",v.notes,"text",{wide:true});
+ $("cModalDelete").style.display=e?"":"none";
+ openModalC(); setTimeout(()=>{const n=$("ce_name"); if(n) n.focus();},30);
+}
+function openCampaignEditor(id,presetEnclave){
+ const c=id?campById(id):null; cEdit={kind:"campaign",id:c?c.id:""};
+ const v=Object.assign({name:"",enclave:presetEnclave&&enclaveById(presetEnclave)?presetEnclave:"",status:"planned",owner:"",objective:"",start:"",end:"",notes:""},c||{});
+ const encOpts=[["","— whole site / every zone —"],...S.campaigns.enclaves.map(e=>[e.id,e.name])];
+ $("cModalTitle").textContent=c?"Edit campaign — "+c.name:"New campaign";
+ $("cModalNote").textContent=c?`${(c.files||[]).length} file(s) and ${(campIndex().byCamp[c.id]||[]).length} host(s) are attributed to this campaign — change that on the Attribution view.`
+   :"One scan effort: a window, a target zone, and the files you load into it. Pick it under “loading into” before dropping files and attribution is automatic.";
+ $("cModalGrid").innerHTML=
+   cfld("cc_name","Name *",v.name,"text",{ph:"FY27 Q1 Weather credentialed sweep"})
+  +cfld("cc_enclave","Target enclave",v.enclave,"select",{opts:encOpts})
+  +cfld("cc_status","Status",v.status,"select",{opts:[["planned","Planned"],["active","Active"],["complete","Complete"]]})
+  +cfld("cc_owner","Owner / lead",v.owner,"text")
+  +cfld("cc_start","Planned start",v.start,"date")
+  +cfld("cc_end","Planned end",v.end,"date")
+  +cfld("cc_objective","Objective",v.objective,"text",{wide:true,ph:"why this effort exists — assessment prep, monthly cadence, remediation verification"})
+  +cfld("cc_notes","Notes",v.notes,"text",{wide:true});
+ $("cModalDelete").style.display=c?"":"none";
+ openModalC(); setTimeout(()=>{const n=$("cc_name"); if(n) n.focus();},30);
+}
+function linesOf(id,loose){
+ const raw=($(id)&&$(id).value)||"";
+ return raw.split(loose?/[\n,;]+/:/\n+/).map(s=>s.trim()).filter(Boolean);
+}
+function saveCampaignEditor(){
+ if(cEdit.kind==="enclave") saveEnclaveFromEditor();
+ else if(cEdit.kind==="campaign") saveCampaignFromEditor();
+}
+function saveEnclaveFromEditor(){
+ const name=($("ce_name").value||"").trim(); if(!name){alert("An enclave needs a name.");return;}
+ const e=cEdit.id?enclaveById(cEdit.id):null, now=campNow();
+ const rec=e||{id:campNewId("e"),created:now};
+ const cidrs=linesOf("ce_cidrs",true).map(s=>s.replace(/\s+/g,""));
+ const badIp=cidrs.filter(c=>!ipRuleKind(c));
+ Object.assign(rec,{name,owner:$("ce_owner").value.trim(),poc:$("ce_poc").value.trim(),
+   cadence:Math.max(0,Math.min(3650,parseInt($("ce_cadence").value,10)||0)),desc:$("ce_desc").value.trim(),
+   cidrs:cidrs.filter(c=>ipRuleKind(c)),hostPatterns:linesOf("ce_hosts"),filePatterns:linesOf("ce_files"),
+   expected:linesOf("ce_expected",true),notes:$("ce_notes").value.trim(),updated:now});
+ const bad=[...rec.hostPatterns,...rec.filePatterns].filter(p=>/^re:/i.test(p)&&unsafeRegexSource(p.slice(3)));
+ if(!e) S.campaigns.enclaves.push(rec);
+ campTouch(); closeModal(); renderCampaigns(); renderCampaignBar();
+ status(`Enclave "${name}" ${e?"updated":"created"}.`
+   +(badIp.length?` Dropped ${badIp.length} IP rule(s) not in a recognized form: ${badIp.slice(0,4).join(", ")}.`:"")+rejectNote(bad));
+}
+function saveCampaignFromEditor(){
+ const name=($("cc_name").value||"").trim(); if(!name){alert("A campaign needs a name.");return;}
+ const c=cEdit.id?campById(cEdit.id):null, now=campNow();
+ const enc=$("cc_enclave").value, st=$("cc_status").value;
+ const fields={name,enclave:enclaveById(enc)?enc:"",status:CAMP_STATUS.includes(st)?st:"planned",
+   owner:$("cc_owner").value.trim(),objective:$("cc_objective").value.trim(),
+   start:$("cc_start").value||"",end:$("cc_end").value||"",notes:$("cc_notes").value.trim(),updated:now};
+ let rec=c;
+ if(rec) Object.assign(rec,fields); else rec=campaignCreate(fields);
+ campTouch();
+ if(rec.status==="complete"){ if(!rec.results){const keys=campIndex().byCamp[rec.id]||[]; rec.results=campaignSnapshot(rec,keys);} if(!rec.closed) rec.closed=now; if(S.campaigns.active===rec.id) S.campaigns.active=""; }
+ else rec.closed="";
+ closeModal(); renderCampaigns(); renderCampaignBar();
+ status(`Campaign "${name}" ${c?"updated":"created"}.`+(!c&&rec.status!=="complete"?` Pick it under "loading into" before dropping files, or attribute files on the Attribution view.`:""));
+}
+function deleteFromEditor(){
+ if(cEdit.kind==="enclave"){
+   const e=enclaveById(cEdit.id); if(!e) return;
+   if(!confirm(`Delete enclave "${e.name}"? Campaigns that target it become site-wide; host overrides pointing at it are cleared. Scan data is untouched.`)) return;
+   S.campaigns.enclaves=S.campaigns.enclaves.filter(x=>x.id!==e.id);
+   S.campaigns.campaigns.forEach(c=>{if(c.enclave===e.id) c.enclave="";});
+   for(const k of Object.keys(S.campaigns.hostMap)){const v=S.campaigns.hostMap[k]; if(v&&v.enclave===e.id) delete S.campaigns.hostMap[k];}
+   status(`Enclave "${e.name}" deleted.`);
+ } else if(cEdit.kind==="campaign"){
+   const c=campById(cEdit.id); if(!c) return;
+   if(!confirm(`Delete campaign "${c.name}"${c.results?" and its recorded results":""}? Scan data is untouched.`)) return;
+   S.campaigns.campaigns=S.campaigns.campaigns.filter(x=>x.id!==c.id);
+   if(S.campaigns.active===c.id) S.campaigns.active="";
+   status(`Campaign "${c.name}" deleted.`);
+ }
+ campTouch(); closeModal(); renderCampaigns(); renderCampaignBar();
+}
+
+/* ---- registry file: the tracking database, as a sidecar ---------------------------------- */
+function campRegistry(){
+ return {meta:{kind:"Palisade-Campaign-Registry",ver:S.meta.ver,saved:campNow(),system:S.settings.isName||""},
+   enclaves:S.campaigns.enclaves,campaigns:S.campaigns.campaigns,hostMap:S.campaigns.hostMap};
+}
+function saveCampaignRegistry(){
+ if(!campaignsInUse()){alert("Nothing to save yet — create an enclave or a campaign first.");return;}
+ const r=campRegistry(); S.campaigns.meta.saved=r.meta.saved;
+ dl(`Palisade_Campaigns_${today()}.json`,JSON.stringify(r,null,1),"application/json");
+ status(`Campaign registry saved: ${r.enclaves.length} enclave(s), ${r.campaigns.length} campaign(s). Keep it beside your session files and load it next cycle.`);
+}
+$("campIn").addEventListener("change",e=>loadCampaignRegistry(e.target.files[0]));
+async function loadCampaignRegistry(f){
+ if(!f) return;
+ const prev=S.campaigns;   // transactional, as loadSession
+ try{
+   checkFileSize(f,true);
+   const o=safeParse(await f.text());
+   const isReg=!!(o&&o.meta&&o.meta.kind==="Palisade-Campaign-Registry");
+   const isSess=!!(o&&o.campaigns&&typeof o.campaigns==="object"&&Array.isArray(o.campaigns.enclaves));
+   if(!isReg&&!isSess) throw new Error("not a campaign registry (or a session that carries one)");
+   const inc=normCampaigns(isReg?o:o.campaigns);
+   const replace=$("campReplace")&&$("campReplace").checked;
+   const next=replace?inc:mergeCampaigns(normCampaigns(prev),inc);
+   next.active=prev.active&&next.campaigns.some(c=>c.id===prev.active)?prev.active:"";
+   S.campaigns=next; campTouch(); renderCampaigns(); renderCampaignBar();
+   status(`Registry ${replace?"replaced":"merged"}: ${next.enclaves.length} enclave(s), ${next.campaigns.length} campaign(s)`
+     +(isReg&&o.meta.saved?` (file saved ${String(o.meta.saved).slice(0,10)})`:"")+". Scan data untouched.");
+ }catch(e){ S.campaigns=prev; try{renderCampaigns();}catch(_){}
+   alert("Registry load failed: "+e.message+" - previous enclaves and campaigns kept."); }
+ $("campIn").value="";
+}
+
+/* ---- rendering ------------------------------------------------------------------------- */
+let campView="plan", campScope="";   // campScope: "c:<id>" | "e:<id>" | "u" (unassigned) | ""
+function setCampView(v){ if(["plan","campaigns","attribution","scope"].includes(v)) campView=v; renderCampaigns(); }
+function setCampScope(v){ campScope=String(v||""); campView="scope"; renderCampaigns(); }
+function campaignOptions(sel){
+ return `<option value=""${!sel?" selected":""}>— none —</option>`
+  +S.campaigns.campaigns.filter(c=>c.status!=="complete").map(c=>
+    `<option value="${esc(c.id)}"${c.id===sel?" selected":""}>${esc(c.name)}${c.enclave?" · "+esc((enclaveById(c.enclave)||{}).name||""):""}</option>`).join("");
+}
+function stateLabel(st){return {overdue:["OVERDUE","bad"],never:["NEVER SCANNED","bad"],due:["DUE SOON","warn"],current:["CURRENT","ok"]}[st]||["",""];}
+function statusPill(c){return c.status==="complete"?'<span class="pill dim">complete</span>':c.status==="active"?'<span class="pill ok">active</span>':'<span class="pill warn">planned</span>';}
+function encName(id){const e=id?enclaveById(id):null; return e?e.name:"";}
+function renderCampaignBar(){
+ const el=$("campBar"); if(!el) return;
+ if(!campaignsInUse()){el.innerHTML="";return;}
+ const C=S.campaigns;
+ const un=S.filesLoaded.filter(f=>/^(nessus|csv|stig|demo)$/.test(f.type)&&!campaignOfFile(f.name)).length;
+ el.innerHTML=`<span>Loading into campaign:</span><select class="sel" data-change="setActiveCampaign">${campaignOptions(C.active)}</select>`
+  +(C.active?`<span>new files will be attributed to <b>${esc(encName((campById(C.active)||{}).enclave)||"the whole site")}</b> effort <b>${esc((campById(C.active)||{}).name||"")}</b></span>`
+            :`<span>new files will land <b>unattributed</b> — the Campaigns tab can attribute them later</span>`)
+  +(un?` <span class="pill warn">${un} file(s) unattributed</span><button class="small" data-click="gotoCampAttribution">Attribute…</button>`:"")
+  +`<span style="flex:1"></span><button class="small ghost" data-click="gotoTab" data-arg="campaigns">Campaigns tab</button>`;
+}
+function renderCampaigns(){
+ if(!$("campBody")) return;
+ if(!S.campaigns||!Array.isArray(S.campaigns.enclaves)) S.campaigns=emptyCampaigns();
+ campTouch();
+ const C=S.campaigns, idx=campIndex();
+ /* a scope that no longer exists (deleted, or the state was cleared) falls back to the chooser;
+    an empty tool goes back to the Plan view, which is where setup starts */
+ if(campScope&&!campScopeResolve(idx)) campScope="";
+ if(!campaignsInUse()&&!Object.keys(S.hosts).length){campView="plan";campScope="";}
+ $("campCtrl").textContent=ctrlHeader("campaigns");
+ const sel=$("campActive"); if(sel) sel.innerHTML=campaignOptions(C.active);
+ const statuses=C.enclaves.map(e=>enclaveStatus(e,idx));
+ const overdue=statuses.filter(r=>r.state==="overdue"||r.state==="never").length;
+ const missing=statuses.reduce((n,r)=>n+r.missing.length,0);
+ const unFiles=S.filesLoaded.filter(f=>/^(nessus|csv|stig|demo)$/.test(f.type)&&!campaignOfFile(f.name)).length;
+ const open=C.campaigns.filter(c=>c.status!=="complete").length;
+ $("campCards").innerHTML=card(C.enclaves.length,"enclaves")+card(open,"open campaigns")
+  +card(C.campaigns.length-open,"recorded efforts")
+  +card(overdue,"zones overdue / never scanned",overdue>0)
+  +card(missing,"expected assets never seen",missing>0)
+  +card(idx.unassigned.length,"hosts in no enclave",idx.unassigned.length>0&&C.enclaves.length>0)
+  +card(unFiles,"files unattributed",unFiles>0&&C.campaigns.length>0);
+ const views=[["plan","Plan"],["campaigns","Campaigns"],["attribution","Attribution"],["scope","Scope"]];
+ $("campViews").innerHTML=views.map(([k,l])=>
+   `<button class="${campView===k?"":"ghost"}" style="${campView===k?"background:var(--accent);color:#04222c;border-color:var(--accent);font-weight:650":""}" data-click="setCampView" data-arg="${k}">${l}</button>`).join("")
+   +(C.meta.saved?`<span class="spacer"></span><span class="hint" style="color:var(--dim);font-size:12px">registry last saved ${esc(C.meta.saved.slice(0,10))}</span>`:"");
+ let h="";
+ if(campView==="plan") h=renderCampPlan(idx,statuses);
+ else if(campView==="campaigns") h=renderCampList(idx);
+ else if(campView==="attribution") h=renderCampAttribution(idx);
+ else h=renderCampScope(idx);
+ /* the host filter lives inside the view it filters, so a keystroke re-renders the element that
+    has focus; put the caret back where it was */
+ const ae=document.activeElement, keep=ae&&ae.id==="campHostQ"?{pos:ae.selectionStart}:null;
+ $("campBody").innerHTML=h;
+ if(keep){const el=$("campHostQ"); if(el){el.focus(); try{el.setSelectionRange(keep.pos,keep.pos);}catch(_){}}}
+}
+function subnetSuggestHtml(sg){
+ if(!sg.subnets.length) return "";
+ return `<div class="panel"><h2>Subnets with no enclave</h2><p>Hosts were scanned in these ranges but no enclave claims them. Create one per range to start tracking it — the rule is pre-filled; add the owner and cadence.</p>
+  <div class="tablewrap" style="max-height:none"><table><tr><th>Range</th><th style="text-align:center">Hosts</th><th>Examples</th><th></th></tr>`
+  +sg.subnets.map(s=>`<tr><td class="mono">${esc(s.sub)}</td><td class="mono" style="text-align:center">${s.keys.length}</td>
+     <td style="font-size:12px;color:var(--dim)">${esc(s.keys.slice(0,4).map(k=>S.hosts[k].name).join(", "))}${s.keys.length>4?" …":""}</td>
+     <td><button class="small" data-click="newEnclaveFromSubnet" data-arg="${esc(s.sub)}">Create enclave</button></td></tr>`).join("")
+  +`</table></div></div>`;
+}
+function renderCampPlan(idx,statuses){
+ const C=S.campaigns, sg=campaignSuggestions(idx);
+ if(!C.enclaves.length){
+   return `<div class="panel"><h2>${C.campaigns.length?"No enclaves yet":"Nothing tracked yet"}</h2>
+    <p>Create an <b>enclave</b> for each zone you scan as a unit (Weather, Operations, HR …) with the IP ranges or hostname patterns that identify its hosts, who owns it, and how often it should be scanned. Then create a <b>campaign</b> for each scan effort, pick it under <b>loading into</b>, and drop your files. Or load the registry your team already keeps.</p>
+    <div class="bar-actions"><button class="primary" data-click="openEnclaveEditor">New enclave</button><button data-click="openCampaignEditor">New campaign</button><button data-click="pickFile" data-arg="campIn">Load registry</button></div></div>`
+    +subnetSuggestHtml(sg);
+ }
+ const order={overdue:0,never:1,due:2,current:3};
+ const rows=[...statuses].sort((a,b)=>order[a.state]-order[b.state]||b.missing.length-a.missing.length||a.e.name.localeCompare(b.e.name));
+ let h='<div class="encgrid">'+rows.map(r=>{
+   const [lbl,cls]=stateLabel(r.state), s=r.st;
+   return `<div class="enc"><div class="eh"><b>${esc(r.e.name)}</b><span class="pill ${cls}">${lbl}</span></div>
+    <div class="em">${r.e.owner?"Owner: <b style=\"color:var(--text)\">"+esc(r.e.owner)+"</b>"+(r.e.poc?" · "+esc(r.e.poc):""):"no owner recorded"}${r.e.desc?" — "+esc(r.e.desc):""}</div>
+    <div class="ek"><span><b>${s.hosts}</b> hosts seen</span><span>last scan <b>${esc(r.last||"never")}</b>${r.days!==null?" ("+r.days+"d ago)":""}</span><span>cadence <b>${r.cadence?r.cadence+"d":"—"}</b></span>${r.due?`<span>next due <b>${esc(r.due)}</b></span>`:""}</div>
+    ${r.expected.length
+      ?`<div class="cov" title="${r.expected.length-r.missing.length} of ${r.expected.length} expected assets seen"><i style="width:${r.coverage}%"></i></div>
+        <div class="em">coverage <b style="color:var(--text)">${r.coverage}%</b> — ${r.expected.length-r.missing.length} of ${r.expected.length} expected assets seen${r.missing.length?`; <span style="color:var(--bad)">missing: ${esc(r.missing.slice(0,5).join(", "))}${r.missing.length>5?" +"+(r.missing.length-5)+" more":""}</span>`:""}${r.unexpected.length?`; <span style="color:var(--warn)">${r.unexpected.length} not on the expected list</span>`:""}</div>`
+      :`<div class="em">no expected-asset list — coverage cannot be judged; add one in the enclave editor</div>`}
+    <div class="ek"><span style="${s.crit?"color:var(--bad)":""}"><b>${s.crit}</b> crit</span><span><b>${s.high}</b> high</span><span><b>${s.stigScore===null?"—":s.stigScore+"%"}</b> STIG</span><span><b>${s.hosts?Math.round(s.credChecks/s.hosts*100):0}%</b> credentialed</span>${s.overdue?`<span style="color:var(--bad)"><b>${s.overdue}</b> past window</span>`:""}${s.p1?`<span style="color:var(--bad)"><b>${s.p1}</b> P1</span>`:""}</div>
+    <div class="em">${r.open.length?`open effort: <b style="color:var(--text)">${esc(r.open.map(c=>c.name).join(", "))}</b>`:"no open campaign"}${r.recorded.length?` · ${r.recorded.length} recorded effort${r.recorded.length===1?"":"s"}`:""}</div>
+    <div class="ea"><button class="small" data-click="scopeEnclave" data-arg="${esc(r.e.id)}">View scope</button><button class="small" data-click="newCampaignFor" data-arg="${esc(r.e.id)}">New campaign</button><button class="small ghost" data-click="editEnclave" data-arg="${esc(r.e.id)}">Edit</button></div></div>`;}).join("");
+ if(idx.unassigned.length||!Object.keys(S.hosts).length)
+   h+=`<div class="enc" style="border-style:dashed"><div class="eh"><b style="color:var(--dim)">No enclave</b>${idx.unassigned.length?'<span class="pill warn">'+idx.unassigned.length+' hosts</span>':''}</div>
+     <div class="em">${!Object.keys(S.hosts).length?"No hosts loaded yet — the zones fill in as scans arrive.":idx.unassigned.length?"Scanned hosts no rule or campaign places in a zone. Attribute them, or widen an enclave's rules.":"Every loaded host resolves to an enclave."}</div>
+     <div class="ea"><button class="small" data-click="scopeUnassigned">View</button><button class="small ghost" data-click="gotoCampAttribution">Attribution view</button></div></div>`;
+ h+='</div>';
+ // what to scan next
+ h+=`<div class="panel"><h2>What to scan next</h2><p>Zones ordered by urgency: never scanned, then overdue against cadence, then due within a week, then current — and within that, by expected assets never seen.</p>
+  <div class="tablewrap" style="max-height:none"><table><tr><th>Enclave</th><th>Status</th><th>Last scan</th><th>Next due</th><th style="text-align:center">Hosts</th><th style="text-align:center">Missing</th><th>Open effort</th><th>Why it is on this list</th></tr>`
+  +rows.map(r=>{const [lbl,cls]=stateLabel(r.state);
+    return `<tr><td style="font-weight:600">${esc(r.e.name)}</td><td><span class="pill ${cls}">${lbl}</span></td>
+     <td class="mono">${esc(r.last||"—")}</td><td class="mono">${esc(r.due||"—")}</td>
+     <td class="mono" style="text-align:center">${r.st.hosts}</td>
+     <td class="mono" style="text-align:center;color:${r.missing.length?"var(--bad)":"var(--dim)"}">${r.missing.length||"·"}</td>
+     <td style="font-size:12px">${r.open.length?esc(r.open.map(c=>c.name).join(", ")):'<span style="color:var(--dim)">—</span>'}</td>
+     <td style="font-size:12px;color:var(--dim)">${esc(r.reasons.join("; ")||"nothing outstanding")}</td></tr>`;}).join("")
+  +`</table></div></div>`;
+ // recorded history
+ const hist=rows.filter(r=>r.recorded.length);
+ if(hist.length){
+   h+=`<div class="panel"><h2>Recorded efforts</h2><p>What each closed campaign found, as recorded when it closed. These snapshots live in the registry, so they survive after the session that produced them is gone.</p>
+    <div class="tablewrap" style="max-height:none"><table><tr><th>Enclave</th><th>Campaign</th><th>As of</th><th style="text-align:center">Hosts</th><th style="text-align:center">Crit</th><th style="text-align:center">High</th><th style="text-align:center">STIG</th><th style="text-align:center">Unsupp.</th><th>Movement</th></tr>`;
+   hist.forEach(r=>{let prev=null;
+     r.recorded.forEach(c=>{const s=c.results.stats||{};
+       const mv=prev?((s.crit||0)+(s.high||0))-((prev.crit||0)+(prev.high||0)):null;
+       h+=`<tr><td>${esc(r.e.name)}</td><td>${esc(c.name)}</td><td class="mono">${esc(c.results.taken)}</td>
+        <td class="mono" style="text-align:center">${c.results.hosts}</td>
+        <td class="mono" style="text-align:center;color:${s.crit?"var(--bad)":"var(--dim)"}">${s.crit||0}</td>
+        <td class="mono" style="text-align:center">${s.high||0}</td>
+        <td class="mono" style="text-align:center">${s.stigScore===null||s.stigScore===undefined?"—":s.stigScore+"%"}</td>
+        <td class="mono" style="text-align:center">${s.eol||0}</td>
+        <td class="mono">${mv===null?'<span style="color:var(--dim)">first recorded</span>':mv===0?'<span style="color:var(--dim)">crit+high unchanged</span>':`<span style="color:${mv<0?"var(--accent2)":"var(--bad)"}">crit+high ${mv>0?"+":""}${mv}</span>`}</td></tr>`;
+       prev=s;});
+     const live=r.st; const lastRec=r.recorded[r.recorded.length-1].results.stats||{};
+     if(live.hosts){const mv=(live.crit+live.high)-((lastRec.crit||0)+(lastRec.high||0));
+       h+=`<tr><td>${esc(r.e.name)}</td><td style="color:var(--dim)">(loaded now)</td><td class="mono">${esc(live.last||"—")}</td>
+        <td class="mono" style="text-align:center">${live.hosts}</td><td class="mono" style="text-align:center;color:${live.crit?"var(--bad)":"var(--dim)"}">${live.crit}</td>
+        <td class="mono" style="text-align:center">${live.high}</td><td class="mono" style="text-align:center">${live.stigScore===null?"—":live.stigScore+"%"}</td>
+        <td class="mono" style="text-align:center">${live.eol}</td>
+        <td class="mono">${mv===0?'<span style="color:var(--dim)">crit+high unchanged</span>':`<span style="color:${mv<0?"var(--accent2)":"var(--bad)"}">crit+high ${mv>0?"+":""}${mv} vs last recorded</span>`}</td></tr>`;}
+   });
+   h+=`</table></div></div>`;
+ }
+ if(sg.files.length||sg.hosts.length) h+=`<div class="panel"><h2>Suggestions waiting</h2><p>${sg.files.length} file(s) and ${sg.hosts.length} host(s) could be attributed by rule. Review them on the <b>Attribution</b> view, or apply them all.</p><div class="bar-actions"><button class="primary" data-click="applyCampaignSuggestions">Apply all suggestions</button><button data-click="gotoCampAttribution">Review first</button></div></div>`;
+ h+=subnetSuggestHtml(sg);
+ return h;
+}
+function renderCampList(idx){
+ const C=S.campaigns;
+ if(!C.campaigns.length) return `<div class="panel"><p style="color:var(--dim)">No campaigns yet. A campaign is one scan effort — create one, pick it under <b>loading into</b>, and drop files.</p><div class="bar-actions"><button class="primary" data-click="openCampaignEditor">New campaign</button></div></div>`;
+ const rank={active:0,planned:1,complete:2};
+ const list=[...C.campaigns].sort((a,b)=>rank[a.status]-rank[b.status]||String(b.start||b.created).localeCompare(String(a.start||a.created)));
+ let h=`<div class="tablewrap" style="max-height:none"><table><tr><th>Campaign</th><th>Target</th><th>Status</th><th>Planned window</th><th>Actual scans</th><th style="text-align:center">Files</th><th style="text-align:center">Hosts</th><th style="text-align:center">Crit</th><th style="text-align:center">High</th><th style="text-align:center">STIG</th><th style="text-align:center">Cred.</th><th>Results</th><th></th></tr>`;
+ list.forEach(c=>{
+   const L=campaignLive(c,idx), s=L.st||{}, isActive=C.active===c.id;
+   const when=c.status==="complete"&&c.results?{first:(c.results.stats||{}).first||"",last:c.results.taken}:L.dates;
+   h+=`<tr><td style="font-weight:600">${esc(c.name)}${isActive?' <span class="pill ok" title="files loaded now are attributed here">loading</span>':""}${c.objective?`<div style="color:var(--dim);font-size:11.5px;font-weight:400">${esc(c.objective)}</div>`:""}</td>
+    <td>${c.enclave?esc(encName(c.enclave)):'<span style="color:var(--dim)">whole site</span>'}</td>
+    <td>${statusPill(c)}</td>
+    <td class="mono" style="font-size:11.5px">${esc(c.start||"…")} → ${esc(c.end||"…")}</td>
+    <td class="mono" style="font-size:11.5px">${when.first&&when.last&&when.first!==when.last?esc(when.first)+" → "+esc(when.last):esc(when.last||when.first||"—")}</td>
+    <td class="mono" style="text-align:center">${(c.files||[]).length}</td>
+    <td class="mono" style="text-align:center">${L.frozen?c.results.hosts:L.keys.length}</td>
+    <td class="mono" style="text-align:center;color:${s.crit?"var(--bad)":"var(--dim)"}">${s.crit||0}</td>
+    <td class="mono" style="text-align:center">${s.high||0}</td>
+    <td class="mono" style="text-align:center">${s.stigScore===null||s.stigScore===undefined?"—":s.stigScore+"%"}</td>
+    <td class="mono" style="text-align:center">${s.hosts?Math.round((s.credChecks||0)/s.hosts*100)+"%":"—"}</td>
+    <td style="font-size:12px">${c.results?`<span class="pill ok" title="recorded ${esc(c.results.recorded.slice(0,10))}">recorded ${esc(c.results.taken)}</span>`:'<span style="color:var(--dim)">live</span>'}</td>
+    <td style="white-space:nowrap"><button class="small" data-click="scopeCampaign" data-arg="${esc(c.id)}">Scope</button> <button class="small ghost" data-click="editCampaign" data-arg="${esc(c.id)}">Edit</button> ${c.status==="complete"
+      ?`<button class="small ghost" data-click="reopenCampaign" data-arg="${esc(c.id)}">Reopen</button>`
+      :`${isActive?"":`<button class="small ghost" data-click="makeActiveCampaign" data-arg="${esc(c.id)}" title="files loaded from now on are attributed to this campaign">Load into</button> `}<button class="small ghost" data-click="recordCampaignResults" data-arg="${esc(c.id)}" title="snapshot the results so far without closing">Record</button> <button class="small" data-click="closeCampaign" data-arg="${esc(c.id)}">Close &amp; record</button>`}</td></tr>`;
+ });
+ h+=`</table></div><p style="color:var(--dim);font-size:12px;margin-top:8px">Crit / High / STIG are live for open campaigns and frozen at close for complete ones. <b>Record</b> snapshots an open effort without closing it; <b>Close &amp; record</b> freezes the result and takes the campaign off the loading list.</p>`;
+ return h;
+}
+function renderCampAttribution(idx){
+ const C=S.campaigns, sg=campaignSuggestions(idx);
+ const scanFiles=S.filesLoaded.filter(f=>/^(nessus|csv|stig|demo)$/.test(f.type));
+ let h="";
+ if(sg.files.length||sg.hosts.length){
+   h+=`<div class="panel" style="border-color:var(--ok-dim)"><h2>Suggested by rule</h2><p>What the enclave rules would do. Nothing is applied until you say so.</p><div class="tablewrap" style="max-height:none"><table><tr><th>Item</th><th>Suggestion</th><th>Because</th><th></th></tr>`
+    +sg.files.map(s=>`<tr><td class="mono" style="font-size:12px">${esc(s.file.name)}</td><td>${s.campaign?"attribute to <b>"+esc(s.campaign.name)+"</b>":"new campaign for <b>"+esc(s.enclave.name)+"</b>"}</td><td style="color:var(--dim);font-size:12px">${esc(s.why)}</td><td><button class="small" data-click="applyFileSuggestion" data-key="${esc(s.file.name)}">Apply</button></td></tr>`).join("")
+    +sg.hosts.map(s=>`<tr><td>${hostLink(s.hk)}</td><td>assign to <b>${esc(s.enclave.name)}</b></td><td style="color:var(--dim);font-size:12px">${esc(s.why)}</td><td><button class="small" data-click="applyHostSuggestion" data-key="${esc(s.hk)}">Apply</button></td></tr>`).join("")
+    +`</table></div><div class="bar-actions" style="margin-top:10px;margin-bottom:0"><button class="primary" data-click="applyCampaignSuggestions">Apply all</button></div></div>`;
+ }
+ h+=subnetSuggestHtml(sg);
+ // files
+ h+=`<div class="panel"><h2>Files</h2><p>Which campaign each loaded file belongs to. A file's hosts follow it; change the campaign here to move them.</p>`;
+ if(!scanFiles.length) h+=`<p style="color:var(--dim)">No scan or checklist files loaded.</p>`;
+ else h+=`<div class="tablewrap" style="max-height:none"><table><tr><th>File</th><th>Type</th><th style="text-align:center">Hosts</th><th>Campaign</th></tr>`
+   +scanFiles.map(f=>{const c=campaignOfFile(f.name);
+     return `<tr><td class="mono" style="font-size:12px">${esc(f.name)}</td><td>${esc(f.type)}</td><td class="mono" style="text-align:center">${fileHostKeys(f.name).length}</td>
+      <td><select class="sel" data-change="fileCampaignSet" data-key="${esc(f.name)}"><option value=""${c?"":" selected"}>— unattributed —</option>${C.campaigns.map(x=>`<option value="${esc(x.id)}"${c&&c.id===x.id?" selected":""}>${esc(x.name)}${x.status==="complete"?" (complete)":""}</option>`).join("")}</select></td></tr>`;}).join("")
+   +`</table></div>`;
+ h+=`</div>`;
+ // hosts
+ const q=(($("campHostQ")||{}).value||"").toLowerCase();
+ const keys=Object.keys(S.hosts).sort((a,b)=>S.hosts[a].name.localeCompare(S.hosts[b].name))
+   .filter(k=>!q||(S.hosts[k].name+" "+(S.hosts[k].ip||"")+" "+(S.hosts[k].os||"")+" "+encName((idx.hostEnc[k]||{}).id)).toLowerCase().includes(q));
+ h+=`<div class="panel"><h2>Hosts <input class="inp" id="campHostQ" placeholder="filter host / IP / OS / enclave" value="${esc(q)}" data-input="renderCampaigns" style="margin-left:10px;font-weight:400;min-width:240px"></h2>
+  <p>How each host resolves to an enclave, and which campaigns it sits in. <b>Enclave</b> follows the rules unless you set it by hand; a host whose campaign targets a different zone than its rules say is flagged for a decision.</p>`;
+ if(!keys.length) h+=`<p style="color:var(--dim)">${Object.keys(S.hosts).length?"No host matches the filter.":"No hosts loaded."}</p>`;
+ else{
+   h+=`<div class="tablewrap"><table><tr><th>Host</th><th>IP</th><th>Last seen</th><th>From files</th><th>Enclave</th><th>Set by hand</th><th>Campaigns</th></tr>`;
+   let shown=0;
+   for(const hk of keys){
+     if(++shown>500){h+=`<tr><td colspan="7" style="color:var(--dim)">… ${keys.length-500} more — narrow the filter.</td></tr>`;break;}
+     const hh=S.hosts[hk], r=idx.hostEnc[hk]||{id:"",via:""}, ov=own(C.hostMap,hk);
+     const files=[...new Set((hh.src||[]).map(x=>x.file).filter(Boolean))];
+     const cids=idx.byHost[hk]||[];
+     const via=r.via==="override"?'<span class="pill dim" title="set by hand on this view">by hand</span>':r.via==="rule"?`<span class="pill" title="${esc(r.hit||"")}">rule</span>`:r.via==="campaign"?'<span class="pill warn" title="only because a campaign targeting this enclave loaded it">via campaign</span>':"";
+     const dis=r.disagree&&r.disagree.length?` <span class="pill bad" title="the campaign that loaded this host targets ${esc(r.disagree.map(encName).join(", "))}">campaign says ${esc(r.disagree.map(encName).join(", "))}</span>`:"";
+     h+=`<tr><td>${hostLink(hk)}</td><td class="mono">${esc(hh.ip||"")}</td><td class="mono">${esc(hh.lastSeen||"")}</td>
+      <td style="font-size:11.5px;color:var(--dim)">${esc(files.slice(0,2).join(", "))}${files.length>2?" +"+(files.length-2):""}</td>
+      <td>${r.id?esc(encName(r.id)):'<span style="color:var(--dim)">—</span>'} ${via}${dis}</td>
+      <td><select class="sel" data-change="hostEnclaveSet" data-key="${esc(hk)}"><option value=""${!ov?" selected":""}>follow rules</option>${C.enclaves.map(e=>`<option value="${esc(e.id)}"${ov&&!ov.none&&ov.enclave===e.id?" selected":""}>${esc(e.name)}</option>`).join("")}<option value="none"${ov&&ov.none?" selected":""}>no enclave</option></select></td>
+      <td style="font-size:12px">${cids.map(id=>`<span class="pill" style="margin:1px">${esc((campById(id)||{}).name||"")} <span data-click="hostCampaignDrop" data-key="${esc(hk)}" data-arg="${esc(id)}" title="remove this host from the campaign" style="cursor:pointer;color:var(--bad)">&times;</span></span>`).join("")}
+       ${C.campaigns.some(c=>!cids.includes(c.id))?`<select class="sel" data-change="hostCampaignAdd" data-key="${esc(hk)}" style="font-size:11.5px;padding:2px 5px"><option value="">+ add to…</option>${C.campaigns.filter(c=>!cids.includes(c.id)).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>`:""}</td></tr>`;
+   }
+   h+=`</table></div>`;
+ }
+ h+=`</div>`;
+ return h;
+}
+function campScopeResolve(idx){
+ if(campScope==="u") return {kind:"u",label:"Hosts in no enclave",keys:idx.unassigned,obj:null};
+ const m=campScope.match(/^([ce]):(.+)$/);
+ if(m&&m[1]==="c"){const c=campById(m[2]); if(c) return {kind:"c",label:c.name,keys:idx.byCamp[c.id]||[],obj:c};}
+ if(m&&m[1]==="e"){const e=enclaveById(m[2]); if(e) return {kind:"e",label:e.name,keys:idx.byEnclave[e.id]||[],obj:e};}
+ return null;
+}
+function scopeSelectHtml(idx){
+ const C=S.campaigns;
+ return `<select class="sel" data-change="scopeSelect"><option value=""${!campScope?" selected":""}>— choose a campaign or enclave —</option>`
+  +(C.campaigns.length?`<optgroup label="Campaigns">${C.campaigns.map(c=>`<option value="c:${esc(c.id)}"${campScope==="c:"+c.id?" selected":""}>${esc(c.name)} (${(idx.byCamp[c.id]||[]).length})</option>`).join("")}</optgroup>`:"")
+  +(C.enclaves.length?`<optgroup label="Enclaves">${C.enclaves.map(e=>`<option value="e:${esc(e.id)}"${campScope==="e:"+e.id?" selected":""}>${esc(e.name)} (${(idx.byEnclave[e.id]||[]).length})</option>`).join("")}</optgroup>`:"")
+  +`<option value="u"${campScope==="u"?" selected":""}>Hosts in no enclave (${idx.unassigned.length})</option></select>`;
+}
+function renderCampScope(idx){
+ const sc=campScopeResolve(idx);
+ let h=`<div class="panel"><h2>Scope</h2><div class="bar-actions" style="margin-bottom:6px">${scopeSelectHtml(idx)}${sc?`<button data-click="exportCampaignScope">Export scope .csv</button>`:""}</div>
+  <p>Only the hosts in the chosen campaign or enclave, with their posture. The other tabs still show the whole dataset — this is a lens, not a filter.</p></div>`;
+ if(!sc) return h;
+ const keys=sc.keys, st=scopeStats(keys), set=new Set(keys);
+ const frozen=sc.kind==="c"&&sc.obj.status==="complete"&&sc.obj.results;
+ h+=`<div class="cards">`+card(keys.length,"hosts in scope")+card(st.hosts?Math.round(st.credChecks/st.hosts*100)+"%":"—","credentialed",st.hosts>0&&st.credChecks<st.hosts)
+  +card(st.crit,"critical",st.crit>0)+card(st.high,"high",st.high>0)+card(st.overdue,"past remediation window",st.overdue>0)
+  +card(st.stigScore===null?"—":st.stigScore+"%","STIG score")+card(st.catI,"CAT I open",st.catI>0)+card(st.eol,"unsupported",st.eol>0)
+  +(st.p1!==null?card(st.p1,"P1 intel vulns",st.p1>0):"")+card(st.ports,"ports registered")+card(st.software,"software products")+`</div>`;
+ if(sc.kind==="c"){const c=sc.obj, d=campaignDates(c,keys);
+   h+=`<div class="panel"><h2>${esc(c.name)} ${statusPill(c)}</h2><p>${c.enclave?"Targets <b>"+esc(encName(c.enclave))+"</b>":"Site-wide effort"}${c.owner?" · led by "+esc(c.owner):""}${c.objective?" · "+esc(c.objective):""}. Planned ${esc(c.start||"…")} → ${esc(c.end||"…")}; scans actually dated ${esc(d.first||"—")}${d.last&&d.last!==d.first?" → "+esc(d.last):""}. Files: ${(c.files||[]).length?esc((c.files||[]).join(", ")):"none"}.</p>
+    ${frozen?`<p style="color:var(--warn);font-size:12.5px">Results were recorded ${esc(c.results.recorded.slice(0,10))} for ${c.results.hosts} host(s) as of ${esc(c.results.taken)}. The figures above are computed from what is loaded now; the recorded snapshot is what the Plan view and the campaign log carry.</p>`:""}</div>`;}
+ if(sc.kind==="e"){const e=sc.obj, r=enclaveStatus(e,idx), [lbl,cls]=stateLabel(r.state);
+   h+=`<div class="panel"><h2>${esc(e.name)} <span class="pill ${cls}">${lbl}</span></h2><p>${e.owner?"Owner <b>"+esc(e.owner)+"</b>"+(e.poc?" ("+esc(e.poc)+")":""):"No owner recorded"}. Last scan ${esc(r.last||"never")}${r.due?", next due "+esc(r.due):""}. Rules: ${esc([...(e.cidrs||[]),...(e.hostPatterns||[])].join(", ")||"none — hosts reach this enclave only by hand or via a campaign")}.</p>
+    ${r.missing.length?`<p style="color:var(--bad);font-size:12.5px"><b>Expected but never seen:</b> ${esc(r.missing.join(", "))}</p>`:""}${r.unexpected.length?`<p style="color:var(--warn);font-size:12.5px"><b>Seen but not on the expected list:</b> ${esc(r.unexpected.map(k=>S.hosts[k].name).join(", "))}</p>`:""}</div>`;}
+ if(!keys.length) return h+`<div class="panel"><p style="color:var(--dim)">No hosts in this scope${sc.kind==="c"?" — attribute files or add hosts on the Attribution view":""}.</p></div>`;
+ // hosts
+ const byHost=Object.create(null); vulnByHost().forEach(r=>{byHost[r.hk]=r.c;});
+ const stigBy=Object.create(null); stigResultRows().forEach(r=>{if(!set.has(r.hk))return; const t=stigBy[r.hk]||(stigBy[r.hk]={a:0,p:0,cat:0}); t.a+=r.c.Open+r.c.NotAFinding; t.p+=r.c.NotAFinding; t.cat+=r.c.catOpen.high;});
+ h+=`<div class="panel"><h2>Hosts (${keys.length})</h2><div class="tablewrap"><table><tr><th>Host</th><th>IP</th><th>OS</th><th>Last seen</th><th style="text-align:center">Cred.</th><th style="text-align:center">Crit</th><th style="text-align:center">High</th><th style="text-align:center">Med</th><th style="text-align:center">STIG</th><th style="text-align:center">CAT I</th><th>Enclave</th><th>Campaigns</th></tr>`;
+ keys.slice(0,600).forEach(hk=>{const hh=S.hosts[hk], c=byHost[hk]||emptyCounts(), sg=stigBy[hk];
+   h+=`<tr${scanCredOk(hh)?"":' class="uncred"'}><td>${hostLink(hk)}</td><td class="mono">${esc(hh.ip||"")}</td><td style="font-size:12px">${esc(hh.os||"")}</td><td class="mono">${esc(hh.lastSeen||"")}</td>
+    <td style="text-align:center">${scanCredOk(hh)?'<span style="color:var(--accent2)">yes</span>':'<span style="color:var(--bad)">no</span>'}</td>
+    <td class="mono" style="text-align:center;color:${c[4]?"var(--bad)":"var(--dim)"}">${c[4]||"·"}</td><td class="mono" style="text-align:center">${c[3]||"·"}</td><td class="mono" style="text-align:center">${c[2]||"·"}</td>
+    <td class="mono" style="text-align:center">${sg&&sg.a?Math.round(sg.p/sg.a*100)+"%":"—"}</td><td class="mono" style="text-align:center;color:${sg&&sg.cat?"var(--bad)":"var(--dim)"}">${sg&&sg.cat?sg.cat:"·"}</td>
+    <td style="font-size:12px">${esc(encName((idx.hostEnc[hk]||{}).id))||'<span style="color:var(--dim)">—</span>'}</td>
+    <td style="font-size:11.5px;color:var(--dim)">${esc((idx.byHost[hk]||[]).map(id=>(campById(id)||{}).name).filter(Boolean).join(", "))}</td></tr>`;});
+ if(keys.length>600) h+=`<tr><td colspan="12" style="color:var(--dim)">… ${keys.length-600} more — the scope export carries every host.</td></tr>`;
+ h+=`</table></div></div>`;
+ // top actions
+ const inst=vulnInstances().filter(i=>set.has(i.hk));
+ if(inst.length){const plan=remediationPlan(inst).slice(0,8);
+   h+=`<div class="panel"><h2>Top remediation actions in this scope</h2><div class="tablewrap" style="max-height:none"><table><tr><th style="text-align:center">#</th><th>Action</th><th style="text-align:center">Crit</th><th style="text-align:center">High</th><th style="text-align:center">Total</th><th style="text-align:center">Hosts</th><th style="text-align:center">Exploit</th><th style="text-align:center">Overdue</th></tr>`
+    +plan.map((p,i)=>`<tr><td class="mono" style="text-align:center;color:var(--dim)">${i+1}</td><td style="font-weight:600">${esc(p.action)}</td><td class="mono" style="text-align:center;color:${p.c[4]?"var(--bad)":"var(--dim)"}">${p.c[4]||"·"}</td><td class="mono" style="text-align:center">${p.c[3]||"·"}</td><td class="mono" style="text-align:center">${p.c.total}</td><td class="mono" style="text-align:center">${p.hostCount}</td><td class="mono" style="text-align:center">${p.c.expl||"·"}</td><td class="mono" style="text-align:center;color:${p.c.overdue?"var(--bad)":"var(--dim)"}">${p.c.overdue||"·"}</td></tr>`).join("")
+    +`</table></div><p style="color:var(--dim);font-size:12px;margin-top:8px">The same grouping the Vulnerabilities tab uses, over these hosts only. Open a host for its full list.</p></div>`;}
+ return h;
+}
+
+/* ---- exports ---------------------------------------------------------------------------- */
+function exportEnclaveStatus(){
+ const idx=campIndex();
+ const rows=[[S.settings.banner],["Enclave Status",today()],[ctrlHeader("campaigns")],
+   ["One row per enclave. Last scan is the newest scan date among the hosts that resolve to the zone, or the newest recorded campaign result, whichever is later. Coverage is judged against the enclave's expected-asset list."],[],
+   ["Enclave","Owner","POC","Cadence (days)","Last Scan","Days Since","Status","Next Due","Hosts Seen","Expected","Missing Count","Missing Assets","Not On Expected List","Coverage %",
+    "Credentialed %","Critical","High","Medium","Low","Exploitable","Past Window","STIG Score %","CAT I Open","STIG Open","Unsupported","P1 Intel","Open Campaigns","Recorded Efforts","Rules","Notes"]];
+ const sts=S.campaigns.enclaves.map(e=>enclaveStatus(e,idx));
+ sts.forEach(r=>{const s=r.st;
+   rows.push([r.e.name,r.e.owner,r.e.poc,r.cadence||"",r.last,r.days===null?"":r.days,stateLabel(r.state)[0],r.due,s.hosts,r.expected.length,r.missing.length,r.missing.join("; "),
+     r.unexpected.map(k=>S.hosts[k].name).join("; "),r.coverage===null?"":r.coverage,s.hosts?Math.round(s.credChecks/s.hosts*100):"",
+     s.crit,s.high,s.med,s.low,s.exploitable,s.overdue,s.stigScore===null?"":s.stigScore,s.catI,s.stigOpen,s.eol,s.p1===null?"":s.p1,
+     r.open.map(c=>c.name).join("; "),r.recorded.length,[...(r.e.cidrs||[]),...(r.e.hostPatterns||[])].join("; "),r.e.notes]);});
+ if(idx.unassigned.length){const s=scopeStats(idx.unassigned);
+   rows.push(["(no enclave)","","","",s.last,"","UNASSIGNED","",s.hosts,"","","","","",s.hosts?Math.round(s.credChecks/s.hosts*100):"",
+     s.crit,s.high,s.med,s.low,s.exploitable,s.overdue,s.stigScore===null?"":s.stigScore,s.catI,s.stigOpen,s.eol,s.p1===null?"":s.p1,"","","","hosts no rule or campaign places in a zone"]);}
+ if(!sts.length&&!idx.unassigned.length) rows.push(["No enclaves defined"]);
+ rows.push([]);rows.push([S.settings.banner]);
+ dl(`Enclave_Status_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ status(`Exported ${sts.length} enclave row(s)${idx.unassigned.length?" plus the unassigned hosts":""}.`);
+}
+function exportCampaignLog(){
+ const idx=campIndex();
+ const rows=[[S.settings.banner],["Campaign Log",today()],[ctrlHeader("campaigns")],
+   ["One row per scan effort. Figures for complete campaigns are the results recorded at close; open campaigns are computed from what is loaded now."],[],
+   ["Campaign","Target Enclave","Status","Owner","Objective","Planned Start","Planned End","First Scan","Last Scan","Files","File Names","Hosts","Credentialed %",
+    "Critical","High","Medium","Low","Exploitable","Past Window","STIG Score %","CAT I Open","Unsupported","Results Recorded","Closed","Notes"]];
+ const list=[...S.campaigns.campaigns].sort((a,b)=>String(a.start||a.created).localeCompare(String(b.start||b.created)));
+ list.forEach(c=>{const L=campaignLive(c,idx), s=L.st||{};
+   const first=L.frozen?((c.results.stats||{}).first||""):L.dates.first, last=L.frozen?c.results.taken:L.dates.last;
+   rows.push([c.name,encName(c.enclave)||"(whole site)",c.status,c.owner,c.objective,c.start,c.end,first,last,(c.files||[]).length,(c.files||[]).join("; "),
+     L.frozen?c.results.hosts:L.keys.length,s.hosts?Math.round((s.credChecks||0)/s.hosts*100):"",
+     s.crit||0,s.high||0,s.med||0,s.low||0,s.exploitable||0,s.overdue||0,s.stigScore===null||s.stigScore===undefined?"":s.stigScore,s.catI||0,s.eol||0,
+     c.results?c.results.recorded.slice(0,10):"",c.closed?c.closed.slice(0,10):"",c.notes]);});
+ if(!list.length) rows.push(["No campaigns defined"]);
+ rows.push([]);rows.push([S.settings.banner]);
+ dl(`Campaign_Log_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ status(`Exported ${list.length} campaign(s).`);
+}
+function exportCampaignScope(){
+ const idx=campIndex(); let sc=campScopeResolve(idx);
+ if(!sc){ if(S.campaigns.active){campScope="c:"+S.campaigns.active; sc=campScopeResolve(idx);} }
+ if(!sc){alert("Choose a campaign or enclave on the Scope view first.");return;}
+ const set=new Set(sc.keys), byHost=Object.create(null); vulnByHost().forEach(r=>{byHost[r.hk]=r.c;});
+ const stigBy=Object.create(null); stigResultRows().forEach(r=>{if(!set.has(r.hk))return; const t=stigBy[r.hk]||(stigBy[r.hk]={a:0,p:0,cat:0}); t.a+=r.c.Open+r.c.NotAFinding; t.p+=r.c.NotAFinding; t.cat+=r.c.catOpen.high;});
+ const rows=[[S.settings.banner],["Campaign Scope — "+sc.label,today()],[ctrlHeader("campaigns")],[],
+   ["Host","IP","Operating System","Last Seen","Credentialed","Enclave","Resolved By","Campaigns","Files","Critical","High","Medium","Low","Total","Exploitable","Past Window","STIG Score %","CAT I Open"]];
+ sc.keys.forEach(hk=>{const hh=S.hosts[hk], c=byHost[hk]||emptyCounts(), sg=stigBy[hk], r=idx.hostEnc[hk]||{};
+   rows.push([hh.name,hh.ip||"",hh.os||"",hh.lastSeen||"",scanCredOk(hh)?"yes":"no",encName(r.id),r.via||"",
+     (idx.byHost[hk]||[]).map(id=>(campById(id)||{}).name).filter(Boolean).join("; "),
+     [...new Set((hh.src||[]).map(x=>x.file).filter(Boolean))].join("; "),
+     c[4],c[3],c[2],c[1],c.total,c.expl,c.overdue,sg&&sg.a?Math.round(sg.p/sg.a*100):"",sg?sg.cat:""]);});
+ if(!sc.keys.length) rows.push(["No hosts in scope"]);
+ rows.push([]);rows.push([S.settings.banner]);
+ dl(`Campaign_Scope_${sc.label.replace(/[^A-Za-z0-9_-]+/g,"_").slice(0,60)}_${today()}.csv`,rows.map(r=>r.map(csvq).join(",")).join("\n"),"text/csv");
+ status(`Exported ${sc.keys.length} host(s) in scope "${sc.label}".`);
+}
+
+/* ---- demo: two zones, one open site-wide effort, one recorded effort from a prior cycle --- */
+function demoCampaigns(){
+ const C=S.campaigns, now=campNow();
+ C.enclaves.push(
+  {id:"e-demo-ops",name:"HQ Operations",desc:"Server enclave in Bldg 2 — domain services, application and database hosts",
+   owner:"Ops ISSO",poc:"ops-isso (demo)",cadence:30,cidrs:["203.0.113.0/24"],hostPatterns:["re:^(SVR|LNX)-"],filePatterns:["ops_","operations"],
+   expected:["SVR-DC01","SVR-APP02","LNX-DB01","SVR-FILE03"],
+   notes:"SVR-FILE03 is on the expected list but has never appeared in a scan - the coverage gap the Plan view exists to catch.",created:now,updated:now},
+  {id:"e-demo-eng",name:"Engineering Workstations",desc:"User endpoints and field laptops",
+   owner:"Engineering ISSO",poc:"eng-isso (demo)",cadence:35,cidrs:["198.51.100.0/24"],hostPatterns:["re:^(WKSTN|LT)-"],filePatterns:["eng_","workstations"],
+   expected:["WKSTN-001","WKSTN-002","LT-1007"],notes:"",created:now,updated:now});
+ C.campaigns.push(
+  {id:"c-demo-jul",name:"Jul 2026 credentialed sweep",enclave:"",status:"active",owner:"Ops ISSO",
+   objective:"Full-site credentialed scan ahead of the Q4 assessment",start:"2026-07-28",end:"2026-08-01",notes:"",
+   files:["(demo dataset)"],hosts:[],excluded:[],results:null,created:now,updated:now,closed:""},
+  {id:"c-demo-apr",name:"Apr 2026 Engineering baseline",enclave:"e-demo-eng",status:"complete",owner:"Engineering ISSO",
+   objective:"Establish the endpoint baseline before the summer refresh",start:"2026-04-20",end:"2026-04-30",
+   notes:"Recorded from the April session; its hosts are no longer in memory, only the result.",
+   files:["eng_apr2026.nessus"],hosts:[],excluded:[],created:"2026-04-20T09:00:00.000Z",updated:"2026-04-30T16:00:00.000Z",closed:"2026-04-30T16:00:00.000Z",
+   results:{taken:"2026-04-28",recorded:"2026-04-30T16:00:00.000Z",hosts:3,hostNames:["LT-1007","WKSTN-001","WKSTN-002"],files:["eng_apr2026.nessus"],
+     stats:{hosts:3,cred:3,credChecks:3,crit:3,high:4,med:5,low:2,findings:14,overdue:5,exploitable:2,first:"2026-04-27",last:"2026-04-28",
+       stigOpen:0,catI:0,notReviewed:0,stigScore:null,stigAssessed:0,software:21,eol:1,swUnreviewed:9,ports:6,dormantAccts:1,p1:null}}});
+ C.active=""; campTouch();
 }
 
 /* =========================================================================
@@ -7306,6 +8374,17 @@ const HELP = {
      "Work down the readiness checklist until the amber warnings clear.",
      "Click <b>Export all artifacts</b> to produce every deliverable, date-stamped and marking-banner stamped."],
    proves:"The readiness panel is your pre-delivery QC. Green means the evidence is internally complete; amber flags something a reviewer will ask about before you deliver."},
+ campaigns:{name:"Campaigns & Enclaves",
+   lead:"Tracks which zones of the network have been scanned, when, by which effort, and what is due next. It is a lens over the loaded evidence — nothing you do here changes a number on any other tab.",
+   steps:[
+     "Create an <b>enclave</b> per zone you scan as a unit (Weather, Operations, HR …). Give it an owner, a scan cadence, and the rules that recognize its hosts: IP ranges, hostname patterns, or file-name patterns. Add the <b>expected-asset list</b> if you have one — coverage is judged against it, and it should come from outside the scan data.",
+     "Create a <b>campaign</b> for each scan effort and pick it under <b>loading into</b> (here or on the Overview tab) before you drop files. Everything that arrives is attributed to it. Forgot? The <b>Attribution</b> view shows what the rules suggest for every file and host — accept, override, or exclude, as often as you like.",
+     "Read the <b>Plan</b> view: each enclave shows its last scan, cadence status, expected assets never seen, and posture. <b>What to scan next</b> orders the zones by urgency.",
+     "Use <b>Scope</b> to see just the hosts of one campaign or enclave, with their posture and the top remediation actions for that zone alone.",
+     "When an effort is done, <b>Close &amp; record</b> it. The results snapshot stays in the registry after that session's hosts are gone, so next cycle still shows what the last effort found.",
+     "<b>Save the registry</b> (Registry menu) and keep it on the team share beside your session files. Load it next cycle — or load a teammate's and the two merge by id."],
+   proves:"Scan coverage by enclave and the cadence evidence behind continuous monitoring (RA-5, RA-5(1), CA-7): which zones were assessed, when, by which effort, and which expected assets never appeared.",
+   warn:"The registry carries enclave definitions, expected host names, and the host lists of recorded efforts. Handle it like a session file — a working document for the team, not a deliverable — and keep it out of any repository."},
  stig:{name:"STIG Applicability",
    lead:"Shows which security configuration baselines (STIGs) apply to each host, inferred from the operating system and installed software the scan found.",
    steps:[
@@ -7456,7 +8535,7 @@ const HELP = {
      "<b>Apply config</b> re-runs detection immediately; your manual STIG overrides survive it. <b>Save environment profile</b> to share your tuned rules."],
    proves:"Keeps the tool current for your environment without shipping new code."}
 };
-const HELP_ORDER=["overview","stig","software","ppsm","assets","eol","intel","vulns","accounts","stigcompliance","scanhealth","delta","trend","recon","reports","settings","controls","config"];
+const HELP_ORDER=["overview","stig","software","ppsm","assets","eol","intel","vulns","accounts","stigcompliance","scanhealth","campaigns","delta","trend","recon","reports","settings","controls","config"];
 
 let helpOpen=false, helpTopic="overview";
 function currentTab(){const p=document.querySelector(".tabpane.active");return p?p.id.replace("pane-",""):"overview";}
@@ -7523,7 +8602,12 @@ const GLOSSARY=[
  ["CAT I / II / III","STIG severity categories","CAT I is the most severe (high), CAT II medium, CAT III low. CAT I open findings are the ones that hold up an authorization."],
  ["Plugin 19506","Nessus Scan Information","The plugin that reports a scan's own provenance — policy, feed version, start time, and whether credentialed checks succeeded. The Scan Health tab is built on it."],
  ["Remediation window","Time allowed to fix a finding","How long a finding of a given severity may remain open before it is overdue. Varies by organization and tasking; set yours in Detection Config under slaDays."],
- ["Dormant account","Enabled but unused account","An account that exists and is enabled but has never logged on (or not recently). A standard finding — disable it or document why it must remain."]
+ ["Dormant account","Enabled but unused account","An account that exists and is enabled but has never logged on (or not recently). A standard finding — disable it or document why it must remain."],
+ ["Enclave (zone)","A part of the network scanned as a unit","Weather, Operations, HR — however your site divides its scanning. Defined on the Campaigns tab by owner, scan cadence, and the rules (IP ranges, hostname patterns) that recognize its hosts, so coverage and last-scan dates can be reported per zone."],
+ ["Campaign","One scan effort","A named scanning effort against an enclave (or the whole site) with a planned window, a status, and the files and hosts attributed to it. Closing a campaign records what it found, so the registry keeps the history after the session is gone."],
+ ["Campaign registry","The scan-tracking database","A small JSON sidecar holding enclaves, campaigns, recorded results, and attribution overrides — no scan payloads. Saved and loaded from the Campaigns tab; two teammates' registries merge by id. Handle it as a working file, like a session."],
+ ["Attribution","Which campaign a file or host belongs to","Files are attributed to the campaign selected under “loading into” when they arrive; hosts follow their files, then the enclave rules, with per-host overrides. All of it is reversible on the Attribution view and none of it changes any other tab."],
+ ["Scan cadence","How often a zone should be scanned","Set per enclave, in days. The Plan view compares it with the last scan date to mark a zone current, due soon, overdue, or never scanned — the “what to scan next” list."]
 ];
 let glossOpen=false;
 function openGlossary(){glossOpen=true;$("glossSheet").classList.add("open");$("glossBackdrop").classList.add("show");
@@ -7666,7 +8750,11 @@ function loadDemoData(){
    for(const p of d.ports) addPort(h,p[0],p[1],p[2]||"","demo: "+(p[2]||"port "+p[1]));
    if(d.cred && d.sw.length) addSoftware(h, d.sw.join("\n"));
    h.blob+="\n"+d.os;
+   // the same provenance record a real .nessus leaves, so the demo campaign can attribute by file
+   (h.src=h.src||[]);
+   if(!h.src.some(x=>x.file==="(demo dataset)")) h.src.push({file:"(demo dataset)",ip:d.ip,mac:d.mac,os:d.os,name:d.key,seen:d.seen});
  }
+ if(!campaignsInUse()) demoCampaigns();
  // scan provenance so Scan Health populates (one host deliberately uncredentialed)
  DEMO.forEach(d=>{
    const hh=getHost(d.key);
@@ -7803,7 +8891,7 @@ document.addEventListener("securitypolicyviolation",e=>{
        binding cannot double-dispatch.
    Arguments arrive as data-* attributes and are therefore ALWAYS strings: anything numeric or
    boolean is coerced explicitly below ("false" is truthy). ========================================= */
-const FILE_INPUTS=new Set(["fileIn","sessIn","profIn","apprIn","baseIn","listIn","intelIn","trendIn"]);
+const FILE_INPUTS=new Set(["fileIn","sessIn","profIn","apprIn","baseIn","listIn","intelIn","trendIn","campIn"]);
 const BANNERS=new Set(["UNCLASSIFIED","CUI","UNCLASSIFIED//CUI","UNCLASSIFIED//FOUO"]);
 const PPSM_FIELDS=new Set(["include","svc","app","srcIp","dstIp","notes"]);
 const STIG_FIELDS=new Set(["device","comments"]);
@@ -7855,6 +8943,36 @@ const ACTIONS=Object.freeze({
  saveProfile:()=>saveProfile(), saveRptPreset:()=>saveRptPreset(), saveSession:()=>saveSession(),
  seedInventoryFromAssets:()=>seedInventoryFromAssets(), setBaselineFromCurrent:()=>setBaselineFromCurrent(),
  toggleColumnManager:()=>toggleColumnManager(),
+
+ /* --- campaigns & enclaves. Ids are validated by lookup (campById / enclaveById are array
+        .find()s, so a hostile id resolves to nothing); file names are checked against the
+        loaded list and host keys against S.hosts before any write. --- */
+ openCampaignEditor:()=>openCampaignEditor(), openEnclaveEditor:()=>openEnclaveEditor(),
+ saveCampaignEditor:()=>saveCampaignEditor(), deleteFromEditor:()=>deleteFromEditor(),
+ saveCampaignRegistry:()=>saveCampaignRegistry(), exportEnclaveStatus:()=>exportEnclaveStatus(),
+ exportCampaignLog:()=>exportCampaignLog(), exportCampaignScope:()=>exportCampaignScope(),
+ applyCampaignSuggestions:()=>applyCampaignSuggestions(), renderCampaigns:()=>renderCampaigns(),
+ gotoCampAttribution:()=>{ gotoTab("campaigns"); setCampView("attribution"); },
+ scopeUnassigned:()=>setCampScope("u"),
+ setActiveCampaign:el=>setActiveCampaign(el.value),
+ makeActiveCampaign:el=>setActiveCampaign(el.dataset.arg),
+ setCampView:el=>setCampView(el.dataset.arg),
+ scopeSelect:el=>setCampScope(el.value),
+ scopeCampaign:el=>{ if(campById(el.dataset.arg)) setCampScope("c:"+el.dataset.arg); },
+ scopeEnclave:el=>{ if(enclaveById(el.dataset.arg)) setCampScope("e:"+el.dataset.arg); },
+ editCampaign:el=>{ if(campById(el.dataset.arg)) openCampaignEditor(el.dataset.arg); },
+ editEnclave:el=>{ if(enclaveById(el.dataset.arg)) openEnclaveEditor(el.dataset.arg); },
+ newCampaignFor:el=>{ if(enclaveById(el.dataset.arg)) openCampaignEditor(null,el.dataset.arg); },
+ newEnclaveFromSubnet:el=>{ const s=el.dataset.arg;
+   if(/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(s)) openEnclaveEditor(null,{cidrs:[s],name:""}); },
+ closeCampaign:el=>closeCampaign(el.dataset.arg), reopenCampaign:el=>reopenCampaign(el.dataset.arg),
+ recordCampaignResults:el=>recordCampaignResults(el.dataset.arg),
+ fileCampaignSet:el=>assignFileToCampaign(el.dataset.key,el.value),
+ applyFileSuggestion:el=>applyFileSuggestion(el.dataset.key),
+ applyHostSuggestion:el=>{ if(hasOwn(S.hosts,el.dataset.key)) applyHostSuggestion(el.dataset.key); },
+ hostEnclaveSet:el=>setHostEnclaveOverride(el.dataset.key,el.value),
+ hostCampaignAdd:el=>{ if(el.value) hostCampaignAdd(el.dataset.key,el.value); },
+ hostCampaignDrop:el=>hostCampaignDrop(el.dataset.key,el.dataset.arg),
 
  /* --- verbs taking one literal argument --- */
  /* HELP["__proto__"] is truthy, so openHelp's own `if(!HELP[t])` fallback does not catch it and

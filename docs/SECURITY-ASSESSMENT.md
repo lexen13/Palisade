@@ -156,6 +156,8 @@ Two rows need a sentence each rather than a bare zero, because a naive grep woul
   of the seven places the tool reads JSON from a file or a text box goes through `safeParse()`,
   which strips `__proto__` at the boundary (§5.2). Check with
   `grep -n 'JSON.parse(' palisade.html` and read the eleven lines; it takes a minute.
+  *(2.9 adds an eighth, the campaign registry loader; it calls the same `safeParse()` and adds
+  no `JSON.parse`, so the count and the check are unchanged.)*
 - **`.swf` matches twice under `grep -i`** and zero times without it. Both hits are `.swF`
   inside `S.settings.swFiscalYear`. There is no Flash in this file; there is a field called
   "SW Fiscal Year". This is disclosed rather than quietly suppressed because a reviewer running
@@ -356,7 +358,8 @@ hardened  : Object.prototype own props 12 before, 12 after;  polluted keys []
 **What changed.** One choke point rather than twenty-five guards: `safeParse()`, a `JSON.parse`
 reviver that drops any `__proto__` key, routed at all seven places the tool reads untrusted JSON
 (session, baseline, profile, trend ingest, approvals import, the detection-config box, the
-`.cklb` sniff). Zero raw `JSON.parse` on file or user input now remains (§3.2). This was chosen
+`.cklb` sniff — and, from 2.9, the campaign registry, which makes eight). Zero raw `JSON.parse`
+on file or user input now remains (§3.2). This was chosen
 over guarding each `for..in` because it is one reviewable line that a future renderer cannot
 forget to apply.
 

@@ -1,8 +1,8 @@
-PALISADE BASELINE  2026-09-11T19:11:45.325Z
+PALISADE BASELINE  2026-10-15T23:27:35.565Z
 url:      file://<repo>/palisade.html   (absolute path redacted; this file is published)
-captured against: palisade.html v2.8, 521771 bytes,
-                  sha256 fd2f80e9da6b29bb8d1a0b19330bfe007ffe7361d3c1d83b358ced8136befa97
-chromium: Chrome/150.0.7871.181
+captured against: palisade.html v2.9, 616429 bytes,
+                  sha256 8560c5821228b2638c05eb8dd4270b96a360bfdd7a9d36208dc81f96cfaca9fe
+chromium: Chrome/141.0.7390.37
 extraFlags: (none)
 
 NOT GATED by baseline/check-frozen.mjs, and therefore free to drift: the
@@ -32,7 +32,7 @@ demoLoadError: none
 hosts: 6   intelRows: 6   listingFiles: 1
 meter: 21% (6 of 28 checks pass)
 core table <tr> counts: ppsm=19 stig=8 sw=24 asset=9
-report iframe srcdoc length: 22818  note="4 section(s) requested · built in 9 ms"
+report iframe srcdoc length: 22818  note="4 section(s) requested · built in 3 ms"
 
 console errors: 0
 cdp exceptions: 0
@@ -53,6 +53,7 @@ tab walk (newErrors per tab):
   intel            -> pane-intel  err+0
   accounts         -> pane-accounts  err+0
   eol              -> pane-eol  err+0
+  campaigns        -> pane-campaigns  err+0
   delta            -> pane-delta  err+0
   trend            -> pane-trend  err+0
   recon            -> pane-recon  err+0
@@ -60,7 +61,7 @@ tab walk (newErrors per tab):
   controls         -> pane-controls  err+0
   config           -> pane-config  err+0
 
-populated containers (26):
+populated containers (30):
   ppsmTable  rows=19 children=1 textLen=1570
   stigTable  rows=8 children=1 textLen=867
   swTable  rows=24 children=1 textLen=3082
@@ -84,6 +85,10 @@ populated containers (26):
   deltaBody  rows=0 children=1 textLen=147
   readyBody  rows=0 children=28 textLen=3633
   eolBody  rows=4 children=1 textLen=430
-  controlsBody  rows=0 children=14 textLen=2583
+  controlsBody  rows=0 children=15 textLen=2828
   settingsGrid  rows=0 children=12 textLen=160
   boundaryGrid  rows=0 children=16 textLen=528
+  campCards  rows=0 children=7 textLen=137
+  campViews  rows=0 children=4 textLen=29
+  campBody  rows=6 children=3 textLen=1812
+  campBar  rows=0 children=5 textLen=147
