@@ -484,7 +484,10 @@ exports is a worse defect than the bomb it was meant to stop.
 ### 6.7 ReDoS from configuration regexes (B1b)
 
 **Sink.** `re:` patterns in a detection config or environment profile, compiled at 1710 and run
-against scan text.
+against scan text — and, from 2.9, the hostname and file-name patterns of a campaign registry (or
+of a session's campaigns block), compiled by the same function and run against host and file
+names. A loaded registry reports its rejected patterns by name in the status line, as a profile
+does.
 
 **Control.** `unsafeRegexSource()` (1688) rejects the classic nested-quantifier shapes and any
 source longer than `LIMITS.REGEX_SOURCE_CHARS`, at construction. Rejections are reported by name
@@ -503,9 +506,11 @@ produced 6 rejections, named in the status message; detection completed in 0 ms 
 
 ### 6.8 CUI over-distribution (asset A2)
 
-**Sink.** The evidence package, and the repository.
+**Sink.** The evidence package, the repository, and — from 2.9 — the campaign registry, which
+carries host names (expected-asset lists, the host lists of recorded efforts) and the system name.
 
 **Control.** The resume-session file in the package is **opt-in, default off** (`#pkgInclSession`),
+and the campaign registry rides on the same opt-in; `.gitignore` covers `*Campaigns*.json`;
 and `index.html` carries a caveat sentence either way — naming the file as the complete raw
 dataset when it is present, saying it is absent when it is not. In the repository, the
 CUI-protection ignore file shipped as `gitignore.txt`, which git never reads, so every rule in
@@ -550,7 +555,7 @@ could send anything anywhere — `img-src`, `font-src`, `connect-src`, external 
 practical exposure is narrow. It is still the loosest directive in the policy, and hashing the
 stylesheet elements is a deferred step, not a completed one.
 
-**7.2 The ReDoS validator is partial.** §6.7. A colleague's profile carrying `a*a*$` will be
+**7.2 The ReDoS validator is partial.** §6.7. A colleague's profile — or campaign registry — carrying `a*a*$` will be
 accepted and can still hang the tab. That is a working-set availability loss (A3), not an
 integrity loss.
 

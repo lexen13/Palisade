@@ -1,14 +1,14 @@
 {
   "file": "palisade.html",
-  "bytes": 616429,
-  "sha256": "8560c5821228b2638c05eb8dd4270b96a360bfdd7a9d36208dc81f96cfaca9fe",
-  "sha384": "8e616d4d09e84db46528de0518146ebc4a8599dc737e6e21dd82446558ee16f40a10d0372ab34e0072dd8cd5fe0d4a0f",
-  "sha512": "b4451c566f25c014727cec6d61a47b75ab5fabeff5caac4d6f0374ed073117fdd7425c6398cf6aca0b51548902a0fe6b8cc54b40ab76c52550c001e7b37672bf",
+  "bytes": 633166,
+  "sha256": "9b715ff6f82b840fd55b3d89921377c73a0677c36999e511627a2971d6edd9ff",
+  "sha384": "c903107006b19be0648c264027b439465511ac33c37fbdb2781ebf1af9f1d18db5ce7dd3ee72687c6c2670724a861285",
+  "sha512": "52cfb89c41e45ba8f04a9070b798f8623bf5676d85e52eb508de6ee4016fe5b3a88a5e589d6132409d85ae5850f21e3298bbff314116bd3a5c803f2b5a4dbe11",
   "version": "2.9",
   "inlineScriptBlocks": [
     {
-      "bytes": 526865,
-      "sha256": "glTwudDJfDoq38txSPskWWGBbeR80pp2yi4MSyERi4g="
+      "bytes": 543279,
+      "sha256": "u/5VN3fRkQhKFffe6MEVy/ZWV9YKb9s9y3gDSw3j4/c="
     }
   ],
   "lineEndings": "LF",

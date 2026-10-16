@@ -94,7 +94,7 @@ explicitly and fall back to OS inference — they are never silently treated as 
 | `STIG_Compliance_Summary.csv` / `STIG_Open_Findings.csv` / `STIG_Coverage.csv` | CM-6, CM-6(1), CA-2, CA-7 |
 | `Scan_Coverage.csv` | RA-5, RA-5(1), RA-5(5) — credentialed-scan verification |
 | `Trend_Burndown.csv` | CA-7, PM-6 — posture direction across cycles |
-| `Enclave_Status.csv` / `Campaign_Log.csv` / `Campaign_Scope_<name>.csv` | RA-5, RA-5(1), CA-7, CM-8(3) — scan coverage by zone, one row per scan effort, and every host in one scope |
+| `Enclave_Status.csv` / `Campaign_Log.csv` / `Campaign_Scope_<name>.csv` | RA-5, RA-5(1), CA-7, CM-8(3), PM-6 — scan coverage by zone, one row per scan effort, and every host in one scope |
 | `Asset_Report_<host>.csv` | Everything known about one asset, as a hand-off artifact |
 | `Control_Mapping.csv` | The mapping itself, as a reviewable artifact |
 
@@ -158,7 +158,7 @@ demonstrates rather than relying on the reader to know.
   cadence status, expected assets that never appeared, and posture. Files are attributed to
   a campaign as they load; rules suggest attribution for anything loaded without one, and all
   of it can be changed later. A small registry file is the tracking database (see below)
-- **Report builder** — one document assembled from 20 sections, with audience presets you can
+- **Report builder** — one document assembled from 21 sections, with audience presets you can
   redefine and share; print-tuned for PDF
 - **Evidence package** — every artifact plus an index page saying who each file is for, in one zip
 - **Leadership reports** — four decision-maker lenses with a self-contained HTML report,
@@ -231,11 +231,14 @@ without touching the first.
 
 An **enclave** is a zone you scan as a unit — *Weather Enclave*, *Operations*, *HR*. It carries
 an owner, a scan cadence in days, the rules that recognize its hosts (IP ranges such as
-`203.0.113.0/24`, dash ranges, dotted prefixes, hostname patterns, file-name patterns), and an
-optional **expected-asset list**. A **campaign** is one scan effort against an enclave or the
+`203.0.113.0/24`, dash ranges, dotted prefixes, hostname patterns — the most specific IP rule
+wins, then the longest name pattern), file-name patterns that suggest which campaign a file
+belongs to, and an optional **expected-asset list**. A **campaign** is one scan effort against an enclave or the
 whole site: a planned window, a status (planned → active → complete), and the files and hosts
 attributed to it. Closing a campaign records a results snapshot — hosts seen, scan dates, findings
-by severity, STIG score, unsupported components — that outlives the session it came from.
+by severity, STIG score, unsupported components, broken down per zone — that outlives the
+session it came from. A closed effort is frozen: a file loaded after it closed never counts
+toward it, and a snapshot with no scan dates in its files records no date rather than today's.
 
 **Attribution is deliberate and reversible.** Pick a campaign under *loading into* (on the
 Campaigns tab or the strip above the drop zone) and every file you load is attributed to it. Loaded
@@ -246,17 +249,24 @@ by the campaign that loaded it; when the rules and the campaign disagree the hos
 decision rather than silently filed.
 
 **The registry is the tracking database.** Because the tool has no storage and no network by
-design, the registry is a small JSON sidecar — enclaves, campaigns, recorded results, overrides,
-no scan payloads — saved from the Registry menu and kept on the team share beside the session
-files. Load it next cycle and the *Plan* view says which zones are overdue against their cadence,
-which have never been scanned, which expected assets never appeared, and which effort is still
-open. Two teammates' registries merge by id: the newer record wins its fields, lists union, and
-a recorded result is replaced only by one recorded later. The registry also rides inside the
-session file, and loading a pre-2.9 session simply yields no campaigns.
+design, the registry is a small JSON sidecar — enclaves, campaigns, recorded results, overrides —
+saved from the Registry menu and kept on the team share beside the session files. It carries no
+findings or scan payloads, but it does carry host names (expected-asset lists, the host lists of
+recorded efforts) and the system name, so handle it like a session file. Load it next cycle and
+the *Plan* view says which zones are overdue against their cadence, which have never been scanned,
+which expected assets never appeared, and which effort is still open — a site-wide sweep's record
+counts toward every zone it touched. Two teammates' registries merge record by record: the more
+recently updated copy wins outright, lists included, so a move or a removal made by the newer
+side carries across; copies with equal timestamps union their lists; a recorded result is replaced
+only by one recorded later; two enclaves with the same name are treated as one; a file claimed by
+two campaigns stays with the more recently updated one. Tick *replace instead of merge* to discard
+what is in memory. The registry also rides inside the session file, and loading a pre-2.9 session
+simply yields no campaigns.
 
 The *Scope* view shows just the hosts of one campaign or enclave, with their posture and the top
-remediation actions for that zone alone. It is a lens, not a filter: every other tab, the
-readiness meter, and every existing export still describe the whole dataset.
+remediation actions for that zone alone. It is a lens, not a filter: no existing finding, count,
+or meter value moves. What does change once campaigns are in use is additive — the control map,
+the ISSM and QC report presets, and the evidence package gain campaign entries.
 
 ## Reporting
 
@@ -271,7 +281,7 @@ starting point, tick the sections you want, watch the preview, export:
 | Pre-delivery QC | You, before anything ships | Readiness, scan health, coverage gaps, reconciliation |
 | Full record | The archive copy | Every section that has data |
 
-Twenty sections are available, each drawing on the same function the matching tab renders from —
+Twenty-one sections are available, each drawing on the same function the matching tab renders from —
 so the report can never disagree with the screen. Sections with no data drop out of the finished
 document on their own.
 
@@ -380,8 +390,9 @@ Read these before you rely on an export.
 
 ## Handling your data
 
-Scan exports, session files, and generated artifacts contain hostnames, IP addresses, MAC
-addresses, and software inventories for real systems. Handle them at whatever classification
+Scan exports, session files, the campaign registry, and generated artifacts contain hostnames,
+IP addresses, MAC addresses, and software inventories for real systems (the registry carries
+host names and the system name, not findings). Handle them at whatever classification
 or sensitivity level your organization assigns that data, and mark them accordingly — the
 banner field at the top of the tool stamps every export.
 
@@ -399,7 +410,7 @@ repository or anything in it.
 reaching the network at all — the core claim in machine-checkable form:
 
 ```
-default-src 'none'; script-src 'sha256-M+KeGiNQAgQszIVsK+kxHtQl6rAXsDOoD9LKjRHIS/Q=';
+default-src 'none'; script-src 'sha256-u/5VN3fRkQhKFffe6MEVy/ZWV9YKb9s9y3gDSw3j4/c=';
 style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none';
 frame-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none';
 manifest-src 'none'; base-uri 'none'; form-action 'none'

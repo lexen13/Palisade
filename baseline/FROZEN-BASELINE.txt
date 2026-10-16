@@ -1,7 +1,7 @@
-PALISADE BASELINE  2026-10-15T23:27:35.565Z
+PALISADE BASELINE  2026-10-16T00:04:11.969Z
 url:      file://<repo>/palisade.html   (absolute path redacted; this file is published)
-captured against: palisade.html v2.9, 616429 bytes,
-                  sha256 8560c5821228b2638c05eb8dd4270b96a360bfdd7a9d36208dc81f96cfaca9fe
+captured against: palisade.html v2.9, 633166 bytes,
+                  sha256 9b715ff6f82b840fd55b3d89921377c73a0677c36999e511627a2971d6edd9ff
 chromium: Chrome/141.0.7390.37
 extraFlags: (none)
 
@@ -32,7 +32,7 @@ demoLoadError: none
 hosts: 6   intelRows: 6   listingFiles: 1
 meter: 21% (6 of 28 checks pass)
 core table <tr> counts: ppsm=19 stig=8 sw=24 asset=9
-report iframe srcdoc length: 22818  note="4 section(s) requested · built in 3 ms"
+report iframe srcdoc length: 22818  note="4 section(s) requested · built in 4 ms"
 
 console errors: 0
 cdp exceptions: 0
@@ -90,5 +90,5 @@ populated containers (30):
   boundaryGrid  rows=0 children=16 textLen=528
   campCards  rows=0 children=7 textLen=137
   campViews  rows=0 children=4 textLen=29
-  campBody  rows=6 children=3 textLen=1812
-  campBar  rows=0 children=5 textLen=147
+  campBody  rows=6 children=3 textLen=1901
+  campBar  rows=0 children=4 textLen=147

@@ -8,20 +8,28 @@ below are ordered by content.*
 
 Scan data says what was found; it does not say whether everything the team is responsible for
 has been scanned, or when. This release adds a Campaigns tab that answers that second question
-as a lens over the loaded evidence. Nothing in it changes a number on any other tab, the readiness
-meter, or any existing export — the frozen demo numbers are byte-for-byte what 2.8 produced.
+as a lens over the loaded evidence. No existing finding, count, or meter value moves — the frozen
+demo numbers are byte-for-byte what 2.8 produced. What does change once campaigns are in use is
+additive: the control map, the ISSM and QC report presets, and the evidence package gain campaign
+entries.
 
 - **Enclaves.** A zone scanned as a unit — Weather, Operations, HR — with an owner, a scan
-  cadence, the rules that recognize its hosts (CIDR, dash range, dotted prefix, hostname pattern,
-  file-name pattern; `re:` works as everywhere else), and an optional expected-asset list.
+  cadence, the rules that recognize its hosts (CIDR, dash range, dotted prefix, hostname pattern —
+  the most specific IP rule wins, then the longest name pattern; `re:` works as everywhere else),
+  file-name patterns that suggest which campaign a file belongs to, and an optional expected-asset
+  list.
   The Plan view shows each zone's last scan, cadence state (current / due soon / overdue / never
   scanned), coverage against the expected list with the assets that never appeared named, and
   posture, then orders the zones into a *what to scan next* list with the reason for each.
 - **Campaigns.** One scan effort: a planned window, a target enclave or the whole site, a
   status, and the files and hosts attributed to it. *Close & record* freezes a results snapshot
-  (hosts seen, scan dates, findings by severity, STIG score, unsupported) that stays in the
-  registry after the session that produced it is gone; *Record* snapshots an open effort without
-  closing it; closed efforts can be reopened.
+  (hosts seen, scan dates, findings by severity, STIG score, unsupported — broken down per zone, so
+  a site-wide sweep counts toward every zone it touched) that stays in the registry after the
+  session that produced it is gone; *Record* snapshots an open effort without closing it; closed
+  efforts can be reopened. A closed effort is frozen: a file loaded after it closed never counts
+  toward it, and a snapshot whose files carry no scan dates records no date rather than today's.
+  Credentials are tri-state everywhere here, as on Scan Health: a host with no plugin-19506
+  record is *not reported*, never counted as a credential failure.
 - **Attribution at the door, reversible later.** Pick a campaign under *loading into* and files
   are attributed as they arrive. Loaded without one? The Attribution view shows what the rules
   suggest per file (file-name patterns, or the zone 60% of its hosts resolve to) and per host
@@ -34,10 +42,13 @@ meter, or any existing export — the frozen demo numbers are byte-for-byte what
   remediation actions for that zone alone — computed with the same functions the
   Vulnerabilities and STIG tabs use, over a host subset.
 - **The registry.** The tracking database is a JSON sidecar, `Palisade_Campaigns_<date>.json`,
-  carrying enclaves, campaigns, recorded results and overrides, and no scan payloads. It saves
-  and loads from the Registry menu, merges by id (newer record wins its fields, lists union, a
-  recorded result is replaced only by a later one) or replaces on request, and also rides inside
-  the session file. It is the eighth place the tool reads untrusted JSON and goes through the same
+  carrying enclaves, campaigns, recorded results and overrides — no findings, but host names, so
+  it is handled like a session file and ignored by git. It saves and loads from the Registry menu,
+  merges record by record (the more recently updated copy wins outright, lists included, so a move
+  or removal made by the newer side propagates; equal timestamps union; a recorded result is
+  replaced only by a later one; same-named enclaves are treated as one; a file claimed twice stays
+  with the newer campaign) or replaces on request after a confirmation, and also rides inside the
+  session file. It is the eighth place the tool reads untrusted JSON and goes through the same
   `safeParse()` as the other seven; on top of that every id, status, list and number is coerced
   to shape, ids that spell a prototype member are regenerated, and a malformed file is refused
   with the previous registry kept.
@@ -48,8 +59,11 @@ meter, or any existing export — the frozen demo numbers are byte-for-byte what
   `6-session`. The asset drawer shows a host's enclave and campaigns.
 - **Provenance carries the scan date.** Each per-file host record (`h.src`) now keeps the date
   that file saw the host, and the Tenable CSV path records the same provenance the `.nessus` path
-  always did, so a campaign's actual scan window is read from its own files rather than from the
-  newest date any file reported.
+  always did, so a campaign's actual scan window is read from its own files; SCC and checklist
+  results record which loaded file (the `.zip`, when they came out of one) contributed them, so
+  they attribute too. CSV records are left out of the ingest-integrity audit, so Scan Health's
+  figures do not change; when the provenance cap is reached the oldest record now goes, not the
+  newest.
 - Help entry, five glossary terms, and demo data: two zones, one open site-wide effort, and one
   recorded effort from a prior cycle, with an expected asset that never scanned so the coverage
   gap is visible on first load.
